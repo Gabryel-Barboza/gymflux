@@ -15,6 +15,7 @@ from gymflow.infra.models.acesso_log import AcessoLogModel
 class AcessoLogRepository(Protocol):
     def registrar(self, tentativa: TentativaAcesso) -> TentativaAcesso: ...
     def listar_por_aluno(self, aluno_id: str) -> list[TentativaAcesso]: ...
+    def buscar_ultimo_por_aluno(self, aluno_id: str) -> TentativaAcesso | None: ...
     def listar(self) -> list[TentativaAcesso]: ...
     def total(self) -> int: ...
     def limpar(self) -> None: ...
@@ -37,7 +38,7 @@ def _model_to_domain(m: AcessoLogModel) -> TentativaAcesso:
         timestamp=m.timestamp,
         resultado=resultado,
         motivo=m.motivo,
-        detalhes=None,
+        detalhes=m.detalhes,
         catraca_id=m.catraca_id,
         timeout_giro_s=m.timeout,
     )
@@ -54,6 +55,7 @@ def _domain_to_model(t: TentativaAcesso, log_id: str | None = None) -> AcessoLog
         if isinstance(t.resultado, ResultadoAcesso)
         else str(t.resultado),
         motivo=str(t.motivo) if t.motivo else None,
+        detalhes=t.detalhes,
         catraca_id=t.catraca_id,
         timeout=t.timeout_giro_s,
     )
@@ -116,6 +118,12 @@ class AcessoLogRepositoryMemoria:
 
     def listar_por_aluno(self, aluno_id: str) -> list[TentativaAcesso]:
         return [t for t in self._logs if t.aluno_id == aluno_id]
+
+    def buscar_ultimo_por_aluno(self, aluno_id: str) -> TentativaAcesso | None:
+        logs = self.listar_por_aluno(aluno_id)
+        if not logs:
+            return None
+        return max(logs, key=lambda t: t.timestamp)
 
     def listar(self) -> list[TentativaAcesso]:
         return list(self._logs)

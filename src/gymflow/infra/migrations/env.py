@@ -33,13 +33,13 @@ target_metadata = Base.metadata
 def _get_url() -> str:
     # Prefer GYMFLOW_DB_URL via settings; fallback to alembic.ini
     try:
-        url = get_settings().db_url
-        if url:
-            return url
+        settings_url = get_settings().db_url
+        if settings_url:
+            return settings_url
     except Exception:
         pass
-    url = config.get_main_option("sqlalchemy.url")
-    return url or "sqlite:///data/gymflow.db"
+    ini_url: str | None = config.get_main_option("sqlalchemy.url")
+    return ini_url or "sqlite:///data/gymflow.db"
 
 
 def run_migrations_offline() -> None:

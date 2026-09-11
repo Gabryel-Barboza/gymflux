@@ -47,7 +47,6 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.8",
     "mypy>=1.11",
-    "types-sqlalchemy",
     "pyinstaller>=6.10",
     "pre-commit>=4.0",
 ]
@@ -73,14 +72,6 @@ warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
 no_implicit_optional = true
-
-[[tool.mypy.overrides]]
-module = [
-    "gymflow.infra.*",
-    "alembic.*",
-    "sqlalchemy.*",
-]
-ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

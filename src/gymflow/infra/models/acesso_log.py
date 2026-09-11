@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from gymflow.infra.db import Base
@@ -21,6 +21,7 @@ class AcessoLogModel(Base):
     direcao: Mapped[str] = mapped_column(String(10), nullable=False)
     resultado: Mapped[str] = mapped_column(String(20), nullable=False)
     motivo: Mapped[str | None] = mapped_column(String(40), nullable=True, default=None)
+    detalhes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     catraca_id: Mapped[str | None] = mapped_column(String(36), nullable=True, default=None)
     timeout: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
 

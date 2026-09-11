@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 from loguru import logger
 
@@ -20,9 +20,6 @@ from gymflow.core.pagamento import Pagamento
 from gymflow.core.plano import Matricula
 from gymflow.core.regras import RegraAcesso, RegraAcessoConfig
 from gymflow.hardware.henry7x.interface import Direcao, Henry7xDriver, ResultadoCatraca
-
-if TYPE_CHECKING:
-    pass
 
 
 def _direcao_core_para_hw(d: DirecaoAcesso) -> Direcao:
@@ -63,6 +60,7 @@ class _PagamentoRepoProto(Protocol):
 class _AcessoRepoProto(Protocol):
     def registrar(self, tentativa: TentativaAcesso) -> Any: ...
     def listar_por_aluno(self, aluno_id: str) -> list[TentativaAcesso]: ...
+    def buscar_ultimo_por_aluno(self, aluno_id: str) -> TentativaAcesso | None: ...
 
 
 @dataclass(slots=True)
@@ -96,11 +94,9 @@ class LiberarAcessoService:
         # tenta via acesso_repo primeiro (persistido), fallback registro memória
         if self.acesso_repo is not None:
             try:
-                # tenta método buscar_ultimo se existir
-                if hasattr(self.acesso_repo, "buscar_ultimo_por_aluno"):
-                    ultimo = self.acesso_repo.buscar_ultimo_por_aluno(aluno_id)  # type: ignore[attr-defined]
-                    if ultimo:
-                        return ultimo.direcao  # type: ignore[no-any-return]
+                ultimo = self.acesso_repo.buscar_ultimo_por_aluno(aluno_id)
+                if ultimo:
+                    return ultimo.direcao
                 logs = self.acesso_repo.listar_por_aluno(aluno_id)
                 if logs:
                     return logs[-1].direcao

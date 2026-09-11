@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
@@ -83,8 +84,9 @@ def get_session(db_url: str | None = None, echo: bool = False) -> Session:
     return factory()
 
 
-def session_scope(db_url: str | None = None) -> Generator[Session, None, None]:
-    """Context manager gerador (uso: with session_scope() as s)."""
+@contextmanager
+def session_scope(db_url: str | None = None) -> Iterator[Session]:
+    """Context manager (uso: with session_scope() as s)."""
     session = get_session(db_url)
     try:
         yield session

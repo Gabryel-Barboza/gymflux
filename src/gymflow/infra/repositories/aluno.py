@@ -29,9 +29,11 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
         id=m.id,
         nome=m.nome,
         cpf=m.cpf,
+        data_nasc=m.data_nasc,
         telefone=m.telefone,
         email=m.email,
         status=status,
+        observacoes=m.observacoes,
         bloqueado_manual=bool(m.bloqueado_manual),
     )
 
@@ -41,9 +43,11 @@ def _domain_to_model(aluno: Aluno) -> AlunoModel:
         id=aluno.id,
         nome=aluno.nome,
         cpf=aluno.cpf,
+        data_nasc=aluno.data_nasc,
         telefone=aluno.telefone,
         email=aluno.email,
         status=aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status),
+        observacoes=aluno.observacoes,
         bloqueado_manual=bool(aluno.bloqueado_manual),
     )
 
@@ -62,11 +66,13 @@ class AlunoRepositorySQLAlchemy:
         else:
             existing.nome = aluno.nome
             existing.cpf = aluno.cpf
+            existing.data_nasc = aluno.data_nasc
             existing.telefone = aluno.telefone
             existing.email = aluno.email
             existing.status = (
                 aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status)
             )
+            existing.observacoes = aluno.observacoes
             existing.bloqueado_manual = bool(aluno.bloqueado_manual)
         self.session.flush()
         return aluno

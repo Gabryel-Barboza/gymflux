@@ -118,10 +118,10 @@ def cmd_db_downgrade(_args: argparse.Namespace) -> int:
 
 def cmd_db_seed(_args: argparse.Namespace) -> int:
     """Seed demo — 3 alunos + planos Mensal/Trimestral (idempotente)."""
-    # garante DB migrated
-    import contextlib
     from datetime import date, timedelta
     from decimal import Decimal
+
+    from loguru import logger
 
     from gymflow.core.aluno import Aluno, StatusAluno
     from gymflow.core.pagamento import Pagamento
@@ -132,8 +132,12 @@ def cmd_db_seed(_args: argparse.Namespace) -> int:
     from gymflow.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
     from gymflow.infra.repositories.plano import PlanoRepositorySQLAlchemy
 
-    with contextlib.suppress(Exception):
+    # garante DB migrated (log explícito em vez de suppress silencioso)
+    try:
         cmd_db_upgrade(argparse.Namespace())
+    except Exception as e:
+        logger.warning(f"[seed] upgrade automático falhou ({e}), tentando seed mesmo assim")
+        print(f"[seed] aviso: upgrade automático falhou ({e}), tentando seed mesmo assim")
 
     session = get_session()
     try:

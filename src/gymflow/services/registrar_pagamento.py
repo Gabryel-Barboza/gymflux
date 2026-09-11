@@ -51,20 +51,8 @@ class RegistrarPagamentoService:
     repo: PagamentoRepoProtocol = field(default_factory=RepositorioPagamentosMemoria)
 
     def registrar(self, pagamento: Pagamento) -> Pagamento:
-        # verifica duplicado via buscar_por_id se disponível
-        try:
-            if (
-                hasattr(self.repo, "buscar_por_id")
-                and self.repo.buscar_por_id(pagamento.id) is not None  # type: ignore[attr-defined]
-            ):
-                raise ValueError(f"Pagamento id={pagamento.id} já existe") from None
-        except AttributeError as e:
-            # fallback para memória que usa _pagamentos
-            if (
-                isinstance(self.repo, RepositorioPagamentosMemoria)
-                and pagamento.id in self.repo._pagamentos
-            ):
-                raise ValueError(f"Pagamento id={pagamento.id} já existe") from e
+        if self.repo.buscar_por_id(pagamento.id) is not None:
+            raise ValueError(f"Pagamento id={pagamento.id} já existe")
         result = self.repo.salvar(pagamento)
         logger.info(f"[RegistrarPagamento] id={pagamento.id} aluno={pagamento.aluno_id}")
         return result if result is not None else pagamento
