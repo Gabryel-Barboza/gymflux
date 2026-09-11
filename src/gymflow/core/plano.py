@@ -41,6 +41,64 @@ class Plano:
         if self.tolerancia_dias < 0:
             raise ValueError("tolerancia_dias não pode ser negativo")
 
+    @classmethod
+    def criar_mensal(
+        cls,
+        id: str = "mensal",
+        nome: str = "Mensal",
+        valor: Decimal | str | float = Decimal("99.90"),
+        tolerancia_dias: int = 3,
+    ) -> Plano:
+        return cls(
+            id=id,
+            nome=nome,
+            duracao_dias=30,
+            valor=Decimal(str(valor)),
+            tolerancia_dias=tolerancia_dias,
+            tipo=TipoPlano.MENSAL,
+        )
+
+    @classmethod
+    def criar_trimestral(
+        cls,
+        id: str = "trimestral",
+        nome: str = "Trimestral",
+        valor: Decimal | str | float = Decimal("259.90"),
+        tolerancia_dias: int = 3,
+    ) -> Plano:
+        return cls(
+            id=id,
+            nome=nome,
+            duracao_dias=90,
+            valor=Decimal(str(valor)),
+            tolerancia_dias=tolerancia_dias,
+            tipo=TipoPlano.TRIMESTRAL,
+        )
+
+    @classmethod
+    def criar_anual(
+        cls,
+        id: str = "anual",
+        nome: str = "Anual",
+        valor: Decimal | str | float = Decimal("999.90"),
+        tolerancia_dias: int = 3,
+    ) -> Plano:
+        return cls(
+            id=id,
+            nome=nome,
+            duracao_dias=365,
+            valor=Decimal(str(valor)),
+            tolerancia_dias=tolerancia_dias,
+            tipo=TipoPlano.ANUAL,
+        )
+
+
+PLANOS_PADRAO: dict[str, Plano] = {
+    "mensal": Plano.criar_mensal(),
+    "trimestral": Plano.criar_trimestral(),
+    "anual": Plano.criar_anual(),
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Vigencia:

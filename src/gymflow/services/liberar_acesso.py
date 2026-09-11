@@ -67,6 +67,8 @@ class LiberarAcessoService:
         hoje: date = agora or date.today()
         ts: datetime = timestamp or datetime.now()
 
+        tolerancia = matricula.plano.tolerancia_dias if matricula is not None else None
+
         decisao = self.regra.avaliar(
             aluno=aluno,
             matricula=matricula,
@@ -74,6 +76,7 @@ class LiberarAcessoService:
             agora=hoje,
             direcao=direcao,
             ultimo_acesso_direcao=ultimo_acesso_direcao,
+            tolerancia_dias=tolerancia,
         )
 
         aluno_id = aluno.id if aluno else "desconhecido"
