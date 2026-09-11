@@ -1,0 +1,72 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.venv32
+
+# DLLs e artefatos proprietários Henry (não versionar binários)
+*.dll
+*.ocx
+*.sys
+# vendor/ guarda DLLs localmente — ignorar binários mas versionar README
+vendor/*.dll
+vendor/*.ocx
+vendor/*.sys
+drivers/
+kernel7x.dll
+
+# Banco local
+*.db
+*.sqlite
+*.sqlite3
+instance/
+# data/ ignora DBs mas mantém .gitkeep
+data/*.db
+data/*.sqlite*
+data/*.log
+
+# PyInstaller
+*.spec
+build/pyinstaller/
+dist/
+*.exe
+*.msi
+
+# Inno Setup
+Output/
+
+# Env e secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# SO
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Docs build
+docs/_build/
+site/
+
+# Mocks dumps — ignora dumps gerados, mantém .gitkeep e *.txt de exemplo
+dumps/*.txt
+dumps/*.bin
+dumps/*.log
