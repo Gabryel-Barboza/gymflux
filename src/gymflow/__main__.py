@@ -1,4 +1,4 @@
-"""Entry point CLI `gms` — Fase 0 mock demo, sem deps pesadas."""
+"""Entry point CLI `gymflow` — Fase 0 mock demo, sem deps pesadas."""
 
 from __future__ import annotations
 
@@ -7,30 +7,30 @@ import sys
 
 
 def cmd_mock_demo(_args: argparse.Namespace) -> int:
-    from gms_app.hardware.henry7x.factory import get_henry_driver
-    from gms_app.hardware.henry7x.interface import Direcao
+    from gymflow.hardware.henry7x.factory import get_henry_driver
+    from gymflow.hardware.henry7x.interface import Direcao
 
     driver = get_henry_driver()
-    print(f"[GMS] Driver: {driver.__class__.__name__} (mock={driver.is_mock})")
-    print("[GMS] Conectando...")
+    print(f"[GymFlow] Driver: {driver.__class__.__name__} (mock={driver.is_mock})")
+    print("[GymFlow] Conectando...")
     ok = driver.conectar(porta="MOCK:1")
-    print(f"[GMS] conectar() -> {ok} | status={driver.status()}")
+    print(f"[GymFlow] conectar() -> {ok} | status={driver.status()}")
 
-    print("[GMS] Liberando catraca (ENTRADA)...")
+    print("[GymFlow] Liberando catraca (ENTRADA)...")
     res = driver.liberar(Direcao.ENTRADA)
-    print(f"[GMS] liberar() -> {res}")
+    print(f"[GymFlow] liberar() -> {res}")
 
     def on_giro(direcao, ts):
         print(f"[EVENTO] giro detectado direcao={direcao} ts={ts}")
 
     driver.on_giro(on_giro)
-    print("[GMS] Aguardando giro simulado (2s)...")
+    print("[GymFlow] Aguardando giro simulado (2s)...")
     import time
 
     time.sleep(2.5)
-    print(f"[GMS] status final: {driver.status()}")
+    print(f"[GymFlow] status final: {driver.status()}")
     driver.desconectar()
-    print("[GMS] desconectado.")
+    print("[GymFlow] desconectado.")
     return 0
 
 
@@ -38,11 +38,11 @@ def cmd_info(_args: argparse.Namespace) -> int:
     import platform
     import struct
 
-    print("GMS — Gym Management System")
+    print("GymFlow — Sistema de gerenciamento para academias (Henry 7x)")
     print(f"  Python: {platform.python_version()} ({struct.calcsize('P') * 8}-bit)")
     print(f"  Platform: {sys.platform} / {platform.machine()}")
     print(f"  Executable: {sys.executable}")
-    from gms_app.config.settings import get_settings
+    from gymflow.config.settings import get_settings
 
     s = get_settings()
     print(f"  Settings: mock={s.henry_mock} dll={s.henry_dll_path} db={s.db_url}")
@@ -50,7 +50,9 @@ def cmd_info(_args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="gms", description="GMS — Gym Management System")
+    p = argparse.ArgumentParser(
+        prog="gymflow", description="GymFlow — Sistema de gerenciamento para academias"
+    )
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sp = sub.add_parser("mock-demo", help="demonstra hardware mockado (Linux)")

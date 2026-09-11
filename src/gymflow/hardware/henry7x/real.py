@@ -15,7 +15,7 @@ from typing import Any
 
 from loguru import logger
 
-from gms_app.hardware.henry7x.interface import (
+from gymflow.hardware.henry7x.interface import (
     Direcao,
     GiroCallback,
     Henry7xDriver,

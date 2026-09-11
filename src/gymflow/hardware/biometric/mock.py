@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 
-from gms_app.hardware.biometric.interface import BiometricDriver, TemplateBiometrico
+from gymflow.hardware.biometric.interface import BiometricDriver, TemplateBiometrico
 
 
 class MockBiometricDriver(BiometricDriver):

@@ -1,14 +1,11 @@
-# GMS — Gym Management System
+# GymFlow — Sistema de Gestão para Academias (Henry 7x)
 
-> Sistema de gerenciamento para academias com integração **Henry 7x** (catraca).
-> Substituto open-source moderno para controle de acesso, cadastro de alunos, planos, pagamentos e biometria.
+> Substituto open-source moderno para controle de acesso, cadastro de alunos, planos, pagamentos e biometria com **catracas Henry 7x**.
 
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20(dev)-lightgrey)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-Apache--2.0-green)
 ![Status](https://img.shields.io/badge/status-bootstrap-yellow)
-
-> **Nome provisório:** GMS. Sugestões em votação: `IronGate`, `FitCatraca`, `TitanGym`, `GymPass Pro`, `HenryFlow` — decida em `docs/DECISIONS.md`.
 
 ## Por que Python?
 
@@ -35,8 +32,8 @@ uv run ruff format src tests
 uv run mypy src
 
 # 4. Rodar CLI
-uv run gms --help
-uv run gms mock-demo  # demonstra hardware mockado
+uv run gymflow --help
+uv run gymflow mock-demo  # demonstra hardware mockado
 
 # 5. Inspecionar DLL (quando disponível)
 uv run python scripts/inspect_dll.py --help
@@ -49,24 +46,24 @@ uv run python scripts/inspect_dll.py vendor/kernel7x.dll
 # PowerShell — DEVE ser Python 32-bit!
 python -c "import struct; print(struct.calcsize('P')*8)"  # deve imprimir 32
 uv sync --group dev --python 3.11
-$env:GMS_HENRY_MOCK="0"
-uv run gms catraca status
+$env:GYMFLOW_HENRY_MOCK="0"
+uv run gymflow catraca status
 .\vendor\kernel7x.dll  # colocar ao lado do .exe após build
 ```
 
 ## Estrutura
 
 ```
-src/gms_app/
-├── config/        # pydantic-settings, .env
+src/gymflow/       # pacote único (v1 sem legado)
+├── config/        # pydantic-settings, .env (GYMFLOW_*)
 ├── core/          # domínio puro (aluno, plano, pagamento, acesso)
 ├── hardware/
-│   ├── henry7x/   # interface.py (ABC) + mock.py + real.py (ctypes)
+│   ├── henry7x/   # interface.py (ABC) + mock.py + real.py (COM pywin32 32-bit)
 │   └── biometric/ # abstração biometria
 ├── infra/         # sqlalchemy models, repositories, alembic
 ├── services/      # casos de uso (LiberarAcessoService etc)
 └── ui/            # PySide6 (Fase 4)
-docs/              # documentações
+docs/              # documentações (ignorado no git, ver .gitignore)
 scripts/           # inspect_dll.py
 tests/             # pytest
 ```
@@ -86,10 +83,10 @@ Ver `docs/ROADMAP.md` detalhado.
 
 ## Contrato Henry 7x
 
-A catraca Henry 7x expõe `kernel7x.dll` (32-bit, stdcall). Toda comunicação passa por `src/gms_app/hardware/henry7x/interface.py`.
+A catraca Henry 7x expõe `kernel7x.dll` (32-bit, **COM** `Henry.Kernel7x`, não stdcall plana). Toda comunicação passa por `src/gymflow/hardware/henry7x/interface.py`.
 
 - **Dev Linux:** `MockHenry7x` simula liberação/bloqueio, timeout, eventos.
-- **Prod Windows:** `RealHenry7x` via `ctypes.WinDLL`.
+- **Prod Windows (32-bit):** `RealHenry7x` via `win32com.client.Dispatch("Henry.Kernel7x")` (pywin32, serial `SComConfig` + `AdicionaCard`).
 
 Para mapear a DLL, cole o dump PowerShell em `docs/DLL_CONTRACT.md` ou rode:
 
@@ -106,7 +103,7 @@ Ver `docs/DLL_CONTRACT.md` para template e extração avançada.
 
 ## Licença
 
-MIT — ver `LICENSE`. Permissiva, permite uso comercial por academias/fornecedores. Se precisar proteção contra forks fechados, considere AGPL (discutido em `docs/DECISIONS.md` ADR-004).
+Apache-2.0 — ver `LICENSE`. Permissiva com grant de patentes, permite uso comercial por academias/fornecedores, sem obrigar liberação de forks fechados (ver `docs/DECISIONS.md` ADR-004 — MIT descartado, GPLv3 avaliado).
 
 ## Documentação
 

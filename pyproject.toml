@@ -1,7 +1,7 @@
 [project]
-name = "gms-app"
+name = "gymflow"
 version = "0.1.0"
-description = "GymFlow (ex-GMS) - Sistema de gerenciamento para academias com integração Henry 7x"
+description = "GymFlow - Sistema de gerenciamento para academias com integração Henry 7x"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [
@@ -38,8 +38,7 @@ windows = [
 # Hardware real depende de Windows 32-bit + DLL
 
 [project.scripts]
-gms = "gms_app.__main__:main"
-gms-app = "gms_app:main"
+gymflow = "gymflow.__main__:main"
 
 [dependency-groups]
 dev = [
@@ -78,10 +77,10 @@ no_implicit_optional = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-v --cov=gms_app --cov-report=term-missing"
+addopts = "-v --cov=gymflow --cov-report=term-missing"
 
 [tool.coverage.run]
-source = ["gms_app"]
+source = ["gymflow"]
 branch = true
 
 [tool.uv]
