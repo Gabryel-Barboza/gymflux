@@ -1,16 +1,17 @@
-# AGENTS.md — Memória Operacional do Projeto GMS
+# AGENTS.md — Memória Operacional do Projeto GymFlow (ex-GMS)
 
 > Este arquivo é a fonte de verdade para qualquer agente/LLM que retomar o projeto.
 > Leia-o **inteiro** no início de cada sessão. Atualize-o ao final de cada marco.
 
-## 1. O que é o GMS
+## 1. O que é o GymFlow
 
-**Gym Management System (GMS)** — nome provisório, sugestões: `IronGate`, `FitCatraca`, `TitanGym`, `GymPass Pro`, `HenryFlow`.
+**GymFlow** (ex-GMS) — nome escolhido em 2026-09-11 (evita marca Henry, ver `docs/DECISIONS.md` ADR-007). Sugestões descartadas: `IronGate`, `FitCatraca`, `TitanGym`, `HenryFlow` (risco marca Henry).
 Substituto open-source para controle de catracas **Henry 7x** em academias Windows.
 
 - **Objetivo final:** executável/instalador Windows (.exe/.msi via Inno Setup) que roda em recepção, gerencia alunos, planos, pagamentos e libera/bloqueia catraca por biometria/cartão/teclado.
-- **Inspiração SCA:** apenas domínio, não copiar código. Código 100% próprio, licença MIT (ver `LICENSE`).
-- **Restrição crítica:** `kernel7x.dll` é **32-bit**. O build de produção **deve** ser Python 32-bit + PyInstaller 32-bit em Windows. Dev em Linux = sempre mockado.
+- **Inspiração SCA:** apenas domínio, não copiar código. Código 100% próprio, licença a definir Apache-2.0 vs GPL (ver `LICENSE` + ADR-004).
+- **Restrição crítica:** `kernel7x.dll` é **COM 32-bit** (`DllRegisterServer`, não exports planos). Build produção **deve** ser Python 32-bit + `pywin32` COM (`win32com.client.Dispatch("Henry.Kernel7x")`) em Windows 10/11 64-bit (WOW64). Dev Linux = mockado.
+- **Conexão:** Serial (COMx via `SComConfig` + `AdicionaCard`/`ListaPortasSeriais`), não TCP.
 
 ## 2. Ambiente e Convenções Atuais
 
@@ -66,21 +67,22 @@ src/gms_app/
   - Git repo iniciado, commit inicial feito.
   - Próximo passo: usuário deve enviar dump do `kernel7x.dll` (texto do PowerShell) para preencher `docs/DLL_CONTRACT.md` e gerar `real.py` esqueleto.
 
-## 5. Contrato Henry 7x — O que sabemos
+## 5. Contrato Henry 7x — O que sabemos (2026-09-11 atualizado)
 
-- DLL: `kernel7x.dll` (32-bit, Windows)
-- Acesso via `ctypes.WinDLL` / `ctypes.windll` com `stdcall` (WinAPI).
-- Usuário tem DLLs e já extraiu lista de métodos via PowerShell — aguardando colar o conteúdo.
-- Inspeção local possível: `pefile`, `winedump`, `strings`, `dumpbin.exe` (Windows), `oleview`.
-- Ver `docs/DLL_CONTRACT.md` para template e `scripts/inspect_dll.py` para automatizar.
+- DLL: `kernel7x.dll` (32-bit, COM/OLE) — **não** é DLL plana, é `Henry.Kernel7x` COM — ver `docs/DLL_CONTRACT.md:30` dump PowerShell com 100+ métodos (`AdicionaCard`, `Bio_*`, `Envia*`, `Recebe*`, `ColetaEventos` etc).
+- Acesso real em Windows: `win32com.client.Dispatch("Henry.Kernel7x")` (pywin32 32-bit). `factory.py` detectará `ListaPortasSeriais` + `SComConfig`.
+- Conexão: **Serial** (`SComConfig` + `AdicionaCard`/`RemoveCard`), `ListaPortasSeriais` lista COMs.
+- Ver `docs/DLL_CONTRACT.md` completo e `scripts/inspect_dll.py` para automatizar.
 
 ## 6. Decisões Chave (ADRs resumidas, ver `docs/DECISIONS.md`)
 
-1. **Python sim** — expertise do autor > vantagem nativa C#; contornável com PyInstaller 32-bit.
-2. **SQLite local** — academia típica = 1 PC recepção, sem infra.
-3. **PySide6** — Qt maduro, LGPL, ótimo para tabelas/forms/biometria.
-4. **Mock-first** — todo dev Linux roda mock; CI Windows testa real.
-5. **MIT** — permissiva, permite uso comercial por academias/fornecedores.
+1. **Python sim** — expertise > C#; mas COM exige `pywin32` (ADR-001 atualizada).
+2. **SQLite local** — 2000+ registros é trivial (ver ADR-002, bench <3ms/busca).
+3. **PySide6** — Qt LGPL, faseado (ADR-003).
+4. **Mock-first** — Linux mock, COM real só Windows 32-bit (ADR-005).
+5. **Licença Apache-2.0 vs GPL** — decidir (ADR-004, MIT descartado).
+6. **GymFlow** — nome sem marca Henry (ADR-007).
+7. **vendor/docs gitignore** — `vendor/` 100% ignorado (Henry proprietário), `docs/` opcional (ADR-008).
 
 ## 7. Roadmap (ver `docs/ROADMAP.md`)
 
@@ -93,11 +95,11 @@ src/gms_app/
 
 ## 8. Pendências / Perguntas para o Dono
 
-- [ ] Colar dump PowerShell do `kernel7x.dll` (lista de exports + assinaturas).
-- [ ] Quais DLLs/exemplos Henry foram entregues? (ex: `Exemplo VB6`, `C#`, `Delphi`? Tem `.h`, `.pdf`, manual?)
-- [ ] Modelo exato da catraca Henry 7x? (ex: 7x Plus, com/sem biometria, com QR?)
-- [ ] Confirmar licença MIT ok ou prefere GPL/Apache2?
-- [ ] Confirmar nome provisório GMS ou escolher um da lista?
+- [x] Dump PowerShell colado em `docs/DLL_CONTRACT.md:30` (100+ métodos COM).
+- [x] Vendor `vendor/` extraído localmente p/ inspeção do contrato.
+- [x] Modelo catraca? Ainda pendente.
+- [ ] Confirmar licença: **Apache-2.0** (recomendada) vs **GPLv3** — ver `docs/DECISIONS.md:63` ADR-004.
+- [x] Nome: **GymFlow** aprovado (HenryFlow descartado por marca).
 
 ## 9. Checklist para Próxima Sessão
 
@@ -109,8 +111,10 @@ src/gms_app/
 ## 10. Notas de Cross-Platform
 
 - Em Linux, `hardware/henry7x/real.py` deve falhar graciosamente com `RuntimeError("Disponível apenas em Windows 32-bit")`.
-- Factory `get_henry_driver()` decide por `sys.platform` + env var `GMS_HENRY_MOCK=1`.
-- Build Windows: usar GitHub Actions `windows-latest` com Python 3.11 32-bit (`architecture: x86`) ou VM local.
+- Factory `get_henry_driver()` decide por `sys.platform` + env var `GMS_HENRY_MOCK=1`. Em prod usa `win32com.client.Dispatch("Henry.Kernel7x")`, não `ctypes`.
+- Build Windows: usar GitHub Actions `windows-latest` com Python 3.11 32-bit (`architecture: x86`) ou VM local. Windows 64-bit roda app 32-bit via WOW64 sem problema.
+- `vendor/` e `docs/` agora em `.gitignore:74` — ambos ignorados p/ GitHub (interno).
+- Serial: `ListaPortasSeriais` → escolher `COM3` etc, `SComConfig` define baud/paridade; `AdicionaCard(SComConfig, int)` abre porta.
 
 ---
 *Última atualização: 2026-09-11 por bootstrap agent. Mantenha este arquivo enxuto e factual.*

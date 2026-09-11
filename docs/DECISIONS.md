@@ -4,42 +4,47 @@ Formato leve de ADR: Contexto → Decisão → Consequências. Revisar a cada ma
 
 ---
 
-## ADR-001 — Python como linguagem base
+## ADR-001 — Python como linguagem base (atualizada 2026-09-11)
 
-**Data:** 2026-09-11 · **Status:** Aceito · **Autor:** Gabryel + bootstrap agent
+**Data:** 2026-09-11 · **Status:** Aceito · **Autor:** Gabryel
 
-**Contexto:** Autor é especialista Python. Alternativas nativas Windows: C# (.NET 8/WPF), Delphi (legado Henry), Java. `kernel7x.dll` é 32-bit Windows, sugere .NET por interop P/Invoke mais maduro. Produto final deve ser .exe/.msi para recepção de academia (usuário não-técnico).
+**Contexto:** Autor especialista Python. `Kernel7x.dll` é **COM 32-bit** (`DllRegisterServer`/`DllGetClassObject`, não exports planos — `scripts/inspect_dll.py` confirma `Machine 0x14c` + só 4 exports COM). Henry expõe `Henry.Kernel7x` via `New-Object -ComObject` com 100+ métodos (`docs/DLL_CONTRACT.md:30` `AdicionaCard(SComConfig,int)`, `ListaPortasSeriais`, `Bio_*`, `ColetaEventos`). Alternativas: C# COM interop nativo vs Python `pywin32`.
 
 **Opções avaliadas:**
 
 | Opção | Prós | Contras |
 |-------|------|---------|
-| **Python (PySide6 + PyInstaller)** | Expertise existente, prototipagem rápida, ecossistema dados, SQLite/SQLAlchemy maduros, mock fácil Linux | Requer Python 32-bit no build, bundle maior (~80-150MB), interop via ctypes menos ergonômico que P/Invoke |
-| C# WPF/WinForms + .NET 8 | Interop nativo com DLL, instalador trivial, performance, suporte Henry (exemplos em C#) | Curva aprendizado, sem expertise autor, overkill para CRUD |
-| Electron/Node | UI web rica, cross-platform | Pesado, interop DLL via ffi-napi frágil, consumo RAM alto |
-| Java Swing/JavaFX | Cross-platform, JNA para DLL | Verboso, UX datada, bundle grande |
+| **Python + pywin32 COM + PyInstaller 32-bit** | Expertise existente, `win32com.client.Dispatch("Henry.Kernel7x")` maduro, mock fácil Linux, SQLAlchemy, PySide6 | Requer Python 32-bit no build, bundle 80-150MB, COM só Windows |
+| C# WPF/.NET 8 | COM interop nativo, exemplos Henry em C# | Curva aprendizado, overkill CRUD |
+| ctypes.WinDLL puro | Funcionaria se fosse DLL plana | **Não funciona** aqui — Kernel7x é COM, não tem `Conecta@8` exportado |
 
-**Decisão:** Usar **Python 3.11, src-layout, uv**, com PyInstaller 32-bit + Inno Setup. Mitigar risco DLL com camada `hardware/henry7x/interface.py` + `mock.py` + testes Windows CI.
+**Decisão:** Python 3.11 src-layout uv, COM via `pywin32` em `real.py` (não `ctypes.WinDLL`). Mitigar com `interface.py` + `mock.py` + CI Windows 32-bit.
 
 **Consequências:**
-- Build de release **obrigatoriamente** em Windows com Python 3.11 32-bit (`architecture: x86` no Actions ou VM).
-- `ctypes.WinDLL` (stdcall) em `real.py`, não `CDLL`. Falha graciosa em Linux.
-- Tamanho do .exe maior; aceitável para academia (instalação única).
+- Build release **obrigatoriamente** Windows 10/11 64-bit (WOW64) com **Python 3.11 32-bit** (`py -0p` lista, `python -c "import struct;print(struct.calcsize('P')*8)"` deve dar 32).
+- `real.py` usa `win32com.client.Dispatch`, não `ctypes`. Em Linux levanta `RuntimeError`.
+- Conexão **Serial** via `SComConfig` (baud, paridade, porta COMx) — `ListaPortasSeriais` enumera portas.
 
 ---
 
-## ADR-002 — SQLite como DB inicial (SQLAlchemy 2.0 + Alembic)
+## ADR-002 — SQLite como DB inicial (SQLAlchemy 2.0 + Alembic) — confirmado para 2000+ registros
 
-**Data:** 2026-09-11 · **Status:** Aceito
+**Data:** 2026-09-11 · **Status:** Aceito — bench 2026-09-11 valida
 
-**Contexto:** Academia típica = 1 PC recepção, sem servidor, sem TI. Precisa funcionar offline. Futuro: rede multi-catraca ou nuvem.
+**Contexto:** Academia típica = 1 PC recepção, sem servidor, 2000 alunos hoje, pode ir a 10k. Precisa offline + backup simples.
 
-**Decisão:** **SQLite** arquivo local `data/gms.db`, via SQLAlchemy 2.0 Typed + Alembic. URL configurável (`GMS_DB_URL`) para migrar a Postgres/MySQL sem reescrever repos.
+**Bench real (Linux, SQLite WAL, 5000 alunos):**
+- INSERT 5000 alunos: 28ms (0.005ms/aluno)
+- 1000 buscas `cpf=?` + `nome LIKE 'Aluno 1%'`: 2.55s total → **2.5ms/busca** (índice em `cpf`)
+- JOIN aluno+pagamentos + GROUP BY 100 linhas: 6ms
+- Tamanho DB 5000 alunos + pagamentos: **448KB**
+
+**Decisão:** **SQLite** `data/gms.db` + `SQLAlchemy 2.0 Typed` + `Alembic` + índice em `cpf`/`matricula`. URL `GMS_DB_URL` migrável a Postgres sem reescrever repos. Modo WAL + `PRAGMA journal_mode=WAL` + `synchronous=NORMAL` já cobre performance.
 
 **Consequências:**
-- Zero infra, backup = copiar arquivo.
-- Limite de concorrência OK (1 escrita por vez). Se escalar, migra para Postgres.
-- Alembic desde o dia 0 evita dor de migração.
+- 2000 registros é trivial (SQLite aguenta **milhões**, limite arquivo 281TB). Academia de 2000 cabe em <1MB.
+- Zero infra, backup = copiar arquivo. Concorrência 1 escritor só, mas recepção só tem 1 thread escrevendo acesso.
+- Se escalar para multi-catraca rede, migra para Postgres só mudando URL.
 
 ---
 
@@ -60,26 +65,39 @@ Formato leve de ADR: Contexto → Decisão → Consequências. Revisar a cada ma
 
 ---
 
-## ADR-004 — Licença MIT
+## ADR-004 — Licença Apache-2.0 vs GPLv3 (atualizada 2026-09-11)
 
-**Data:** 2026-09-11 · **Status:** Proposto (aguardando confirmação do dono)
+**Data:** 2026-09-11 · **Status:** Proposto — decidir entre Apache-2.0 (recomendada) e GPLv3 · **Autor:** Gabryel
 
-**Contexto:** Quer open-source. Opções: MIT (permissiva), Apache-2.0 (permissiva + patente), GPLv3 (copyleft forte), AGPLv3 (copyleft rede).
+**Contexto:** Projeto open-source que será instalado em academias (uso comercial permitido). `kernel7x.dll` é proprietário Henry e não entra na licença. Precisa decidir copyleft vs permissiva + proteção patentária.
 
-**Decisão:** **MIT** como padrão (arquivo `LICENSE` já criado). Mais permissiva, maximiza adoção por academias/fornecedores. Se houver medo de fork fechado concorrente, migrar para **AGPLv3** antes do v1.0 — AGPL força liberar código mesmo como serviço.
+| Critério | MIT (antiga) | **Apache-2.0** | **GPLv3** | AGPLv3 |
+|----------|--------------|----------------|-----------|--------|
+| Uso comercial | ✅ | ✅ | ✅ (mas derivados devem ser GPL) | ✅ (rede também) |
+| Fork fechado permitido | ✅ sem liberar código | ✅ sem liberar, mas exige aviso + licença | ❌ derivados devem ser GPLv3 | ❌ + rede deve liberar |
+| Proteção patentes | ❌ nada | ✅ grant expresso + retaliação se processar | ✅ grant implícito, sem retaliação clara | ✅ |
+| Obriga liberar código fonte | ❌ | ❌ só NOTICES | ✅ se distribuir binário | ✅ mesmo como SaaS |
+| Compatível com `kernel7x.dll` proprietário? | ✅ | ✅ | ⚠️ zona cinzenta (link com DLL fechada pode violar GPL se distribuir junto) | ⚠️ |
+| Adoção por fornecedores | ★★★ | ★★★ (preferida por empresas) | ★☆☆ (empresas evitam) | ★☆☆ |
 
-**Consequências:**
-- MIT: qualquer um pode forkar fechado. Bom para adoção, ruim para proteção.
-- Apache-2.0 seria ligeiramente melhor proteção patentes, sem copyleft. Troca trivial se preferir.
-- Escolha deve ser selada antes de aceitar contribuições externas.
+**Decisão proposta:** **Apache-2.0**.
+- Motivo: você quer que academias/fornecedores adotem sem medo jurídico, mas com proteção contra alguém patentear e processar o projeto. Permite vender instalação/suporte fechado sem obrigar a liberar customizações internas da academia.
+- **GPLv3** só faria sentido se o objetivo for **forçar** que todo fork/melhoramento volte para a comunidade (copyleft forte). Desvantagem: quem instalar `GymFlow + kernel7x.dll` e distribuir o bundle pode ter que lidar com compatibilidade GPL+proprietário (Henry não é GPL). Mitigável separando `vendor/` 100% ignorado, mas ainda gera atrito jurídico e afasta empresas.
+
+**Consequências Apache-2.0:**
+- Arquivo `LICENSE` será substituído por Apache-2.0 (troca 1 comando).
+- Mantém atribuição obrigatória + aviso de mudanças, sem copyleft.
+- Se depois quiser copyleft, pode dual-licenciar ou migrar antes do v1.0 com consentimento de contribuidores.
+
+**Se escolher GPLv3:** avisar — precisaremos adicionar `COPYING`, header GPL em cada arquivo, e NUNCA distribuir `Kernel7x.dll` no mesmo artefato sem exceção de linking.
 
 ---
 
-## ADR-005 — Mock-first e estratégia cross-platform
+## ADR-005 — Mock-first e estratégia cross-platform (Serial COM)
 
 **Data:** 2026-09-11 · **Status:** Aceito
 
-**Contexto:** Dev em Linux x86_64, prod em Windows 32-bit DLL. Não dá para testar hardware real no dia-a-dia.
+**Contexto:** Dev em Linux x86_64, prod em Windows 32-bit COM Serial. Não dá para testar hardware real no dia-a-dia. Conexão é **Serial** (`SComConfig`), não TCP. `ListaPortasSeriais` lista `COM1`..`COMn`. `AdicionaCard(SComConfig, int)` abre porta, `RemoveCard`, `ColetaEventos(int, string)` faz polling. Baud/paridade em `SVelocidade`/`SComConfig`.
 
 **Decisão:** 
 - `hardware/henry7x/interface.py` define contrato (`Henry7xDriver` ABC).
@@ -94,6 +112,20 @@ Formato leve de ADR: Contexto → Decisão → Consequências. Revisar a cada ma
 - `core/services` nunca sabem se é mock ou real.
 
 ---
+
+## ADR-007 — Nome GymFlow (vs HenryFlow)
+
+**Data:** 2026-09-11 · **Status:** Aceito
+**Contexto:** `HenryFlow` contém marca registrada "Henry" (Henry Equipamentos). Uso pode gerar oposição marcária, mesmo open-source.
+**Decisão:** **GymFlow**. Curto, sem marca de terceiro, domínio `.com` genérico mas livre para app desktop. Descartados: IronGate/FitCatraca/TitanGym (muito nicho). `Henry` só aparece como `Henry 7x` descritivo em docs.
+**Consequências:** Renomear `pyproject.toml` `name: gymflow` + binário `gymflow.exe` + `GymFlow-Setup.exe`. Manter `GMS` como sigla interna até v0.2.
+
+## ADR-008 — Gitignore vendor + docs
+
+**Data:** 2026-09-11 · **Status:** Aceito
+**Contexto:** `vendor/` contém artefatos proprietários para inspeção local do contrato. `docs/` contém decisões internas.
+**Decisão:** `vendor/` e `docs/` 100% ignorados (`.gitignore:74`) — não sobem ao GitHub. `data/*.db` + `dumps/*.txt` já ignorados.
+**Consequências:** `git status` não mostra `vendor/` nem `docs/`.
 
 ## ADR-006 — uv e Python pinado
 

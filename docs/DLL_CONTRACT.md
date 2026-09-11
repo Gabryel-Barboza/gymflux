@@ -26,13 +26,156 @@ Cole aqui o output que você extraiu via PowerShell (lista de exports + assinatu
 ```powershell
 # Exemplo do que você rodou — mantenha o comando exato que usou
 # Dump do seu ambiente:
-```
 
-> **COLE SEU DUMP ABAIXO (substitua este parágrafo):**
->
-> ```
-> (cole aqui as 30-200 linhas do PowerShell — ex: Get-ExportedFunction, [DllImport] etc)
-> ```
+$catraca = New-Object -ComObject "Henry.Kernel7x" # Nome do ProgID registrado
+# Recuperando os métodos da variável
+$catraca | Get-Member
+
+Add_Acionamento               Method                void Add_Acionamento (int, SAcionamento)
+Add_Feriado                   Method                void Add_Feriado (int, Date)
+Add_FncEsp_Funcao             Method                void Add_FncEsp_Funcao (int, string, SFuncaoEx)
+Add_FncEsp_Matricula          Method                void Add_FncEsp_Matricula (int, string)
+Add_Funcao                    Method                void Add_Funcao (int, SFuncao)
+Add_ItemAcesso                Method                void Add_ItemAcesso (int, SItemAcesso)
+Add_Periodo                   Method                void Add_Periodo (int, SPeriodo)
+BeginLargeTransfer            Method                void BeginLargeTransfer (int)
+Bio_DropTemplate              Method                bool Bio_DropTemplate (string)
+Bio_DropTemplates             Method                void Bio_DropTemplates ()
+CancelarOperacao              Method                bool CancelarOperacao (int)
+EndLargeTransfer              Method                void EndLargeTransfer (int)
+PararColetaEventos            Method                bool PararColetaEventos (int)
+RegistroOn                    Method                void RegistroOn (int, SRegistro)
+RespostaOn                    Method                void RespostaOn (int, SResposta)
+RespostaStatus                Method                void RespostaStatus (int, int)
+SalvaImagemMemoria            Method                bool SalvaImagemMemoria (int, string)
+SetConcentrador               Method                void SetConcentrador (int, bool)
+SetConectado                  Method                void SetConectado (int, bool)
+setConnResetTimeout           Method                void setConnResetTimeout (int, SResetCon)
+SetICMPProtocol               Method                void SetICMPProtocol (int, bool)
+SetorPercentualEx             Method                double SetorPercentualEx (SParticionamento, SParticao, SExpansao)
+SetSearchTimeout              Method                void SetSearchTimeout (int)
+SetSecurityLevel              Method                void SetSecurityLevel (byte)
+SetSincronizar                Method                void SetSincronizar (int, bool)
+Add_Escala                    ParameterizedProperty bool Add_Escala (int, SEscala, int) {get}
+Add_Horario                   ParameterizedProperty bool Add_Horario (int, string, int) {get}
+Add_MsgEspec                  ParameterizedProperty bool Add_MsgEspec (int, SMsgEspecifica) {get}
+Add_UsuarioEquipamento        ParameterizedProperty bool Add_UsuarioEquipamento (int, SUsuarioEquipamento) {get}
+AdicionaCard                  ParameterizedProperty bool AdicionaCard (SComConfig, int) {get}
+AlterarVelocidade             ParameterizedProperty bool AlterarVelocidade (int, SVelocidade) {get}
+ApagaUltimoPacote             ParameterizedProperty bool ApagaUltimoPacote (int) {get}
+Bio_CarregaTemplate           ParameterizedProperty bool Bio_CarregaTemplate (string) {get}
+Bio_CfgDefaultF_FL            ParameterizedProperty SDspcfg_F_FL Bio_CfgDefaultF_FL (SCfgDspPadrao) {get}
+Bio_CriaDigitalM1M2           ParameterizedProperty bool Bio_CriaDigitalM1M2 (string, byte, bool, STemplate7x, STemp...
+Bio_DelTemplate               ParameterizedProperty bool Bio_DelTemplate (int, string, bool) {get}
+Bio_DelTemplateTodas          ParameterizedProperty bool Bio_DelTemplateTodas (int) {get}
+Bio_EnvConfiguracaoF_FL       ParameterizedProperty bool Bio_EnvConfiguracaoF_FL (int, SDspcfg_F_FL) {get}
+Bio_EnvConfiguracaoS          ParameterizedProperty bool Bio_EnvConfiguracaoS (int, SDspcfg_S) {get}
+Bio_EnvTemplate               ParameterizedProperty bool Bio_EnvTemplate (int, string) {get}
+Bio_GeraUserID                ParameterizedProperty string Bio_GeraUserID (SBiometria, string, byte, bool) {get}
+Bio_GetMaxQuantLista          ParameterizedProperty bool Bio_GetMaxQuantLista (int, ushort) {get}
+Bio_GetUsuario                ParameterizedProperty bool Bio_GetUsuario (int, SUsuarioBioEx) {get}
+Bio_ProcuraTemplate           ParameterizedProperty string Bio_ProcuraTemplate (string, string) {get}
+Bio_RecConfiguracaoF_FL       ParameterizedProperty bool Bio_RecConfiguracaoF_FL (int, SDspcfg_F_FL) {get}
+Bio_RecConfiguracaoS          ParameterizedProperty bool Bio_RecConfiguracaoS (int, SDspcfg_S) {get}
+Bio_RecListaUsuarios          ParameterizedProperty bool Bio_RecListaUsuarios (int) {get}
+Bio_RecTemplate               ParameterizedProperty bool Bio_RecTemplate (int, string, string) {get}
+Bio_RecUsuario                ParameterizedProperty bool Bio_RecUsuario (int, bool, SUsuarioBioEx) {get}
+Bio_UsuarioExiste             ParameterizedProperty bool Bio_UsuarioExiste (int, string, bool) {get}
+Bio_UsuariosQuant             ParameterizedProperty bool Bio_UsuariosQuant (int, ushort) {get}
+Bio_UsuariosQuantLivre        ParameterizedProperty bool Bio_UsuariosQuantLivre (int, ushort) {get}
+ColetaEventos                 ParameterizedProperty bool ColetaEventos (int, string) {get}
+ColetaEventosEx               ParameterizedProperty bool ColetaEventosEx (int, string, Date, SEmpregador) {get}
+DataHoraUltimaComunicacao     ParameterizedProperty bool DataHoraUltimaComunicacao (int, double) {get}
+DetectarVelocidade            ParameterizedProperty bool DetectarVelocidade (int, SVelocidade) {get}
+DigitosRange                  ParameterizedProperty int DigitosRange (SPlacaCard, bool) {get}
+EnviaAcionaCtrl               ParameterizedProperty bool EnviaAcionaCtrl (int, byte, SAcionaCtrl) {get}
+EnviaAcionamentos             ParameterizedProperty bool EnviaAcionamentos (int) {get}
+EnviaBeep                     ParameterizedProperty bool EnviaBeep (int, SBeep) {get}
+EnviaCfgControlador           ParameterizedProperty bool EnviaCfgControlador (int, byte, SConfigCtrl) {get}
+EnviaConfiguracao             ParameterizedProperty bool EnviaConfiguracao (int, SConfiguracao) {get}
+EnviaDadosEmpregador          ParameterizedProperty bool EnviaDadosEmpregador (int, SEmpregador) {get}
+EnviaDataHora                 ParameterizedProperty bool EnviaDataHora (int, Date) {get}
+EnviaDataHoraEx               ParameterizedProperty bool EnviaDataHoraEx (int, SDataHoraCompleta) {get}
+EnviaFacilityCodes            ParameterizedProperty bool EnviaFacilityCodes (int, byte, SFacility) {get}
+EnviaFeriados                 ParameterizedProperty bool EnviaFeriados (int) {get}
+EnviaFuncoes                  ParameterizedProperty bool EnviaFuncoes (int) {get}
+EnviaHorarios                 ParameterizedProperty bool EnviaHorarios (int) {get}
+EnviaListaAcesso              ParameterizedProperty bool EnviaListaAcesso (int) {get}
+EnviaListaAcessoThd           ParameterizedProperty bool EnviaListaAcessoThd (int) {get}
+EnviaListaUsuarios            ParameterizedProperty bool EnviaListaUsuarios (int) {get}
+EnviaMsgPadrao                ParameterizedProperty bool EnviaMsgPadrao (int, SMsgPadrao) {get}
+EnviaMsgsEspecificas          ParameterizedProperty bool EnviaMsgsEspecificas (int) {get}
+EnviaParticionamento          ParameterizedProperty bool EnviaParticionamento (int, SParticionamento) {get}
+EnviaPeriodos                 ParameterizedProperty bool EnviaPeriodos (int) {get}
+EnviaTipoCatraca              ParameterizedProperty bool EnviaTipoCatraca (int, SOperacaoCatraca) {get}
+EnviaUsuarioEquipamento       ParameterizedProperty bool EnviaUsuarioEquipamento (int, SUsuarioEquipamento) {get}
+ErrorDescription              ParameterizedProperty string ErrorDescription (int) {get}
+ExistemRegistros              ParameterizedProperty bool ExistemRegistros (int, bool) {get}
+ExportConfiguracao            ParameterizedProperty bool ExportConfiguracao (string, SConfiguracao) {get}
+getConnResetTimeout           ParameterizedProperty bool getConnResetTimeout (int, SResetCon) {get}
+ImportConfiguracao            ParameterizedProperty bool ImportConfiguracao (string, SConfiguracao) {get}
+MostRecentFirmware            ParameterizedProperty string MostRecentFirmware (SConfiguracao) {get}
+NumDigitosPadraoT             ParameterizedProperty byte NumDigitosPadraoT (SConfiguracao) {get}
+NumDigitosValidos             ParameterizedProperty byte NumDigitosValidos (SConfiguracao) {get}
+OpenTemplate7x                ParameterizedProperty bool OpenTemplate7x (string, STemplate7x) {get}
+QuantRegsColetados            ParameterizedProperty int QuantRegsColetados (int) {get}
+RecebeAcionamentos            ParameterizedProperty bool RecebeAcionamentos (int) {get}
+RecebeCfgControlador          ParameterizedProperty bool RecebeCfgControlador (int, byte, SConfigCtrl) {get}
+RecebeConfiguracao            ParameterizedProperty bool RecebeConfiguracao (int, SConfiguracao) {get}
+RecebeDadosEmpregador         ParameterizedProperty bool RecebeDadosEmpregador (int, SEmpregador) {get}
+RecebeDataHora                ParameterizedProperty bool RecebeDataHora (int, Date) {get}
+RecebeDataHoraEx              ParameterizedProperty bool RecebeDataHoraEx (int, SDataHoraCompleta) {get}
+RecebeFacilityCodes           ParameterizedProperty bool RecebeFacilityCodes (int, byte, SFacility) {get}
+RecebeFeriados                ParameterizedProperty bool RecebeFeriados (int) {get}
+RecebeFuncoes                 ParameterizedProperty bool RecebeFuncoes (int) {get}
+RecebeHorarios                ParameterizedProperty bool RecebeHorarios (int) {get}
+RecebeListaAcesso             ParameterizedProperty bool RecebeListaAcesso (int) {get}
+RecebeListaUsuarioEquipamento ParameterizedProperty bool RecebeListaUsuarioEquipamento (int) {get}
+RecebeMsgPadrao               ParameterizedProperty bool RecebeMsgPadrao (int, SMsgPadrao) {get}
+RecebeMsgsEspecificas         ParameterizedProperty bool RecebeMsgsEspecificas (int) {get}
+RecebePacote                  ParameterizedProperty bool RecebePacote (int) {get}
+RecebeParticionamento         ParameterizedProperty bool RecebeParticionamento (int, SParticionamento) {get}
+RecebePeriodos                ParameterizedProperty bool RecebePeriodos (int) {get}
+RecebeQtRegistros             ParameterizedProperty bool RecebeQtRegistros (int, int) {get}
+RecebeTipoCatraca             ParameterizedProperty bool RecebeTipoCatraca (int, SOperacaoCatraca) {get}
+RecuperaRegistros             ParameterizedProperty bool RecuperaRegistros (int) {get}
+Rec_Acionamento               ParameterizedProperty bool Rec_Acionamento (int, SAcionamento) {get}
+Rec_Escala                    ParameterizedProperty bool Rec_Escala (int, SEscala) {get}
+Rec_Feriado                   ParameterizedProperty bool Rec_Feriado (int, Date) {get}
+Rec_FncEsp_Funcao             ParameterizedProperty bool Rec_FncEsp_Funcao (int, string, SFuncaoEx) {get}
+Rec_FncEsp_Matricula          ParameterizedProperty bool Rec_FncEsp_Matricula (int, string) {get}
+Rec_Funcao                    ParameterizedProperty bool Rec_Funcao (int, SFuncao) {get}
+Rec_Horario                   ParameterizedProperty bool Rec_Horario (int, string) {get}
+Rec_ItemAcesso                ParameterizedProperty bool Rec_ItemAcesso (int, SItemAcesso) {get}
+Rec_MsgEspec                  ParameterizedProperty bool Rec_MsgEspec (int, SMsgEspecifica) {get}
+Rec_Periodo                   ParameterizedProperty bool Rec_Periodo (int, SPeriodo) {get}
+Rec_UsuarioEquipamento        ParameterizedProperty bool Rec_UsuarioEquipamento (int, SUsuarioEquipamento) {get}
+RegistroOff                   ParameterizedProperty bool RegistroOff (int, SRegistro) {get}
+RemoveCard                    ParameterizedProperty bool RemoveCard (int) {get}
+SaveAsTemplate7x              ParameterizedProperty bool SaveAsTemplate7x (string, STemplate7x) {get}
+Set485OffNumber               ParameterizedProperty bool Set485OffNumber (int, byte) {get}
+SetorPercentual               ParameterizedProperty double SetorPercentual (SParticionamento, SParticao) {get}
+SRAcionamentos                ParameterizedProperty int SRAcionamentos (SConfiguracao, int) {get}
+SRFeriados                    ParameterizedProperty int SRFeriados (SConfiguracao, int) {get}
+SRFuncoes                     ParameterizedProperty int SRFuncoes (SConfiguracao, int) {get}
+SRFuncoesEspecificas          ParameterizedProperty int SRFuncoesEspecificas (SConfiguracao, int, int) {get}
+SRHorariosEscalas             ParameterizedProperty int SRHorariosEscalas (SConfiguracao, int, int, int, int) {get}
+SRListaAcesso                 ParameterizedProperty int SRListaAcesso (SConfiguracao, int) {get}
+SRMsgEspecifica               ParameterizedProperty int SRMsgEspecifica (SConfiguracao, int, int) {get}
+SRPeriodos                    ParameterizedProperty int SRPeriodos (SConfiguracao, int) {get}
+TamanhoItemAcesso             ParameterizedProperty int TamanhoItemAcesso (SConfiguracao) {get}
+TamanhoRegistro               ParameterizedProperty int TamanhoRegistro (SConfiguracao) {get}
+ThreadLastError               ParameterizedProperty int ThreadLastError (int) {get}
+ThreadPrioridade              ParameterizedProperty int ThreadPrioridade (SPrioridade) {set}
+USB_EnviaCartucho             ParameterizedProperty bool USB_EnviaCartucho (int, string) {get}
+USB_RecebeCartucho            ParameterizedProperty bool USB_RecebeCartucho (int, string) {get}
+KernelLastError               Property              int KernelLastError () {get}
+ListaPortasSeriais            Property              string ListaPortasSeriais () {get}
+MoreRecentFirmware            Property              string MoreRecentFirmware () {get}
+RaiseExceptions               Property              bool RaiseExceptions () {get} {set}
+USB_Remove                    Property              bool USB_Remove () {get}
+Versao                        Property              string Versao () {get}
+```
 
 ### 2.2 Linux (dev) — automatizado
 

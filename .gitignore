@@ -70,3 +70,7 @@ site/
 dumps/*.txt
 dumps/*.bin
 dumps/*.log
+
+# vendor/ e docs/ 100% ignorados — internos, não subir ao GitHub
+docs/
+vendor/

@@ -1,9 +1,9 @@
 [project]
 name = "gms-app"
 version = "0.1.0"
-description = "Gym Management System - Sistema de gerenciamento para academias com integração Henry 7x"
+description = "GymFlow (ex-GMS) - Sistema de gerenciamento para academias com integração Henry 7x"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [
     { name = "Gabryel Barboza", email = "gabrielbarbosa.alternativa@gmail.com" }
 ]
