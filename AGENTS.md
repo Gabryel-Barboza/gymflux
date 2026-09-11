@@ -79,6 +79,15 @@ src/gymflow/       # único
   - `hardware/henry7x/interface.py` (Direcao, ResultadoCatraca) + `mock.py` + `factory.py` verificados; `real.py` mantém falha graciosa Linux 32-bit.
   - Testes: `tests/core/test_regras.py` (24 testes RB01 tolerância, RB02 vigência, RB03 bloqueio manual, RB04 timeout, RB05 anti-passback), `tests/services/test_liberar_acesso.py` (11 testes mock), `tests/hardware/test_mock_henry.py` (2 testes, mantidos; também `tests/test_mock_henry.py` legado) — total 39 verdes.
   - Verificação: `uv sync --group dev && uv run pytest -v` 39 passed, `uv run ruff check src tests` All checks passed, `uv run ruff format --check` ok, `uv run python -m mypy src` Success 25 files, `uv run gymflow mock-demo` ok (MockHenry7x liberação + giro).
+- **2026-09-11 — Sessão 4 (Fase 2 — persistência SQLite + Alembic) ✅:**
+  - `infra/db.py` (Engine SQLAlchemy 2.0 `sqlite:///data/gymflow.db`, WAL `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `Base` DeclarativeBase Typed, `get_engine()/get_session()/init_db()`, `reset_engine()` p/ testes).
+  - `infra/models/` 5 models Typed `Mapped[]`: `AlunoModel` (id PK str, nome, cpf unique indexed, telefone, email, status, bloqueado_manual, created_at), `PlanoModel` (id, nome, duracao_dias, valor Numeric(10,2), tolerancia_dias, tipo), `MatriculaModel` (id, aluno_id FK, plano_id FK, inicio, fim, ativa, índice aluno_id+ativa), `PagamentoModel` (id, aluno_id FK, valor Numeric(10,2), vencimento indexed, pagamento nullable, forma, competencia), `AcessoLogModel` (id, aluno_id FK, timestamp indexed, direcao, resultado, motivo, catraca_id, timeout) — sem importar hardware, Decimal/Numeric.
+  - Alembic `src/gymflow/infra/migrations` com `env.py` (`Base.metadata` + `GYMFLOW_DB_URL` via `settings.get_settings().db_url`, compare_type/server_default, prepend_sys_path=src) e revisão `f2d9f6545bb8_initial_gymflow_v1` (5 tabelas + índices, FKs CASCADE); `alembic.ini` `sqlalchemy.url=sqlite:///data/gymflow.db`.
+  - `infra/repositories/` 5 repos Protocol+SQLAlchemy (`AlunoRepositorySQLAlchemy`, `PlanoRepositorySQLAlchemy`, `MatriculaRepositorySQLAlchemy`, `PagamentoRepositorySQLAlchemy`, `AcessoLogRepositorySQLAlchemy`) com injeção `Session`, métodos CRUD, busca cpf normalizada, matricula vigente por data, acesso log por aluno; mantém `*Memoria` fallback Fase 1.
+  - `services` refatorados p/ injeção: `CadastrarAlunoService(repo)`, `RegistrarPagamentoService(repo)`, `LiberarAcessoService` com repos opcionais (`aluno_repo`, `matricula_repo`, `pagamento_repo`, `acesso_repo`) + `tentar_acesso_por_id()` + `_persistir_tentativa()` dual memória/DB, compatível se repo None.
+  - CLI `gymflow` estendido: `gymflow db upgrade|downgrade [rev]`, `gymflow db seed`/`gymflow seed` (idempotente 3 alunos Ana/Bruno/Carla + planos Mensal 99.90/Trimestral 259.90, matrículas vigentes, pagamentos adimplentes).
+  - Testes `tests/infra/test_repositories.py` (6 testes :memory: CRUD cpf, plano, matrícula vigente, pagamento, acesso log, cpf único) + `tests/infra/test_migrations.py` (2 testes create_all + alembic upgrade head) — total 47 verdes.
+  - Verificação: `uv sync --group dev && uv run python -m alembic upgrade head && uv run pytest -v` 47 passed, `uv run ruff check src tests` All checks passed, `uv run python -m mypy src` Success 40 files, `uv run gymflow info` ok (3 alunos, 2 planos), `uv run gymflow db seed` idempotente, `data/gymflow.db` 76KB (WAL).
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11 atualizado)
 
@@ -100,8 +109,8 @@ src/gymflow/       # único
 ## 7. Roadmap (ver `docs/ROADMAP.md`)
 
 - Fase 0: Bootstrap ✅
-- Fase 1: Domínio + Hardware mockado + Testes (aluno, plano, acesso liberado/negado)
-- Fase 2: Persistência SQLite + Alembic
+- Fase 1: Domínio + Hardware mockado + Testes (aluno, plano, acesso liberado/negado) ✅
+- Fase 2: Persistência SQLite + Alembic ✅ (2026-09-11 concluída)
 - Fase 3: Integração real kernel7x.dll + testes em VM Windows 32-bit
 - Fase 4: UI PySide6 (cadastro, dashboard catraca)
 - Fase 5: Biometria + instalador + assinatura

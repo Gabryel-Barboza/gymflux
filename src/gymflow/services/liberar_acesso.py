@@ -1,12 +1,15 @@
-"""LiberarAcessoService — orquestra RegraAcesso + Henry7xDriver + log memória.
+"""LiberarAcessoService — orquestra RegraAcesso + Henry7xDriver + log.
 
-NUNCA importa ctypes/pywin32/PySide6/sqlalchemy. Todo I/O via interface.
+NUNCA importa ctypes/pywin32/PySide6/sqlalchemy direto.
+Fase 2: suporta injeção opcional de repos para consulta por aluno_id.
+Se repos None, mantém compatibilidade Fase 1 (caller fornece domínio).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from typing import TYPE_CHECKING, Any, Protocol
 
 from loguru import logger
 
@@ -17,6 +20,9 @@ from gymflow.core.pagamento import Pagamento
 from gymflow.core.plano import Matricula
 from gymflow.core.regras import RegraAcesso, RegraAcessoConfig
 from gymflow.hardware.henry7x.interface import Direcao, Henry7xDriver, ResultadoCatraca
+
+if TYPE_CHECKING:
+    pass
 
 
 def _direcao_core_para_hw(d: DirecaoAcesso) -> Direcao:
@@ -40,11 +46,31 @@ class RegistroMemoria:
         self.tentativas.clear()
 
 
+class _AlunoRepoProto(Protocol):
+    def buscar_por_id(self, aluno_id: str) -> Aluno | None: ...
+    def buscar_por_cpf(self, cpf: str) -> Aluno | None: ...
+
+
+class _MatriculaRepoProto(Protocol):
+    def buscar_vigente(self, aluno_id: str, data: date) -> Matricula | None: ...
+    def listar_por_aluno(self, aluno_id: str) -> list[Matricula]: ...
+
+
+class _PagamentoRepoProto(Protocol):
+    def listar_por_aluno(self, aluno_id: str) -> list[Pagamento]: ...
+
+
+class _AcessoRepoProto(Protocol):
+    def registrar(self, tentativa: TentativaAcesso) -> Any: ...
+    def listar_por_aluno(self, aluno_id: str) -> list[TentativaAcesso]: ...
+
+
 @dataclass(slots=True)
 class LiberarAcessoService:
     """Caso de uso principal — decide e aciona catraca.
 
     - `tentar_acesso` avalia regra; se liberado, chama `driver.liberar`.
+    - `tentar_acesso_por_id` busca dados via repos injetados (opcional Fase 2).
     - `verificar_timeout` deve ser chamado após liberação se giro não ocorrer (RB04).
     """
 
@@ -52,6 +78,38 @@ class LiberarAcessoService:
     regra: RegraAcesso = field(default_factory=RegraAcesso)
     registro: RegistroMemoria = field(default_factory=RegistroMemoria)
     catraca_id: str = "catraca-1"
+    # Fase 2 — repos opcionais (injeção). Se None, mantém modo memória Fase 1.
+    aluno_repo: _AlunoRepoProto | None = None
+    matricula_repo: _MatriculaRepoProto | None = None
+    pagamento_repo: _PagamentoRepoProto | None = None
+    acesso_repo: _AcessoRepoProto | None = None
+
+    def _persistir_tentativa(self, tentativa: TentativaAcesso) -> None:
+        self.registro.registrar(tentativa)
+        if self.acesso_repo is not None:
+            try:
+                self.acesso_repo.registrar(tentativa)
+            except Exception as e:
+                logger.warning(f"[LiberarAcesso] acesso_repo.registrar falhou: {e}")
+
+    def _ultimo_acesso_direcao(self, aluno_id: str) -> DirecaoAcesso | None:
+        # tenta via acesso_repo primeiro (persistido), fallback registro memória
+        if self.acesso_repo is not None:
+            try:
+                # tenta método buscar_ultimo se existir
+                if hasattr(self.acesso_repo, "buscar_ultimo_por_aluno"):
+                    ultimo = self.acesso_repo.buscar_ultimo_por_aluno(aluno_id)  # type: ignore[attr-defined]
+                    if ultimo:
+                        return ultimo.direcao  # type: ignore[no-any-return]
+                logs = self.acesso_repo.listar_por_aluno(aluno_id)
+                if logs:
+                    return logs[-1].direcao
+            except Exception as e:
+                logger.warning(f"[LiberarAcesso] falha ao buscar ultimo acesso: {e}")
+        logs_mem = self.registro.por_aluno(aluno_id)
+        if logs_mem:
+            return logs_mem[-1].direcao
+        return None
 
     def tentar_acesso(
         self,
@@ -69,6 +127,10 @@ class LiberarAcessoService:
 
         tolerancia = matricula.plano.tolerancia_dias if matricula is not None else None
 
+        # anti-passback: se não fornecido explicitamente e config habilitada, busca último
+        if ultimo_acesso_direcao is None and self.regra.config.anti_passback and aluno is not None:
+            ultimo_acesso_direcao = self._ultimo_acesso_direcao(aluno.id)
+
         decisao = self.regra.avaliar(
             aluno=aluno,
             matricula=matricula,
@@ -82,7 +144,6 @@ class LiberarAcessoService:
         aluno_id = aluno.id if aluno else "desconhecido"
 
         if not decisao.liberado:
-            # log negado sem acionar hardware
             tentativa = TentativaAcesso(
                 aluno_id=aluno_id,
                 direcao=direcao,
@@ -93,11 +154,10 @@ class LiberarAcessoService:
                 catraca_id=self.catraca_id,
                 timeout_giro_s=self.regra.config.timeout_giro_s,
             )
-            self.registro.registrar(tentativa)
+            self._persistir_tentativa(tentativa)
             logger.info(f"[LiberarAcesso] NEGADO aluno={aluno_id} motivo={decisao.motivo}")
             return decisao
 
-        # liberado pela regra -> tentar hardware
         hw_dir = _direcao_core_para_hw(direcao)
         try:
             resultado_hw = self.driver.liberar(hw_dir)
@@ -112,7 +172,7 @@ class LiberarAcessoService:
                 detalhes=str(e),
                 catraca_id=self.catraca_id,
             )
-            self.registro.registrar(tentativa)
+            self._persistir_tentativa(tentativa)
             return DecisaoAcesso(
                 liberado=False,
                 resultado=ResultadoDominio.ERRO,
@@ -131,13 +191,12 @@ class LiberarAcessoService:
                 catraca_id=self.catraca_id,
                 timeout_giro_s=self.regra.config.timeout_giro_s,
             )
-            self.registro.registrar(tentativa)
+            self._persistir_tentativa(tentativa)
             logger.info(
                 f"[LiberarAcesso] LIBERADO aluno={aluno_id} dir={direcao.value} hw={resultado_hw}"
             )
             return DecisaoAcesso.liberado_ok("Catraca liberada")
 
-        # hardware bloqueou/timeout/erro
         motivo_hw = MotivoNegado.ERRO_HARDWARE
         if resultado_hw == ResultadoCatraca.BLOQUEADO:
             motivo_hw = MotivoNegado.BLOQUEIO_MANUAL
@@ -154,12 +213,48 @@ class LiberarAcessoService:
             detalhes=f"Hardware retornou {resultado_hw.value}",
             catraca_id=self.catraca_id,
         )
-        self.registro.registrar(tentativa)
+        self._persistir_tentativa(tentativa)
         return DecisaoAcesso(
             liberado=False,
             resultado=tentativa.resultado,
             motivo=motivo_hw,
             detalhes=tentativa.detalhes,
+        )
+
+    def tentar_acesso_por_id(
+        self,
+        aluno_id: str,
+        direcao: DirecaoAcesso = DirecaoAcesso.ENTRADA,
+        agora: date | None = None,
+        timestamp: datetime | None = None,
+    ) -> DecisaoAcesso:
+        """Fase 2: busca aluno/matricula/pagamentos via repos injetados."""
+        if self.aluno_repo is None:
+            raise RuntimeError("aluno_repo não injetado — use tentar_acesso com objetos de domínio")
+        hoje: date = agora or date.today()
+        aluno = self.aluno_repo.buscar_por_id(aluno_id)
+        matricula: Matricula | None = None
+        if self.matricula_repo is not None:
+            try:
+                matricula = self.matricula_repo.buscar_vigente(aluno_id, hoje)
+            except Exception:
+                # fallback para listar e filtrar
+                lst = self.matricula_repo.listar_por_aluno(aluno_id)
+                for m in lst:
+                    if m.vigente_em(hoje):
+                        matricula = m
+                        break
+        pagamentos: list[Pagamento] = []
+        if self.pagamento_repo is not None:
+            pagamentos = self.pagamento_repo.listar_por_aluno(aluno_id)
+        # delega ao método principal
+        return self.tentar_acesso(
+            aluno=aluno,
+            matricula=matricula,
+            pagamentos=pagamentos,
+            direcao=direcao,
+            agora=hoje,
+            timestamp=timestamp,
         )
 
     def verificar_timeout(
@@ -169,14 +264,10 @@ class LiberarAcessoService:
         aluno_id: str,
         direcao: DirecaoAcesso = DirecaoAcesso.ENTRADA,
     ) -> DecisaoAcesso | None:
-        """RB04: se expirou timeout sem giro, bloqueia catraca e loga TIMEOUT.
-
-        Retorna DecisaoAcesso TIMEOUT se expirou, None caso contrário.
-        """
+        """RB04: se expirou timeout sem giro, bloqueia catraca e loga TIMEOUT."""
         decisao = self.regra.decisao_timeout_se_expirado(liberado_em, agora)
         if decisao is None:
             return None
-        # aciona bloqueio físico
         try:
             self.driver.bloquear()
         except Exception as e:
@@ -192,7 +283,7 @@ class LiberarAcessoService:
             catraca_id=self.catraca_id,
             timeout_giro_s=self.regra.config.timeout_giro_s,
         )
-        self.registro.registrar(tentativa)
+        self._persistir_tentativa(tentativa)
         logger.info(f"[LiberarAcesso] TIMEOUT aluno={aluno_id} {decisao.detalhes}")
         return decisao
 
