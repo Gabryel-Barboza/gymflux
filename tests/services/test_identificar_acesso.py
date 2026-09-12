@@ -9,11 +9,13 @@ import pytest
 
 from gymflow.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
 from gymflow.core.aluno import Aluno
+from gymflow.core.funcionario import Funcionario
 from gymflow.core.pagamento import Pagamento
 from gymflow.core.plano import Matricula, Plano, Vigencia
 from gymflow.hardware.henry7x.mock import MockHenry7x
 from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
 from gymflow.infra.repositories.aluno import AlunoRepositoryMemoria
+from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
 from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
 from gymflow.infra.repositories.pagamento import PagamentoRepositoryMemoria
 from gymflow.services.identificar_acesso import (
@@ -125,3 +127,62 @@ def test_identificacao_invalida_rejeita_na_fabrica():
     with pytest.raises(ValueError):
         Identificacao.por_cartao("   ")
     assert OrigemIdentificacao("TECLADO") == OrigemIdentificacao.TECLADO
+
+
+def _com_funcionario(svc: IdentificarAcessoService, senha: str = "9999") -> None:
+    repo = FuncionarioRepositoryMemoria()
+    func = Funcionario(id="f1", nome="Zé Porteira")
+    func.definir_senha(senha)
+    repo.salvar(func)
+    svc.funcionario_repo = repo
+
+
+def test_funcionario_bypassa_matricula_e_mensalidade():
+    svc = _svc()
+    _com_funcionario(svc)
+    # sem matrícula, sem pagamento: funcionário libera mesmo assim
+    decisao, achado = svc.identificar(Identificacao.por_teclado("9999"))
+    assert decisao.liberado is True
+    assert decisao.resultado == ResultadoAcesso.LIBERADO
+    assert "Funcionário" in (decisao.detalhes or "")
+    assert achado is None
+    # pulso chegou ao hardware (mock sem auto-giro fica desbloqueada)
+    assert svc.acesso.driver.status()["bloqueada"] is False
+
+
+def test_funcionario_inativo_nega_sem_pulsar():
+    svc = _svc()
+    _com_funcionario(svc)
+    repo = svc.funcionario_repo
+    assert repo is not None
+    func = repo.listar()[0]
+    func.inativar()
+    repo.salvar(func)
+    decisao, achado = svc.identificar(Identificacao.por_teclado("9999"))
+    assert decisao.liberado is False
+    assert decisao.motivo == MotivoNegado.BLOQUEIO_MANUAL
+    assert achado is None
+    assert svc.acesso.driver.status()["bloqueada"] is True
+
+
+def test_funcionario_tem_prioridade_sobre_aluno():
+    svc = _svc()
+    _adimplente(svc, senha="1234")
+    repo = FuncionarioRepositoryMemoria()
+    func = Funcionario(id="f1", nome="Zé Porteira")
+    func.definir_senha("1234")  # mesma senha do aluno
+    repo.salvar(func)
+    svc.funcionario_repo = repo
+    decisao, achado = svc.identificar(Identificacao.por_teclado("1234"))
+    assert decisao.liberado is True
+    assert "Funcionário" in (decisao.detalhes or "")
+    assert achado is None
+
+
+def test_sem_repo_funcionario_mantem_fluxo_aluno():
+    svc = _svc()
+    assert svc.funcionario_repo is None
+    _adimplente(svc)
+    decisao, achado = svc.identificar(Identificacao.por_teclado("1234"))
+    assert decisao.liberado is True
+    assert achado is not None and achado.id == "a1"

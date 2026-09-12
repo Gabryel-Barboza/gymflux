@@ -12,6 +12,7 @@ from gymflow.core.aluno import StatusAluno
 from gymflow.core.plano import TipoPlano
 from gymflow.hardware.henry7x.mock import MockHenry7x
 from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
 from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
 from gymflow.infra.repositories.plano import PlanoRepositoryMemoria
 from gymflow.services.cadastrar_aluno import (
@@ -26,6 +27,7 @@ from gymflow.services.registrar_pagamento import (
 from gymflow.ui.config_store import UiConfig
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
+from gymflow.ui.viewmodels.funcionarios import FuncionariosViewModel
 from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 
@@ -330,3 +332,22 @@ def test_alunos_atualizar_erros():
         w["alunos"].atualizar(aluno.id, nome="  ")
     with pytest.raises(ValueError, match="dígitos"):
         w["alunos"].atualizar(aluno.id, nome="Ana", senha="12")
+
+
+def test_funcionarios_crud_e_ativar():
+    vm = FuncionariosViewModel(repo=FuncionarioRepositoryMemoria())
+    func = vm.cadastrar(nome="Zé Porteira", senha="1234")
+    assert func.senha_hash is not None and "1234" not in func.senha_hash
+    assert func.ativo is True
+    assert [f.nome for f in vm.listar()] == ["Zé Porteira"]
+    vm.definir_ativo(func.id, False)
+    assert vm.buscar(func.id) is not None
+    assert vm.buscar(func.id).ativo is False  # type: ignore[union-attr]
+    vm.atualizar(func.id, nome="José", senha="")
+    atual = vm.buscar(func.id)
+    assert atual is not None and atual.nome == "José"
+    assert atual.verificar_senha("1234") is True  # vazia mantém
+    with pytest.raises(ValueError, match="não encontrado"):
+        vm.definir_ativo("inexistente", True)
+    with pytest.raises(ValueError, match="dígitos"):
+        vm.cadastrar(nome="X", senha="12")

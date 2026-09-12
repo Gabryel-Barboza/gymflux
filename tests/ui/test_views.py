@@ -24,11 +24,11 @@ from gymflow.ui.catraca_bridge import CatracaBridge
 from gymflow.ui.views.dashboard import DashboardView
 
 
-def test_janela_principal_tem_5_abas(qtbot, ctx):
+def test_janela_principal_abas(qtbot, ctx):
     win = build_window(ctx)
     qtbot.addWidget(win)
     textos = [win.tabs.tabText(i) for i in range(win.tabs.count())]
-    assert textos == ["Catraca", "Alunos", "Planos", "Caixa", "Configurações"]
+    assert textos == ["Catraca", "Alunos", "Planos", "Caixa", "Funcionários", "Configurações"]
 
 
 def _valor_status(view, campo):
@@ -224,7 +224,8 @@ def test_config_salvar_aplica_regra_porta_e_persiste(qtbot, ctx, tmp_path):
     qtbot.addWidget(win)
     # isola o arquivo p/ não sujar data/
     ctx.config_vm.store = ConfigStore(tmp_path / "gymflow_config.json")
-    view = win.tabs.widget(4)
+    idx = [win.tabs.tabText(i) for i in range(win.tabs.count())].index("Configurações")
+    view = win.tabs.widget(idx)
     assert view.lbl_status.text() == ""
 
     view.spn_tolerancia.setValue(9)
@@ -355,3 +356,29 @@ def test_planos_cards_renderizam_editar_excluir(qtbot, ctx, mocker):
     view._excluir(plano.id, plano.nome)
     assert len(view.cards) == 0
     assert ctx.planos_vm.listar() == []
+
+
+def test_funcionarios_aba_e_dialog(qtbot, ctx):
+    from gymflow.ui.views.funcionarios import FuncionariosView, NovoFuncionarioDialog
+
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    idx = [win.tabs.tabText(i) for i in range(win.tabs.count())].index("Funcionários")
+    view = win.tabs.widget(idx)
+    assert isinstance(view, FuncionariosView)
+    assert view.tbl.rowCount() == 0
+
+    dlg = NovoFuncionarioDialog()
+    qtbot.addWidget(dlg)
+    dlg.edt_nome.setText("Zé Porteira")
+    dlg.edt_senha.setText("1234")
+    dlg.accept()
+    assert dlg.result() == NovoFuncionarioDialog.DialogCode.Accepted
+
+    func = ctx.funcionarios_vm.cadastrar(nome="Zé Porteira", senha="1234")
+    view.recarregar()
+    assert view.tbl.rowCount() == 1
+    ctx.funcionarios_vm.definir_ativo(func.id, False)
+    view.recarregar()
+    item = view.tbl.item(0, 2)
+    assert item is not None and item.text() == "não"

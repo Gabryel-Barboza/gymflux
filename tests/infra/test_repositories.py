@@ -11,11 +11,13 @@ from sqlalchemy.orm import sessionmaker
 
 from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
 from gymflow.core.aluno import Aluno
+from gymflow.core.funcionario import Funcionario
 from gymflow.core.pagamento import Pagamento
 from gymflow.core.plano import Matricula, Plano, Vigencia
 from gymflow.infra.db import Base
 from gymflow.infra.repositories.acesso_log import AcessoLogRepositorySQLAlchemy
 from gymflow.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+from gymflow.infra.repositories.funcionario import FuncionarioRepositorySQLAlchemy
 from gymflow.infra.repositories.matricula import MatriculaRepositorySQLAlchemy
 from gymflow.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
 from gymflow.infra.repositories.plano import PlanoRepositorySQLAlchemy
@@ -274,3 +276,28 @@ def test_aluno_cpf_unico_constraint(session):
         session.rollback()
         # confirma que apenas a1 persiste
         assert repo.buscar_por_id("u1") is not None
+
+
+def test_funcionario_crud_sql(session):
+    repo = FuncionarioRepositorySQLAlchemy(session)
+    func = Funcionario(id="f1", nome="Zé Porteira")
+    func.definir_senha("1234")
+    repo.salvar(func)
+    session.commit()
+
+    lido = repo.buscar_por_id("f1")
+    assert lido is not None
+    assert lido.nome == "Zé Porteira"
+    assert lido.ativo is True
+    assert lido.senha_hash is not None and "1234" not in lido.senha_hash
+    assert lido.verificar_senha("1234") is True
+    assert lido.verificar_senha("0000") is False
+
+    lido.inativar()
+    repo.salvar(lido)
+    session.commit()
+    assert repo.buscar_por_id("f1").ativo is False  # type: ignore[union-attr]
+    assert repo.total() == 1
+    repo.remover("f1")
+    session.commit()
+    assert repo.buscar_por_id("f1") is None

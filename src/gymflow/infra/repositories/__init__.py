@@ -17,6 +17,11 @@ from gymflow.infra.repositories.fechamento_caixa import (
     FechamentoCaixaRepositoryMemoria,
     FechamentoCaixaRepositorySQLAlchemy,
 )
+from gymflow.infra.repositories.funcionario import (
+    FuncionarioRepository,
+    FuncionarioRepositoryMemoria,
+    FuncionarioRepositorySQLAlchemy,
+)
 from gymflow.infra.repositories.matricula import (
     MatriculaRepository,
     MatriculaRepositoryMemoria,
@@ -43,6 +48,9 @@ __all__ = [
     "FechamentoCaixaRepository",
     "FechamentoCaixaRepositoryMemoria",
     "FechamentoCaixaRepositorySQLAlchemy",
+    "FuncionarioRepository",
+    "FuncionarioRepositoryMemoria",
+    "FuncionarioRepositorySQLAlchemy",
     "MatriculaRepository",
     "MatriculaRepositoryMemoria",
     "MatriculaRepositorySQLAlchemy",

@@ -26,12 +26,14 @@ from gymflow.ui.viewmodels.alunos import AlunosViewModel
 from gymflow.ui.viewmodels.caixa import CaixaViewModel
 from gymflow.ui.viewmodels.config import ConfigViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
+from gymflow.ui.viewmodels.funcionarios import FuncionariosViewModel
 from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 from gymflow.ui.views.alunos import AlunosView
 from gymflow.ui.views.caixa import CaixaView
 from gymflow.ui.views.config import ConfigView
 from gymflow.ui.views.dashboard import DashboardView
+from gymflow.ui.views.funcionarios import FuncionariosView
 from gymflow.ui.views.planos import PlanosView
 
 
@@ -45,6 +47,7 @@ class AppContext:
     planos_vm: PlanosViewModel
     pagamentos_vm: PagamentosViewModel
     caixa_vm: CaixaViewModel
+    funcionarios_vm: FuncionariosViewModel
     config_vm: ConfigViewModel
     config_store: ConfigStore
     session: Session | None = None
@@ -105,6 +108,9 @@ def create_context(use_db: bool = True) -> AppContext:
             from gymflow.infra.repositories.fechamento_caixa import (
                 FechamentoCaixaRepositorySQLAlchemy,
             )
+            from gymflow.infra.repositories.funcionario import (
+                FuncionarioRepositorySQLAlchemy,
+            )
             from gymflow.infra.repositories.matricula import MatriculaRepositorySQLAlchemy
             from gymflow.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
             from gymflow.infra.repositories.plano import PlanoRepositorySQLAlchemy
@@ -116,6 +122,7 @@ def create_context(use_db: bool = True) -> AppContext:
             pag_repo: Any = PagamentoRepositorySQLAlchemy(session)
             acesso_repo: Any = AcessoLogRepositorySQLAlchemy(session)
             fech_repo: Any = FechamentoCaixaRepositorySQLAlchemy(session)
+            func_repo: Any = FuncionarioRepositorySQLAlchemy(session)
             commit = _safe_commit(session)
             logger.info("[UI] contexto com SQLite")
             return _wire(
@@ -126,6 +133,7 @@ def create_context(use_db: bool = True) -> AppContext:
                 pag_repo,
                 acesso_repo,
                 fech_repo,
+                func_repo,
                 ui_config=ui_config,
                 config_store=config_store,
                 session=session,
@@ -136,6 +144,7 @@ def create_context(use_db: bool = True) -> AppContext:
 
     from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
     from gymflow.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
+    from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
     from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
     from gymflow.infra.repositories.plano import PlanoRepositoryMemoria
     from gymflow.services.cadastrar_aluno import RepositorioAlunosMemoria
@@ -150,6 +159,7 @@ def create_context(use_db: bool = True) -> AppContext:
         RepositorioPagamentosMemoria(),
         AcessoLogRepositoryMemoria(),
         FechamentoCaixaRepositoryMemoria(),
+        FuncionarioRepositoryMemoria(),
         ui_config=ui_config,
         config_store=config_store,
     )
@@ -163,6 +173,7 @@ def _wire(
     pag_repo: Any,
     acesso_repo: Any,
     fech_repo: Any,
+    func_repo: Any,
     ui_config: UiConfig | None = None,
     config_store: ConfigStore | None = None,
     session: Session | None = None,
@@ -191,7 +202,9 @@ def _wire(
         pagamento_repo=pag_repo,
         acesso_repo=acesso_repo,
     )
-    identificar_svc = IdentificarAcessoService(acesso=liberar_svc, aluno_repo=aluno_repo)
+    identificar_svc = IdentificarAcessoService(
+        acesso=liberar_svc, aluno_repo=aluno_repo, funcionario_repo=func_repo
+    )
     dashboard_vm = DashboardViewModel(
         acesso=liberar_svc,
         log_repo=acesso_repo,
@@ -220,6 +233,7 @@ def _wire(
         planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
         pagamentos_vm=pagamentos_vm,
         caixa_vm=caixa_vm,
+        funcionarios_vm=FuncionariosViewModel(repo=func_repo, commit=commit),
         config_vm=config_vm,
         config_store=store,
         session=session,
@@ -254,6 +268,11 @@ class GymFlowMainWindow(QMainWindow):
             CaixaView(ctx.caixa_vm),
             estilo.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
             "Caixa",
+        )
+        tabs.addTab(
+            FuncionariosView(ctx.funcionarios_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
+            "Funcionários",
         )
         tabs.addTab(
             ConfigView(ctx.config_vm),

@@ -47,7 +47,7 @@ def test_estilo_resultado():
     assert VERMELHO not in estilo_resultado(None)
 
 
-def test_tema_aplicado_nas_4_abas(qapp, qtbot):
+def test_tema_aplicado_nas_abas(qapp, qtbot):
     qapp.setStyleSheet(stylesheet())
     assert AZUL in qapp.styleSheet()
     ctx = create_context(use_db=False)
@@ -55,7 +55,7 @@ def test_tema_aplicado_nas_4_abas(qapp, qtbot):
     try:
         win = build_window(ctx)
         qtbot.addWidget(win)
-        assert win.tabs.count() == 5
+        assert win.tabs.count() == 6
         win.show()
         assert win.isVisible()
     finally:
