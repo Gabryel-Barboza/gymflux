@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Protocol
 
 from gymflow.core.acesso import DecisaoAcesso, DirecaoAcesso, MotivoNegado, TentativaAcesso
 from gymflow.core.aluno import Aluno
+from gymflow.core.funcionario import Funcionario
 from gymflow.services.identificar_acesso import (
     Identificacao,
     IdentificarAcessoService,
@@ -23,6 +25,12 @@ class LogRepoProto(Protocol):
     def listar(self) -> list[TentativaAcesso]: ...
 
 
+class FuncionarioRepoProto(Protocol):
+    """Protocolo mínimo p/ exibir nome de funcionário no log."""
+
+    def buscar_por_id(self, funcionario_id: str) -> Funcionario | None: ...
+
+
 @dataclass
 class DashboardViewModel:
     """Orquestra liberação via ``LiberarAcessoService`` (que aciona o driver)."""
@@ -33,6 +41,7 @@ class DashboardViewModel:
     giros: list[tuple[str, float]] = field(default_factory=list)
     identificar: IdentificarAcessoService | None = None
     ui_config: UiConfig = field(default_factory=UiConfig)
+    funcionario_repo: FuncionarioRepoProto | None = None
 
     def _commit(self) -> None:
         if self.commit is not None:
@@ -132,6 +141,17 @@ class DashboardViewModel:
             return self.log_repo.listar()[-n:]
         return self.acesso.registro.tentativas[-n:]
 
+    def tentativas_do_dia(self, dia: date | None = None, n: int = 50) -> list[TentativaAcesso]:
+        """Só o dia (antifraude) — padrão hoje; imune a troca de data via param."""
+        ref = dia or date.today()
+        do_dia = [t for t in self._todas() if t.timestamp.date() == ref]
+        return do_dia[-n:]
+
+    def _todas(self) -> list[TentativaAcesso]:
+        if self.log_repo is not None:
+            return self.log_repo.listar()
+        return list(self.acesso.registro.tentativas)
+
     def nome_aluno(self, aluno_id: str) -> str:
         """Nome p/ exibir no log; fallback p/ ID se aluno sumiu do cadastro."""
         repo = self.acesso.aluno_repo
@@ -142,6 +162,21 @@ class DashboardViewModel:
         except Exception:
             return aluno_id
         return aluno.nome if aluno is not None else aluno_id
+
+    def nome_tentativa(self, tentativa: TentativaAcesso) -> str:
+        """Nome p/ exibir no log (aluno, funcionário ou fallback p/ ID)."""
+        if tentativa.funcionario_id:
+            repo = self.funcionario_repo
+            if repo is None:
+                return tentativa.funcionario_id
+            try:
+                func = repo.buscar_por_id(tentativa.funcionario_id)
+            except Exception:
+                return tentativa.funcionario_id
+            return func.nome if func is not None else tentativa.funcionario_id
+        if tentativa.aluno_id:
+            return self.nome_aluno(tentativa.aluno_id)
+        return "—"
 
     @staticmethod
     def resume_decisao(d: DecisaoAcesso) -> str:

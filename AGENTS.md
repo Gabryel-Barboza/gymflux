@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (128 passed + 1 skipped HW em 2026-09-12)
+uv run pytest                # testes (138 passed + 1 skipped HW em 2026-09-12)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -99,6 +99,12 @@ src/gymflow/       # único
   - Planos em cards (`QFrame#PlanoCard` no tema) + dialog com `preencher()` p/ edição; `vm.salvar(plano_id=...)` já cobria update.
   - Funcionários: `Funcionario` (core novo, hash PBKDF2) + model `funcionarios` + migração `f7e9182ac1bb` + repo; `IdentificarAcessoService` checa funcionário antes (ativo → pulso direto + LIBERADO "Funcionário", inativo → BLOQUEIO_MANUAL, sem persistir tentativa por FK); tela + aba.
   - Verificação Linux: 128 passed + 1 skipped, ruff/mypy limpos, `alembic upgrade head` ok. **RB01-RB05, hardware, migrations aplicadas e dashboard 4.4 intocados.**
+- **2026-09-12 — Fase 4.6 (frequência + antifraude) ✅:**
+  - `acesso_logs` +`funcionario_id` nullable (migração `a41f0c9d2e7b`, `aluno_id` passa a nullable) + repo; bypass de funcionário agora persiste tentativa (memória + SQL).
+  - Log do dashboard filtra só hoje (coluna só hora + nomes de funcionários); click no registro → troca p/ aba Alunos e abre o perfil (signal, funcionário sem perfil é ignorado).
+  - `FrequenciaViewModel` (Qt-free: filtros dia/mês/aluno, meses, resumo por dia LIBERADO) + aba Frequência + seção "Frequência (outros dias)" no perfil.
+  - Removidos `views/pagamentos.py` + `PagamentosViewModel` (`CaixaViewModel` absorve services; `NovoPagamentoDialog` mora em `views/caixa.py`; testes atualizados, RB01 segue coberta em `tests/core`).
+  - Verificação Linux: 138 passed + 1 skipped, ruff/mypy limpos, upgrade/downgrade `a41f0c9d2e7b` reversível. **Regras, hardware e dashboard 4.4 (só click-through) intocados.**
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11)
 
@@ -135,7 +141,13 @@ src/gymflow/       # único
 - [x] Fase 4.4 (feedback dono 2026-09-12) ✅: aba Configurações + dashboard enxuto (ver §4).
 - [x] Fase 4.5 (feedback dono 2026-09-12) ✅: perfil editável + Caixa + Planos cards + Funcionários (ver §4).
 - [ ] Follow-up Fase 4.5: passes de funcionário NÃO aparecem no log persistido (`acesso_logs.aluno_id` tem FK p/ alunos; bypass não persiste tentativa) e o painel mostra "NÃO IDENTIFICADO — LIBERADO" (dashboard.py intocado por governança) — futuro: coluna `funcionario_id` ou exibir nome via detalhes.
+- [x] Fase 4.6 (feedback dono 2026-09-12) ✅: click-perfil, log do dia, Frequência global/do aluno, legados de pagamentos removidos (ver §4).
+- [x] Follow-up Fase 4.5 removido na 4.6: `views/pagamentos.py` + `pagamentos_vm` excluídos (`CaixaViewModel` absorveu services).
 - [ ] Follow-up Fase 4.5: `views/pagamentos.py` (`PagamentosView`) e `pagamentos_vm` mantidos mas sem aba (compat testes); remover quando o gerente aprovar.
+- [x] Fase 4.6 original (feedback dono) ✅ concluída — ver linha acima; `test_pagamentos_situacao_rb01` saiu com o `PagamentosViewModel` (RB01 segue em `tests/core`).
+- [ ] Futuro (pós-MVP): minimizar p/ bandeja ao fechar (QSystemTrayIcon, Windows) sem perder a catraca; integração gateway pagamento (Pix recorrente — avaliar provedores).
+- [ ] Fase 4.7 (feedback dono 2026-09-12, após 4.6): modo claro + alternância de tema (mesma paleta, troca só o preto; design consistente).
+- [ ] Renomeação GymFlux (dono 2026-09-12, após 4.6/4.7): marca `gymflux` em tudo (pacote, env, DB, UI, docs) p/ não confundir com outros "GymFlow".
 - [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
 - [ ] `CadastrarAlunoService` não verifica `cartao_id` duplicado (só CPF) — decidir se cartão deve ser único no cadastro (DB já tem índice único).
 - [ ] Importação SCA: **adiada pelo dono** (retomar quando enviar `.bak`/dump; só há `henry.fdb` demo Henry 2011 no repo).
@@ -147,7 +159,7 @@ src/gymflow/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev && uv run pytest` deve passar (128 passed + 1 skipped HW em 2026-09-12).
+2. `uv sync --group dev && uv run pytest` deve passar (138 passed + 1 skipped HW em 2026-09-12).
 3. Se houver `vendor/Henry/Henry7x/Kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 

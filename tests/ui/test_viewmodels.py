@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
-from gymflow.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
+from gymflow.core.acesso import (
+    DirecaoAcesso,
+    MotivoNegado,
+    ResultadoAcesso,
+    TentativaAcesso,
+)
 from gymflow.core.aluno import StatusAluno
+from gymflow.core.funcionario import Funcionario
 from gymflow.core.plano import TipoPlano
 from gymflow.hardware.henry7x.mock import MockHenry7x
 from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+from gymflow.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
 from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
 from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
 from gymflow.infra.repositories.plano import PlanoRepositoryMemoria
@@ -26,9 +33,9 @@ from gymflow.services.registrar_pagamento import (
 )
 from gymflow.ui.config_store import UiConfig
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
+from gymflow.ui.viewmodels.caixa import CaixaViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 from gymflow.ui.viewmodels.funcionarios import FuncionariosViewModel
-from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 
 HOJE = date.today()
@@ -56,7 +63,11 @@ def _wired(auto_giro: bool = False) -> dict:
         "dashboard": DashboardViewModel(acesso=liberar, log_repo=acesso_repo),
         "alunos": AlunosViewModel(alunos=cadastrar, matricula_repo=mat_repo, plano_repo=plano_repo),
         "planos": PlanosViewModel(repo=plano_repo),
-        "pagamentos": PagamentosViewModel(pagamentos=pagamentos, alunos=cadastrar),
+        "pagamentos": CaixaViewModel(
+            pagamentos=pagamentos,
+            alunos=cadastrar,
+            fechamentos=FechamentoCaixaRepositoryMemoria(),
+        ),
     }
 
 
@@ -146,22 +157,6 @@ def test_planos_crud_e_personalizado():
     assert len(w["planos"].listar()) == 2
     w["planos"].remover(mensal.id)
     assert [p.nome for p in w["planos"].listar()] == ["15 dias"]
-
-
-def test_pagamentos_situacao_rb01():
-    w = _wired()
-    aluno = w["alunos"].cadastrar(nome="Ana", cpf="11144477735")
-    assert w["pagamentos"].situacao(aluno.id) == ("SEM PAGAMENTOS", 0)
-    # vencido há 10 dias, pendente => inadimplente (tolerância 3)
-    w["pagamentos"].registrar(
-        aluno_id=aluno.id, valor="99.90", data_vencimento=HOJE - timedelta(days=10)
-    )
-    rotulo, atraso = w["pagamentos"].situacao(aluno.id)
-    assert rotulo == "INADIMPLENTE"
-    assert atraso == 10
-    # pagamento novo pago hoje volta a adimplente (considera o mais recente)
-    w["pagamentos"].registrar(aluno_id=aluno.id, valor="99.90", data_vencimento=HOJE, pago=True)
-    assert w["pagamentos"].situacao(aluno.id)[0] == "ADIMPLENTE"
 
 
 def test_matricular_sem_plano_da_erro_amigavel():
@@ -351,3 +346,40 @@ def test_funcionarios_crud_e_ativar():
         vm.definir_ativo("inexistente", True)
     with pytest.raises(ValueError, match="dígitos"):
         vm.cadastrar(nome="X", senha="12")
+
+
+def _tentativa(aluno_id, dia, hora=9, resultado=None, funcionario_id=None):
+    return TentativaAcesso(
+        aluno_id=aluno_id,
+        funcionario_id=funcionario_id,
+        direcao=DirecaoAcesso.ENTRADA,
+        timestamp=datetime(dia.year, dia.month, dia.day, hora, 0),
+        resultado=resultado or ResultadoAcesso.LIBERADO,
+    )
+
+
+def test_log_do_dia_filtra_ontem_e_mostra_funcionario():
+    w = _wired()
+    aluno_id = _fluxo_adimplente(w)
+    repo = w["dashboard"].acesso.acesso_repo
+    assert repo is not None
+    ontem = HOJE - timedelta(days=1)
+    repo.registrar(_tentativa(aluno_id, ontem))
+    repo.registrar(_tentativa(aluno_id, HOJE))
+    # funcionário logado ontem não aparece no filtro de hoje
+    func_repo = FuncionarioRepositoryMemoria()
+    func = Funcionario(id="f1", nome="Zé Porteira")
+    func_repo.salvar(func)
+    w["dashboard"].funcionario_repo = func_repo
+    repo.registrar(_tentativa(None, HOJE, hora=10, funcionario_id="f1"))
+    repo.registrar(_tentativa(None, ontem, hora=10, funcionario_id="f1"))
+
+    do_dia = w["dashboard"].tentativas_do_dia(HOJE)
+    assert len(do_dia) == 2
+    assert all(t.timestamp.date() == HOJE for t in do_dia)
+    nomes = [w["dashboard"].nome_tentativa(t) for t in do_dia]
+    assert "Ana Silva" in nomes
+    assert "Zé Porteira" in nomes
+    # fallback p/ ids desconhecidos
+    assert w["dashboard"].nome_tentativa(_tentativa("x-desconhecido", HOJE)) == "x-desconhecido"
+    assert w["dashboard"].nome_tentativa(_tentativa(None, HOJE, funcionario_id="f-?")) == "f-?"

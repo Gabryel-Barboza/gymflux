@@ -14,8 +14,15 @@ class AcessoLogModel(Base):
     __tablename__ = "acesso_logs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    aluno_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("alunos.id", ondelete="CASCADE"), nullable=False, index=True
+    aluno_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("alunos.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    funcionario_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("funcionarios.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
+        index=True,
     )
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     direcao: Mapped[str] = mapped_column(String(10), nullable=False)

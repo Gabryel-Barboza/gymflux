@@ -28,7 +28,15 @@ def test_janela_principal_abas(qtbot, ctx):
     win = build_window(ctx)
     qtbot.addWidget(win)
     textos = [win.tabs.tabText(i) for i in range(win.tabs.count())]
-    assert textos == ["Catraca", "Alunos", "Planos", "Caixa", "Funcionários", "Configurações"]
+    assert textos == [
+        "Catraca",
+        "Alunos",
+        "Planos",
+        "Caixa",
+        "Funcionários",
+        "Frequência",
+        "Configurações",
+    ]
 
 
 def _valor_status(view, campo):
@@ -61,7 +69,7 @@ def test_fluxo_completo_pela_ui_cadastra_e_libera(qtbot, ctx):
     aluno = ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735")
     plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
     ctx.alunos_vm.matricular(aluno.id, plano.id)
-    ctx.pagamentos_vm.registrar(
+    ctx.caixa_vm.registrar(
         aluno_id=aluno.id,
         valor=Decimal("99.90"),
         data_vencimento=date.today(),
@@ -118,7 +126,7 @@ def _adimplente_com_senha(ctx, senha="1234"):
     )
     plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
     ctx.alunos_vm.matricular(aluno.id, plano.id)
-    ctx.pagamentos_vm.registrar(
+    ctx.caixa_vm.registrar(
         aluno_id=aluno.id,
         valor=Decimal("99.90"),
         data_vencimento=date.today(),
@@ -258,13 +266,13 @@ def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx):
     from gymflow.ui.views.alunos import PerfilAlunoDialog
 
     aluno = ctx.alunos_vm.cadastrar(nome="Ana", senha="1234")
-    ctx.pagamentos_vm.registrar(
+    ctx.caixa_vm.registrar(
         aluno_id=aluno.id,
         valor=Decimal("99.90"),
         data_vencimento=date.today(),
         pago=True,
     )
-    dlg = PerfilAlunoDialog(ctx.alunos_vm, ctx.pagamentos_vm, aluno.id)
+    dlg = PerfilAlunoDialog(ctx.alunos_vm, ctx.caixa_vm, aluno.id)
     qtbot.addWidget(dlg)
     assert dlg.form.edt_nome.text() == "Ana"
     assert dlg.tbl_pag.rowCount() == 1
@@ -283,7 +291,7 @@ def test_alunos_duplo_clique_e_menu_abrem_perfil(qtbot, ctx, mocker):
 
     from gymflow.ui.views.alunos import AlunosView, PerfilAlunoDialog
 
-    view = AlunosView(ctx.alunos_vm, ctx.pagamentos_vm)
+    view = AlunosView(ctx.alunos_vm, ctx.caixa_vm)
     qtbot.addWidget(view)
     ctx.alunos_vm.cadastrar(nome="Ana")
     view.recarregar()
@@ -382,3 +390,123 @@ def test_funcionarios_aba_e_dialog(qtbot, ctx):
     view.recarregar()
     item = view.tbl.item(0, 2)
     assert item is not None and item.text() == "não"
+
+
+def test_click_no_registro_abre_perfil(qtbot, ctx, mocker):
+    from PySide6.QtWidgets import QDialog
+
+    from gymflow.ui.views.alunos import PerfilAlunoDialog
+    from gymflow.ui.views.dashboard import DashboardView
+
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735")
+    dash.edt_aluno.setText(aluno.id)
+    dash._liberar("ENTRADA")
+    assert dash.tbl_log.rowCount() == 1
+
+    # mock antes: o emit dispara o slot real da janela (modal)
+    mocker.patch.object(PerfilAlunoDialog, "exec", return_value=QDialog.DialogCode.Accepted)
+    emitidos: list[str] = []
+    dash.perfil_solicitado.connect(emitidos.append)
+    dash._registro_clicado(0, 1)
+    assert emitidos == [aluno.id]
+
+    # click-through fim a fim: troca p/ aba Alunos e abre o modal
+    win._abrir_perfil_aluno(aluno.id)
+    assert win.tabs.tabText(win.tabs.currentIndex()) == "Alunos"
+
+
+def test_click_em_registro_funcionario_nao_abre_perfil(qtbot, ctx):
+    from gymflow.services.identificar_acesso import Identificacao
+    from gymflow.ui.views.dashboard import DashboardView
+
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    ctx.funcionarios_vm.cadastrar(nome="Zé Porteira", senha="1234")
+    decisao, _ = ctx.dashboard_vm.identificar.identificar(Identificacao.por_teclado("1234"))
+    assert decisao.liberado is True
+    dash._refresh_log()
+    assert dash.tbl_log.rowCount() >= 1
+    emitidos: list[str] = []
+    dash.perfil_solicitado.connect(emitidos.append)
+    dash._registro_clicado(0, 1)  # linha mais recente = funcionário
+    assert emitidos == []
+
+
+def test_frequencia_global_filtra(qtbot, ctx):
+    from datetime import datetime, timedelta
+
+    from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
+    from gymflow.ui.views.frequencia import FrequenciaView
+
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735")
+    repo = ctx.dashboard_vm.acesso.acesso_repo
+    assert repo is not None
+    hoje = date.today()
+    repo.registrar(
+        TentativaAcesso(
+            aluno_id=aluno.id,
+            direcao=DirecaoAcesso.ENTRADA,
+            timestamp=datetime(hoje.year, hoje.month, hoje.day, 8, 0),
+            resultado=ResultadoAcesso.LIBERADO,
+        )
+    )
+    repo.registrar(
+        TentativaAcesso(
+            aluno_id="aluno-fantasma",
+            direcao=DirecaoAcesso.ENTRADA,
+            timestamp=datetime(hoje.year, hoje.month, hoje.day, 9, 0) - timedelta(days=1),
+            resultado=ResultadoAcesso.NEGADO,
+        )
+    )
+    view = FrequenciaView(ctx.frequencia_vm)
+    qtbot.addWidget(view)
+    assert view.tbl.rowCount() == 1  # dia de hoje por padrão
+    assert "Ana Silva" in view.tbl.item(0, 1).text()  # type: ignore[union-attr]
+    # filtra por aluno => só Ana; sem filtro de dia => todos dela; Todos => tudo
+    view.cmb_aluno.setCurrentIndex(view.cmb_aluno.findText("Ana Silva"))
+    assert view.tbl.rowCount() == 1
+    view.chk_dia.setChecked(False)
+    assert view.tbl.rowCount() == 1  # ainda filtrado por Ana
+    view.cmb_aluno.setCurrentIndex(0)  # Todos
+    assert view.tbl.rowCount() == 2
+    assert "registro(s)" in view.lbl_total.text()
+
+
+def test_perfil_mostra_frequencia_outros_dias(qtbot, ctx):
+    from datetime import datetime, timedelta
+
+    from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
+    from gymflow.ui.views.alunos import PerfilAlunoDialog
+
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana", senha="1234")
+    repo = ctx.dashboard_vm.acesso.acesso_repo
+    assert repo is not None
+    hoje = date.today()
+    ontem = hoje - timedelta(days=1)
+    repo.registrar(
+        TentativaAcesso(
+            aluno_id=aluno.id,
+            direcao=DirecaoAcesso.ENTRADA,
+            timestamp=datetime(ontem.year, ontem.month, ontem.day, 8, 0),
+            resultado=ResultadoAcesso.LIBERADO,
+        )
+    )
+    repo.registrar(
+        TentativaAcesso(
+            aluno_id=aluno.id,
+            direcao=DirecaoAcesso.ENTRADA,
+            timestamp=datetime(hoje.year, hoje.month, hoje.day, 8, 0),
+            resultado=ResultadoAcesso.LIBERADO,
+        )
+    )
+    dlg = PerfilAlunoDialog(ctx.alunos_vm, ctx.caixa_vm, aluno.id, frequencia_vm=ctx.frequencia_vm)
+    qtbot.addWidget(dlg)
+    assert dlg.tbl_freq.rowCount() == 1  # só ontem; hoje fica no dashboard
+    assert dlg.tbl_freq.item(0, 0) is not None
+    assert dlg.tbl_freq.item(0, 0).text() == ontem.isoformat()  # type: ignore[union-attr]

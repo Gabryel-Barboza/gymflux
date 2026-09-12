@@ -55,7 +55,7 @@ def test_tema_aplicado_nas_abas(qapp, qtbot):
     try:
         win = build_window(ctx)
         qtbot.addWidget(win)
-        assert win.tabs.count() == 6
+        assert win.tabs.count() == 7
         win.show()
         assert win.isVisible()
     finally:
@@ -82,7 +82,7 @@ def test_resultado_liberado_verde_negado_vermelho(qtbot, ctx):
 
     plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
     ctx.alunos_vm.matricular(aluno.id, plano.id)
-    ctx.pagamentos_vm.registrar(
+    ctx.caixa_vm.registrar(
         aluno_id=aluno.id, valor=Decimal("99.90"), data_vencimento=date.today(), pago=True
     )
     dash._liberar("ENTRADA")

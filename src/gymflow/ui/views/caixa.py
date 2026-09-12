@@ -4,14 +4,22 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import ClassVar
 
 from loguru import logger
+from PySide6.QtCore import QDate
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QDateEdit,
     QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
@@ -20,9 +28,49 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from gymflow.core.pagamento import FormaPagamento
 from gymflow.ui.theme import VERMELHO
 from gymflow.ui.viewmodels.caixa import CaixaViewModel
-from gymflow.ui.views.pagamentos import NovoPagamentoDialog
+
+
+class NovoPagamentoDialog(QDialog):
+    FORMAS: ClassVar[list[str]] = ["—", *[f.value for f in FormaPagamento]]
+
+    def __init__(self, aluno_nome: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Novo pagamento — {aluno_nome}")
+        form = QFormLayout(self)
+        self.spn_valor = QDoubleSpinBox()
+        self.spn_valor.setRange(0.01, 100000.0)
+        self.spn_valor.setDecimals(2)
+        self.spn_valor.setValue(99.90)
+        self.dat_venc = QDateEdit(QDate.currentDate())
+        self.dat_venc.setCalendarPopup(True)
+        self.cmb_forma = QComboBox()
+        self.cmb_forma.addItems(self.FORMAS)
+        self.chk_pago = QCheckBox("Pago hoje")
+        self.chk_pago.setChecked(True)
+        self.edt_comp = QLineEdit()
+        self.edt_comp.setPlaceholderText("AAAA-MM (opcional)")
+        form.addRow("Valor (R$)*:", self.spn_valor)
+        form.addRow("Vencimento:", self.dat_venc)
+        form.addRow("Forma:", self.cmb_forma)
+        form.addRow(self.chk_pago)
+        form.addRow("Competência:", self.edt_comp)
+        botoes = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        botoes.accepted.connect(self.accept)
+        botoes.rejected.connect(self.reject)
+        form.addRow(botoes)
+
+    def forma(self) -> str | None:
+        v = self.cmb_forma.currentText()
+        return None if v == "—" else v
+
+    def vencimento(self) -> date:
+        qd = self.dat_venc.date()
+        return date(qd.year(), qd.month(), qd.day())
 
 
 class CaixaView(QWidget):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -186,3 +186,23 @@ def test_sem_repo_funcionario_mantem_fluxo_aluno():
     decisao, achado = svc.identificar(Identificacao.por_teclado("1234"))
     assert decisao.liberado is True
     assert achado is not None and achado.id == "a1"
+
+
+def test_funcionario_persiste_tentativa_com_funcionario_id():
+    svc = _svc()
+    _com_funcionario(svc)
+    ts = datetime.now()
+    decisao, achado = svc.identificar(Identificacao.por_teclado("9999"), timestamp=ts)
+    assert decisao.liberado is True
+    assert achado is None
+    # memória do serviço
+    mem = [t for t in svc.acesso.registro.tentativas if t.funcionario_id == "f1"]
+    assert len(mem) == 1
+    assert mem[0].aluno_id is None
+    assert mem[0].timestamp == ts
+    # repo injetado (persistido)
+    repo = svc.acesso.acesso_repo
+    assert repo is not None
+    logs = [t for t in repo.listar() if t.funcionario_id == "f1"]
+    assert len(logs) == 1
+    assert logs[0].resultado == ResultadoAcesso.LIBERADO

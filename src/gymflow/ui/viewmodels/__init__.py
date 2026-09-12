@@ -8,15 +8,15 @@ concretos (SQLAlchemy ou memória) são injetados pelo composition root
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
 from gymflow.ui.viewmodels.caixa import CaixaViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
+from gymflow.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflow.ui.viewmodels.funcionarios import FuncionariosViewModel
-from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 
 __all__ = [
     "AlunosViewModel",
     "CaixaViewModel",
     "DashboardViewModel",
+    "FrequenciaViewModel",
     "FuncionariosViewModel",
-    "PagamentosViewModel",
     "PlanosViewModel",
 ]

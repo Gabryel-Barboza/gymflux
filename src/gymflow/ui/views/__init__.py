@@ -3,15 +3,15 @@
 from gymflow.ui.views.alunos import AlunosView
 from gymflow.ui.views.caixa import CaixaView
 from gymflow.ui.views.dashboard import DashboardView
+from gymflow.ui.views.frequencia import FrequenciaView
 from gymflow.ui.views.funcionarios import FuncionariosView
-from gymflow.ui.views.pagamentos import PagamentosView
 from gymflow.ui.views.planos import PlanosView
 
 __all__ = [
     "AlunosView",
     "CaixaView",
     "DashboardView",
+    "FrequenciaView",
     "FuncionariosView",
-    "PagamentosView",
     "PlanosView",
 ]

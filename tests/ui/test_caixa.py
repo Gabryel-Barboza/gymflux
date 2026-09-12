@@ -19,20 +19,20 @@ from gymflow.services.registrar_pagamento import (
     RepositorioPagamentosMemoria,
 )
 from gymflow.ui.viewmodels.caixa import CaixaViewModel
-from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 
 
 def _caixa() -> CaixaViewModel:
     alunos = CadastrarAlunoService(repo=RepositorioAlunosMemoria())
-    pagamentos = PagamentosViewModel(
-        pagamentos=RegistrarPagamentoService(repo=RepositorioPagamentosMemoria()),
+    pagamentos = RegistrarPagamentoService(repo=RepositorioPagamentosMemoria())
+    return CaixaViewModel(
+        pagamentos=pagamentos,
         alunos=alunos,
+        fechamentos=FechamentoCaixaRepositoryMemoria(),
     )
-    return CaixaViewModel(pagamentos=pagamentos, fechamentos=FechamentoCaixaRepositoryMemoria())
 
 
 def _aluno(vm: CaixaViewModel, nome: str = "Ana") -> str:
-    return vm.pagamentos.alunos.cadastrar(Aluno(id=f"aluno-{nome.lower()}", nome=nome)).id
+    return vm.alunos.cadastrar(Aluno(id=f"aluno-{nome.lower()}", nome=nome)).id
 
 
 def test_validar_mes():

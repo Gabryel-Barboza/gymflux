@@ -41,6 +41,7 @@ def _model_to_domain(m: AcessoLogModel) -> TentativaAcesso:
         detalhes=m.detalhes,
         catraca_id=m.catraca_id,
         timeout_giro_s=m.timeout,
+        funcionario_id=m.funcionario_id,
     )
 
 
@@ -49,6 +50,7 @@ def _domain_to_model(t: TentativaAcesso, log_id: str | None = None) -> AcessoLog
     return AcessoLogModel(
         id=lid,
         aluno_id=t.aluno_id,
+        funcionario_id=t.funcionario_id,
         timestamp=t.timestamp,
         direcao=t.direcao.value if isinstance(t.direcao, DirecaoAcesso) else str(t.direcao),
         resultado=t.resultado.value

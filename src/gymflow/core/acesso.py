@@ -63,7 +63,7 @@ class DecisaoAcesso:
 
 @dataclass(frozen=True, slots=True)
 class TentativaAcesso:
-    aluno_id: str
+    aluno_id: str | None
     direcao: DirecaoAcesso
     timestamp: datetime
     resultado: ResultadoAcesso
@@ -71,6 +71,7 @@ class TentativaAcesso:
     detalhes: str | None = None
     catraca_id: str | None = None
     timeout_giro_s: int | None = None
+    funcionario_id: str | None = None
 
 
 @dataclass(slots=True)

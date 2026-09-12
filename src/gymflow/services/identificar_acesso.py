@@ -5,8 +5,8 @@ senha) → lookup do aluno → ``LiberarAcessoService`` (RB01-RB05 intactas,
 sem duplicar regra) → ``(DecisaoAcesso, Aluno | None)``.
 
 Funcionário ativo libera direto (sem RB01/RB02); inativo nega (bloqueio
-manual). O pulso vai direto ao driver e NÃO persiste tentativa no
-``acesso_repo`` (``acesso_logs.aluno_id`` tem FK p/ ``alunos.id``).
+manual). O pulso vai direto ao driver e a tentativa é persistida com
+``funcionario_id`` (``aluno_id`` fica NULL).
 
 TODO (commissioning Windows/VM — NÃO implementar aqui): o ``RealHenry7x``
 alimentará ``Identificacao`` a partir do ``SRegistro`` coletado via
@@ -24,7 +24,7 @@ from typing import Protocol
 
 from loguru import logger
 
-from gymflow.core.acesso import DecisaoAcesso, DirecaoAcesso, MotivoNegado
+from gymflow.core.acesso import DecisaoAcesso, DirecaoAcesso, MotivoNegado, TentativaAcesso
 from gymflow.core.acesso import ResultadoAcesso as ResultadoDominio
 from gymflow.core.aluno import Aluno, validar_senha_numerica
 from gymflow.core.funcionario import Funcionario
@@ -88,7 +88,7 @@ class IdentificarAcessoService:
     ) -> tuple[DecisaoAcesso, Aluno | None]:
         funcionario = self._localizar_funcionario(identificacao)
         if funcionario is not None:
-            decisao = self._liberar_funcionario(funcionario, direcao)
+            decisao = self._liberar_funcionario(funcionario, direcao, timestamp=timestamp)
             logger.info(f"[Identificar] funcionario={funcionario.id} liberado={decisao.liberado}")
             return decisao, None
         aluno = self._localizar(identificacao)
@@ -128,34 +128,47 @@ class IdentificarAcessoService:
                 continue
         return None
 
-    def _liberar_funcionario(self, func: Funcionario, direcao: DirecaoAcesso) -> DecisaoAcesso:
+    def _liberar_funcionario(
+        self,
+        func: Funcionario,
+        direcao: DirecaoAcesso,
+        timestamp: datetime | None = None,
+    ) -> DecisaoAcesso:
         """Bypass RB01/RB02 (entrada indefinida); inativo nega (bloqueio manual).
 
-        Pulso direto no driver, sem persistir tentativa (FK de acesso_logs).
+        Pulso direto no driver + tentativa persistida com ``funcionario_id``
+        (``aluno_id`` NULL) p/ auditoria antifraude.
         """
+        ts: datetime = timestamp or datetime.now()
         if not func.ativo:
-            return DecisaoAcesso.negado(
+            decisao = DecisaoAcesso.negado(
                 MotivoNegado.BLOQUEIO_MANUAL, f"Funcionário {func.nome} inativo"
             )
+            self._persistir_funcionario(func, direcao, ts, decisao)
+            return decisao
         hw_dir = DirecaoHW.ENTRADA if direcao == DirecaoAcesso.ENTRADA else DirecaoHW.SAIDA
         try:
             resultado_hw = self.acesso.driver.liberar(hw_dir)
         except Exception as e:
             logger.exception(f"[Identificar] erro hardware liberar funcionario: {e}")
-            return DecisaoAcesso(
+            decisao = DecisaoAcesso(
                 liberado=False,
                 resultado=ResultadoDominio.ERRO,
                 motivo=MotivoNegado.ERRO_HARDWARE,
                 detalhes=str(e),
             )
+            self._persistir_funcionario(func, direcao, ts, decisao)
+            return decisao
         if resultado_hw == ResultadoCatraca.LIBERADO:
-            return DecisaoAcesso.liberado_ok(f"Funcionário — {func.nome}")
+            decisao = DecisaoAcesso.liberado_ok(f"Funcionário — {func.nome}")
+            self._persistir_funcionario(func, direcao, ts, decisao)
+            return decisao
         motivo_hw = MotivoNegado.ERRO_HARDWARE
         if resultado_hw == ResultadoCatraca.BLOQUEADO:
             motivo_hw = MotivoNegado.BLOQUEIO_MANUAL
         elif resultado_hw == ResultadoCatraca.TIMEOUT:
             motivo_hw = MotivoNegado.TIMEOUT_GIRO
-        return DecisaoAcesso(
+        decisao = DecisaoAcesso(
             liberado=False,
             resultado=ResultadoDominio.NEGADO
             if resultado_hw == ResultadoCatraca.BLOQUEADO
@@ -163,6 +176,33 @@ class IdentificarAcessoService:
             motivo=motivo_hw,
             detalhes=f"Hardware retornou {resultado_hw.value}",
         )
+        self._persistir_funcionario(func, direcao, ts, decisao)
+        return decisao
+
+    def _persistir_funcionario(
+        self,
+        func: Funcionario,
+        direcao: DirecaoAcesso,
+        ts: datetime,
+        decisao: DecisaoAcesso,
+    ) -> None:
+        """Log antifraude do bypass (memória + repo, como LiberarAcessoService)."""
+        tentativa = TentativaAcesso(
+            aluno_id=None,
+            direcao=direcao,
+            timestamp=ts,
+            resultado=decisao.resultado,
+            motivo=decisao.motivo,
+            detalhes=decisao.detalhes,
+            catraca_id=self.acesso.catraca_id,
+            funcionario_id=func.id,
+        )
+        self.acesso.registro.registrar(tentativa)
+        if self.acesso.acesso_repo is not None:
+            try:
+                self.acesso.acesso_repo.registrar(tentativa)
+            except Exception as e:
+                logger.warning(f"[Identificar] acesso_repo.registrar falhou: {e}")
 
     def _localizar(self, identificacao: Identificacao) -> Aluno | None:
         if identificacao.origem == OrigemIdentificacao.CARTAO:

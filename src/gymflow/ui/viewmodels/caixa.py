@@ -1,4 +1,4 @@
-"""CaixaViewModel — consulta por mês, totais e fechamento (Qt-free)."""
+"""CaixaViewModel — registro, consulta por mês, totais e fechamento (Qt-free)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ from typing import Protocol
 from gymflow.core.aluno import Aluno
 from gymflow.core.caixa import FechamentoCaixa, validar_mes
 from gymflow.core.pagamento import FormaPagamento, Pagamento
-from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
+from gymflow.services.cadastrar_aluno import CadastrarAlunoService
+from gymflow.services.registrar_pagamento import RegistrarPagamentoService
 
 
 class FechamentoRepoProto(Protocol):
@@ -23,7 +24,8 @@ class FechamentoRepoProto(Protocol):
 
 @dataclass
 class CaixaViewModel:
-    pagamentos: PagamentosViewModel
+    pagamentos: RegistrarPagamentoService
+    alunos: CadastrarAlunoService
     fechamentos: FechamentoRepoProto
     commit: Callable[[], None] | None = None
 
@@ -37,7 +39,7 @@ class CaixaViewModel:
         return pagamento.competencia or pagamento.data_vencimento.strftime("%Y-%m")
 
     def listar_todos(self) -> list[Pagamento]:
-        return self.pagamentos.pagamentos.listar()
+        return self.pagamentos.listar()
 
     def meses_disponiveis(self) -> list[str]:
         meses = {self.mes_de(p) for p in self.listar_todos()}
@@ -46,7 +48,7 @@ class CaixaViewModel:
 
     def por_mes(self, mes: str | None) -> list[tuple[Pagamento, str]]:
         """(pagamento, nome_aluno) do mês ou todos; ordenado por vencimento desc."""
-        nomes = {a.id: a.nome for a in self.pagamentos.listar_alunos()}
+        nomes = {a.id: a.nome for a in self.listar_alunos()}
         pags = self.listar_todos()
         if mes is not None:
             pags = [p for p in pags if self.mes_de(p) == mes]
@@ -65,10 +67,11 @@ class CaixaViewModel:
         return recebido, pendente, recebido + pendente
 
     def listar_alunos(self) -> list[Aluno]:
-        return self.pagamentos.listar_alunos()
+        return sorted(self.alunos.listar(), key=lambda a: a.nome.lower())
 
     def do_aluno(self, aluno_id: str) -> list[Pagamento]:
-        return self.pagamentos.do_aluno(aluno_id)
+        pags = self.pagamentos.pagamentos_do_aluno(aluno_id)
+        return sorted(pags, key=lambda p: p.data_vencimento, reverse=True)
 
     # -- fechamento ---------------------------------------------------------------
     def fechado_em(self, mes: str) -> datetime | None:
@@ -111,12 +114,16 @@ class CaixaViewModel:
         mes = comp or data_vencimento.strftime("%Y-%m")
         if self.mes_fechado(mes):
             raise ValueError(f"Caixa de {mes} está FECHADO — registro bloqueado")
-        return self.pagamentos.registrar(
+        if self.alunos.buscar(aluno_id) is None:
+            raise ValueError(f"Aluno id={aluno_id} não encontrado")
+        result = self.pagamentos.registrar_rapido(
+            id=f"pag-{uuid.uuid4().hex[:8]}",
             aluno_id=aluno_id,
-            valor=valor,
+            valor=Decimal(str(valor)),
             data_vencimento=data_vencimento,
+            data_pagamento=date.today() if pago else data_pagamento,
             forma=forma,
-            pago=pago,
-            data_pagamento=data_pagamento,
             competencia=comp,
         )
+        self._commit()
+        return result

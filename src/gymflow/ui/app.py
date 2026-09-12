@@ -26,13 +26,14 @@ from gymflow.ui.viewmodels.alunos import AlunosViewModel
 from gymflow.ui.viewmodels.caixa import CaixaViewModel
 from gymflow.ui.viewmodels.config import ConfigViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
+from gymflow.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflow.ui.viewmodels.funcionarios import FuncionariosViewModel
-from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 from gymflow.ui.views.alunos import AlunosView
 from gymflow.ui.views.caixa import CaixaView
 from gymflow.ui.views.config import ConfigView
 from gymflow.ui.views.dashboard import DashboardView
+from gymflow.ui.views.frequencia import FrequenciaView
 from gymflow.ui.views.funcionarios import FuncionariosView
 from gymflow.ui.views.planos import PlanosView
 
@@ -45,9 +46,9 @@ class AppContext:
     dashboard_vm: DashboardViewModel
     alunos_vm: AlunosViewModel
     planos_vm: PlanosViewModel
-    pagamentos_vm: PagamentosViewModel
     caixa_vm: CaixaViewModel
     funcionarios_vm: FuncionariosViewModel
+    frequencia_vm: FrequenciaViewModel
     config_vm: ConfigViewModel
     config_store: ConfigStore
     session: Session | None = None
@@ -190,10 +191,15 @@ def _wire(
     )
     cadastrar_svc = CadastrarAlunoService(repo=aluno_repo)
     pagamento_svc = RegistrarPagamentoService(repo=pag_repo)
-    pagamentos_vm = PagamentosViewModel(
-        pagamentos=pagamento_svc, alunos=cadastrar_svc, commit=commit
+    caixa_vm = CaixaViewModel(
+        pagamentos=pagamento_svc,
+        alunos=cadastrar_svc,
+        fechamentos=fech_repo,
+        commit=commit,
     )
-    caixa_vm = CaixaViewModel(pagamentos=pagamentos_vm, fechamentos=fech_repo, commit=commit)
+    frequencia_vm = FrequenciaViewModel(
+        log_repo=acesso_repo, aluno_repo=aluno_repo, funcionario_repo=func_repo
+    )
     liberar_svc = LiberarAcessoService(
         driver=bridge.driver,
         regra=regra,
@@ -211,6 +217,7 @@ def _wire(
         commit=commit,
         identificar=identificar_svc,
         ui_config=cfg,
+        funcionario_repo=func_repo,
     )
 
     def _aplicar(nova: UiConfig) -> None:
@@ -231,9 +238,9 @@ def _wire(
             plano_repo=plano_repo,
         ),
         planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
-        pagamentos_vm=pagamentos_vm,
         caixa_vm=caixa_vm,
         funcionarios_vm=FuncionariosViewModel(repo=func_repo, commit=commit),
+        frequencia_vm=frequencia_vm,
         config_vm=config_vm,
         config_store=store,
         session=session,
@@ -249,13 +256,16 @@ class GymFlowMainWindow(QMainWindow):
         self.resize(1024, 640)
         tabs = QTabWidget(self)
         estilo = self.style()
+        dashboard_view = DashboardView(ctx.dashboard_vm, ctx.bridge)
+        dashboard_view.perfil_solicitado.connect(self._abrir_perfil_aluno)
         tabs.addTab(
-            DashboardView(ctx.dashboard_vm, ctx.bridge),
+            dashboard_view,
             estilo.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
             "Catraca",
         )
+        self.alunos_view = AlunosView(ctx.alunos_vm, ctx.caixa_vm, frequencia_vm=ctx.frequencia_vm)
         tabs.addTab(
-            AlunosView(ctx.alunos_vm, ctx.caixa_vm),
+            self.alunos_view,
             estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
             "Alunos",
         )
@@ -275,12 +285,25 @@ class GymFlowMainWindow(QMainWindow):
             "Funcionários",
         )
         tabs.addTab(
+            FrequenciaView(ctx.frequencia_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogListView),
+            "Frequência",
+        )
+        tabs.addTab(
             ConfigView(ctx.config_vm),
             estilo.standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
             "Configurações",
         )
         self.setCentralWidget(tabs)
         self.tabs = tabs
+
+    def _abrir_perfil_aluno(self, aluno_id: str) -> None:
+        """Click-through do log: troca p/ aba Alunos e abre o modal de perfil."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Alunos":
+                self.tabs.setCurrentIndex(i)
+                break
+        self.alunos_view.abrir_perfil_por_id(aluno_id)
 
 
 def build_window(ctx: AppContext) -> GymFlowMainWindow:

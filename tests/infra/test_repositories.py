@@ -301,3 +301,29 @@ def test_funcionario_crud_sql(session):
     repo.remover("f1")
     session.commit()
     assert repo.buscar_por_id("f1") is None
+
+
+def test_acesso_log_funcionario_id_nullable(session):
+    func_repo = FuncionarioRepositorySQLAlchemy(session)
+    acesso_repo = AcessoLogRepositorySQLAlchemy(session)
+    func = Funcionario(id="f9", nome="Zé Porteira")
+    func_repo.salvar(func)
+    session.commit()
+
+    now = datetime.now()
+    t = TentativaAcesso(
+        aluno_id=None,
+        funcionario_id="f9",
+        direcao=DirecaoAcesso.ENTRADA,
+        timestamp=now,
+        resultado=ResultadoAcesso.LIBERADO,
+        detalhes="Funcionário — Zé Porteira",
+        catraca_id="catraca-1",
+    )
+    acesso_repo.registrar(t)
+    session.commit()
+    logs = acesso_repo.listar()
+    assert len(logs) == 1
+    assert logs[0].funcionario_id == "f9"
+    assert logs[0].aluno_id is None
+    assert logs[0].resultado == ResultadoAcesso.LIBERADO

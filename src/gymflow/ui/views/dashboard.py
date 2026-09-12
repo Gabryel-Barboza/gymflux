@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from gymflow.core.acesso import TentativaAcesso
 from gymflow.ui.catraca_bridge import CatracaBridge
 from gymflow.ui.theme import LIMA, VERMELHO, estilo_resultado
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
@@ -34,6 +35,8 @@ class DashboardView(QWidget):
     COLUNAS_LOG = ("Hora", "Aluno", "Direção", "Resultado", "Motivo")
     LINHAS_STATUS = ("Online", "Bloqueada", "Giros", "Firmware", "Driver", "Porta")
 
+    perfil_solicitado = Signal(str)  # aluno_id clicado no log do dia
+
     def __init__(
         self,
         vm: DashboardViewModel,
@@ -43,6 +46,7 @@ class DashboardView(QWidget):
         super().__init__(parent)
         self.vm = vm
         self.bridge = bridge
+        self._tentativas_visiveis: list[TentativaAcesso] = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -132,6 +136,7 @@ class DashboardView(QWidget):
         self.btn_bloquear.clicked.connect(self._bloquear)
         self.btn_identificar.clicked.connect(self._identificar)
         self.cmb_origem.currentIndexChanged.connect(self._origem_mudou)
+        self.tbl_log.cellClicked.connect(self._registro_clicado)
         self.bridge.giro_detectado.connect(self._on_giro)
         self.bridge.status_changed.connect(self._on_status_changed)
 
@@ -257,15 +262,24 @@ class DashboardView(QWidget):
                 item.setForeground(QBrush(QColor(LIMA if online else VERMELHO)))
 
     def _refresh_log(self) -> None:
-        tentativas = self.vm.ultimas_tentativas(50)
+        tentativas = self.vm.tentativas_do_dia()
+        self._tentativas_visiveis = tentativas
         self.tbl_log.setRowCount(len(tentativas))
         for row, t in enumerate(reversed(tentativas)):
             vals = (
-                t.timestamp.strftime("%d/%m %H:%M:%S"),
-                self.vm.nome_aluno(t.aluno_id),
+                t.timestamp.strftime("%H:%M:%S"),
+                self.vm.nome_tentativa(t),
                 str(t.direcao),
                 str(t.resultado),
                 str(t.motivo or "—"),
             )
             for col, v in enumerate(vals):
                 self.tbl_log.setItem(row, col, QTableWidgetItem(v))
+
+    def _registro_clicado(self, row: int, _col: int) -> None:
+        """Click-through: abre o perfil do aluno (funcionário não tem perfil)."""
+        visiveis = list(reversed(self._tentativas_visiveis))
+        if 0 <= row < len(visiveis):
+            tentativa = visiveis[row]
+            if tentativa.aluno_id:
+                self.perfil_solicitado.emit(tentativa.aluno_id)

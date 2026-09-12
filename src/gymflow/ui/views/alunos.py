@@ -29,7 +29,8 @@ from PySide6.QtWidgets import (
 from gymflow.core.aluno import Aluno, StatusAluno
 from gymflow.core.pagamento import FormaPagamento, Pagamento
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
-from gymflow.ui.views.pagamentos import NovoPagamentoDialog
+from gymflow.ui.viewmodels.frequencia import FrequenciaViewModel
+from gymflow.ui.views.caixa import NovoPagamentoDialog
 
 
 class PagamentosProto(Protocol):
@@ -139,9 +140,10 @@ class NovoAlunoDialog(QDialog):
 
 
 class PerfilAlunoDialog(QDialog):
-    """Modal de perfil: todos os campos editáveis + pagamentos do aluno."""
+    """Modal de perfil: campos editáveis + pagamentos + frequência (outros dias)."""
 
     COLUNAS_PAG = ("Vencimento", "Valor (R$)", "Pagamento", "Forma")
+    COLUNAS_FREQ = ("Data", "Entradas", "Saídas")
 
     def __init__(
         self,
@@ -149,6 +151,7 @@ class PerfilAlunoDialog(QDialog):
         pagamentos_vm: PagamentosProto,
         aluno_id: str,
         parent: QWidget | None = None,
+        frequencia_vm: FrequenciaViewModel | None = None,
     ) -> None:
         super().__init__(parent)
         aluno = alunos_vm.alunos.buscar(aluno_id)
@@ -157,6 +160,7 @@ class PerfilAlunoDialog(QDialog):
         self._vm = alunos_vm
         self._pagamentos = pagamentos_vm
         self._aluno_id = aluno_id
+        self._frequencia = frequencia_vm
         self.setWindowTitle(f"Perfil — {aluno.nome}")
         self.resize(560, 520)
         layout = QVBoxLayout(self)
@@ -178,6 +182,13 @@ class PerfilAlunoDialog(QDialog):
         hb.addStretch(1)
         layout.addLayout(hb)
 
+        layout.addWidget(QLabel("Frequência (outros dias):"))
+        self.tbl_freq = QTableWidget(0, len(self.COLUNAS_FREQ))
+        self.tbl_freq.setHorizontalHeaderLabels(list(self.COLUNAS_FREQ))
+        self.tbl_freq.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_freq.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.tbl_freq, 1)
+
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -187,6 +198,16 @@ class PerfilAlunoDialog(QDialog):
 
         self.btn_novo_pag.clicked.connect(self._novo_pagamento)
         self._recarregar_pagamentos()
+        self._recarregar_frequencia()
+
+    def _recarregar_frequencia(self) -> None:
+        if self._frequencia is None:
+            return
+        linhas = self._frequencia.resumo_por_dia(self._aluno_id)
+        self.tbl_freq.setRowCount(len(linhas))
+        for row, (dia, entradas, saidas) in enumerate(linhas):
+            for col, v in enumerate((dia.isoformat(), str(entradas), str(saidas))):
+                self.tbl_freq.setItem(row, col, QTableWidgetItem(v))
 
     def _recarregar_pagamentos(self) -> None:
         pags = sorted(
@@ -300,10 +321,12 @@ class AlunosView(QWidget):
         vm: AlunosViewModel,
         pagamentos_vm: PagamentosProto | None = None,
         parent: QWidget | None = None,
+        frequencia_vm: FrequenciaViewModel | None = None,
     ) -> None:
         super().__init__(parent)
         self.vm = vm
         self.pagamentos_vm = pagamentos_vm
+        self.frequencia_vm = frequencia_vm
         layout = QVBoxLayout(self)
 
         hbusca = QHBoxLayout()
@@ -397,12 +420,22 @@ class AlunosView(QWidget):
         sel = self._selecionado()
         if sel is None:
             return
+        aluno_id, _nome = sel
+        self.abrir_perfil_por_id(aluno_id)
+
+    def abrir_perfil_por_id(self, aluno_id: str) -> None:
+        """Abre o perfil direto pelo id (uso do click-through do dashboard)."""
         if self.pagamentos_vm is None:
             QMessageBox.warning(self, "Alunos", "Módulo de pagamentos indisponível.")
             return
-        aluno_id, _nome = sel
         try:
-            dlg = PerfilAlunoDialog(self.vm, self.pagamentos_vm, aluno_id, self)
+            dlg = PerfilAlunoDialog(
+                self.vm,
+                self.pagamentos_vm,
+                aluno_id,
+                self,
+                frequencia_vm=self.frequencia_vm,
+            )
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))
             return
