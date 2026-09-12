@@ -342,6 +342,18 @@ def cmd_db_seed(_args: argparse.Namespace) -> int:
         session.close()
 
 
+def cmd_ui(_args: argparse.Namespace) -> int:
+    """Abre a interface desktop PySide6 (Fase 4)."""
+    try:
+        import PySide6  # noqa: F401
+    except ImportError:
+        print("[erro] PySide6 não instalado. Rode: uv sync --extra ui")
+        return 1
+    from gymflow.ui.app import run
+
+    return run()
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="gymflow", description="GymFlow — Sistema de gerenciamento para academias"
@@ -390,6 +402,10 @@ def build_parser() -> argparse.ArgumentParser:
     # alias `gymflow seed` direto
     sp_seed2 = sub.add_parser("seed", help="alias para db seed")
     sp_seed2.set_defaults(func=cmd_db_seed)
+
+    # ui desktop (Fase 4)
+    sp_ui = sub.add_parser("ui", help="abre interface desktop (PySide6)")
+    sp_ui.set_defaults(func=cmd_ui)
 
     return p
 

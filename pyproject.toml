@@ -49,6 +49,7 @@ dev = [
     "mypy>=1.11",
     "pyinstaller>=6.10",
     "pre-commit>=4.0",
+    "pytest-qt>=4.2",
 ]
 
 [build-system]
