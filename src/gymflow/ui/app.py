@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 from sqlalchemy.orm import Session
 
 from gymflow.services.cadastrar_aluno import CadastrarAlunoService
+from gymflow.services.identificar_acesso import IdentificarAcessoService
 from gymflow.services.liberar_acesso import LiberarAcessoService
 from gymflow.services.registrar_pagamento import RegistrarPagamentoService
 from gymflow.ui.catraca_bridge import CatracaBridge
@@ -152,9 +153,15 @@ def _wire(
         pagamento_repo=pag_repo,
         acesso_repo=acesso_repo,
     )
+    identificar_svc = IdentificarAcessoService(acesso=liberar_svc, aluno_repo=aluno_repo)
     return AppContext(
         bridge=bridge,
-        dashboard_vm=DashboardViewModel(acesso=liberar_svc, log_repo=acesso_repo, commit=commit),
+        dashboard_vm=DashboardViewModel(
+            acesso=liberar_svc,
+            log_repo=acesso_repo,
+            commit=commit,
+            identificar=identificar_svc,
+        ),
         alunos_vm=AlunosViewModel(
             alunos=cadastrar_svc,
             commit=commit,

@@ -98,3 +98,61 @@ def test_bridge_giro_chega_como_signal(qtbot):
         mock.simular_giro(Direcao.ENTRADA)
     assert blocker.args[0] == "ENTRADA"
     bridge.desconectar()
+
+
+def _adimplente_com_senha(ctx, senha="1234"):
+    aluno = ctx.alunos_vm.cadastrar(
+        nome="Ana Silva", cpf="11144477735", senha=senha, cartao_id="TAG-42"
+    )
+    plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
+    ctx.alunos_vm.matricular(aluno.id, plano.id)
+    ctx.pagamentos_vm.registrar(
+        aluno_id=aluno.id,
+        valor=Decimal("99.90"),
+        data_vencimento=date.today(),
+        pago=True,
+    )
+    return aluno
+
+
+def test_dashboard_painel_verificacao_senha(qtbot, ctx):
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    _adimplente_com_senha(ctx)
+
+    dash.edt_codigo.setText("1234")
+    dash._identificar()
+    assert dash.lbl_verificacao.text() == "Ana Silva — LIBERADO"
+    assert dash.edt_codigo.text() == ""
+
+    dash.edt_codigo.setText("0000")
+    dash._identificar()
+    assert dash.lbl_verificacao.text().startswith("NÃO IDENTIFICADO — NEGADO")
+
+
+def test_dashboard_painel_verificacao_cartao(qtbot, ctx):
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    _adimplente_com_senha(ctx)
+
+    dash.cmb_origem.setCurrentIndex(1)  # Cartão
+    dash.edt_codigo.setText("TAG-42")
+    dash._identificar()
+    assert dash.lbl_verificacao.text() == "Ana Silva — LIBERADO"
+
+
+def test_dialog_aluno_tem_senha_e_cartao(qtbot):
+    from gymflow.ui.views.alunos import NovoAlunoDialog
+
+    dlg = NovoAlunoDialog()
+    qtbot.addWidget(dlg)
+    dlg.edt_nome.setText("Ana")
+    dlg.edt_senha.setText("1234")
+    dlg.edt_cartao.setText("TAG-42")
+    dados = dlg.dados()
+    assert dados["senha"] == "1234"
+    assert dados["cartao_id"] == "TAG-42"

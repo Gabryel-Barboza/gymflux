@@ -183,3 +183,60 @@ def test_dashboard_log_exibe_nome_com_fallback_id():
     aluno_id = _fluxo_adimplente(w)
     assert w["dashboard"].nome_aluno(aluno_id) == "Ana Silva"
     assert w["dashboard"].nome_aluno("aluno-inexistente") == "aluno-inexistente"
+
+
+def _com_identificar(w: dict) -> list[str]:
+    from gymflow.services.identificar_acesso import IdentificarAcessoService
+
+    repo = w["dashboard"].acesso.aluno_repo
+    assert repo is not None
+    w["dashboard"].identificar = IdentificarAcessoService(
+        acesso=w["dashboard"].acesso, aluno_repo=repo
+    )
+    chamadas: list[str] = []
+    w["dashboard"].commit = lambda: chamadas.append("commit")
+    return chamadas
+
+
+def test_dashboard_identificar_por_senha_libera_e_commita():
+    w = _wired()
+    chamadas = _com_identificar(w)
+    aluno = w["alunos"].cadastrar(
+        nome="Ana Silva", cpf="11144477735", senha="1234", cartao_id="TAG-42"
+    )
+    assert aluno.senha_hash is not None and "1234" not in aluno.senha_hash
+    assert aluno.cartao_id == "TAG-42"
+    plano = w["planos"].salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
+    w["alunos"].matricular(aluno.id, plano.id)
+    w["pagamentos"].registrar(
+        aluno_id=aluno.id, valor=Decimal("99.90"), data_vencimento=HOJE, pago=True
+    )
+    decisao, achado = w["dashboard"].identificar_acesso("1234", "TECLADO")
+    assert decisao.liberado is True
+    assert achado is not None and achado.id == aluno.id
+    assert chamadas == ["commit"]
+    decisao2, achado2 = w["dashboard"].identificar_acesso("TAG-42", "CARTAO")
+    assert decisao2.liberado is True
+    assert achado2 is not None and achado2.id == aluno.id
+
+
+def test_dashboard_identificar_desconhecido_nega():
+    w = _wired()
+    chamadas = _com_identificar(w)
+    _fluxo_adimplente(w)
+    decisao, achado = w["dashboard"].identificar_acesso("0000", "TECLADO")
+    assert decisao.liberado is False
+    assert achado is None
+    assert chamadas == ["commit"]
+
+
+def test_dashboard_identificar_sem_servico_erro_amigavel():
+    w = _wired()
+    with pytest.raises(RuntimeError, match="não injetado"):
+        w["dashboard"].identificar_acesso("1234", "TECLADO")
+
+
+def test_cadastrar_senha_invalida_rejeita():
+    w = _wired()
+    with pytest.raises(ValueError):
+        w["alunos"].cadastrar(nome="Ana", cpf="11144477735", senha="12")

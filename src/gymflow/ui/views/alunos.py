@@ -40,12 +40,19 @@ class NovoAlunoDialog(QDialog):
         self.edt_tel = QLineEdit()
         self.edt_email = QLineEdit()
         self.edt_obs = QLineEdit()
+        self.edt_senha = QLineEdit()
+        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Password)
+        self.edt_senha.setPlaceholderText("4 a 8 dígitos (opcional)")
+        self.edt_cartao = QLineEdit()
+        self.edt_cartao.setPlaceholderText("ID do cartão (opcional)")
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("CPF:", self.edt_cpf)
         form.addRow("Nascimento:", self.edt_nasc)
         form.addRow("Telefone:", self.edt_tel)
         form.addRow("E-mail:", self.edt_email)
         form.addRow("Observações:", self.edt_obs)
+        form.addRow("Senha numérica:", self.edt_senha)
+        form.addRow("Cartão:", self.edt_cartao)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -61,6 +68,8 @@ class NovoAlunoDialog(QDialog):
             "telefone": self.edt_tel.text(),
             "email": self.edt_email.text(),
             "observacoes": self.edt_obs.text(),
+            "senha": self.edt_senha.text(),
+            "cartao_id": self.edt_cartao.text().strip(),
         }
 
 
@@ -198,6 +207,8 @@ class AlunosView(QWidget):
                 telefone=d["telefone"],
                 email=d["email"],
                 observacoes=d["observacoes"],
+                senha=d["senha"],
+                cartao_id=d["cartao_id"],
             )
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))

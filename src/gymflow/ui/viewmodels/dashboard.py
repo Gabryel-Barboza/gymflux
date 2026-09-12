@@ -8,6 +8,11 @@ from typing import Protocol
 
 from gymflow.core.acesso import DecisaoAcesso, DirecaoAcesso, TentativaAcesso
 from gymflow.core.aluno import Aluno
+from gymflow.services.identificar_acesso import (
+    Identificacao,
+    IdentificarAcessoService,
+    OrigemIdentificacao,
+)
 from gymflow.services.liberar_acesso import LiberarAcessoService
 
 
@@ -25,6 +30,7 @@ class DashboardViewModel:
     log_repo: LogRepoProto | None = None
     commit: Callable[[], None] | None = None
     giros: list[tuple[str, float]] = field(default_factory=list)
+    identificar: IdentificarAcessoService | None = None
 
     def _commit(self) -> None:
         if self.commit is not None:
@@ -56,6 +62,25 @@ class DashboardViewModel:
             return repo.buscar_por_cpf(chave)
         except Exception:
             return None
+
+    # -- identificação estilo SCA (teclado/cartão) -> decisão + aluno ---------
+    def identificar_acesso(
+        self,
+        codigo: str,
+        origem: OrigemIdentificacao | str,
+        direcao: DirecaoAcesso = DirecaoAcesso.ENTRADA,
+    ) -> tuple[DecisaoAcesso, Aluno | None]:
+        if self.identificar is None:
+            raise RuntimeError("IdentificarAcessoService não injetado")
+        ori = OrigemIdentificacao(origem) if isinstance(origem, str) else origem
+        ident = (
+            Identificacao.por_cartao(codigo)
+            if ori == OrigemIdentificacao.CARTAO
+            else Identificacao.por_teclado(codigo)
+        )
+        decisao, aluno = self.identificar.identificar(ident, direcao=direcao)
+        self._commit()
+        return decisao, aluno
 
     # -- giro vindo do bridge (Signal -> view chama este método) --------------
     def registrar_giro(self, direcao_nome: str, ts: float) -> None:

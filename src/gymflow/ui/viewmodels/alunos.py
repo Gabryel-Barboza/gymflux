@@ -61,6 +61,8 @@ class AlunosViewModel:
         telefone: str | None = None,
         email: str | None = None,
         observacoes: str | None = None,
+        senha: str | None = None,
+        cartao_id: str | None = None,
     ) -> Aluno:
         aluno = Aluno(
             id=f"aluno-{uuid.uuid4().hex[:8]}",
@@ -71,6 +73,10 @@ class AlunosViewModel:
             email=(email.strip() or None) if email else None,
             observacoes=(observacoes.strip() or None) if observacoes else None,
         )
+        if senha and senha.strip():
+            aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
+        if cartao_id and cartao_id.strip():
+            aluno.definir_cartao(cartao_id)
         result = self.alunos.cadastrar(aluno)
         self._commit()
         return result

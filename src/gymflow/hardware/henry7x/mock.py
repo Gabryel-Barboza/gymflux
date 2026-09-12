@@ -28,6 +28,7 @@ class MockHenry7x(Henry7xDriver):
         self._ultima_liberacao: Direcao | None = None
         self._timer: threading.Timer | None = None
         self._contador_giros = 0
+        self._teclas: list[str] = []  # fila de códigos digitados no teclado (SCA)
         self._lock = threading.Lock()
 
     def conectar(self, porta: str | int, timeout_ms: int = 5000) -> bool:
@@ -97,6 +98,21 @@ class MockHenry7x(Henry7xDriver):
     def simular_giro(self, direcao: Direcao | None = None) -> None:
         d = direcao or self._ultima_liberacao or Direcao.ENTRADA
         self._disparar_giro(d)
+
+    # simulação SCA — injeta dígito na fila do teclado (sem validar formato;
+    # validação é do domínio em Identificacao.por_teclado)
+    def simular_teclado(self, senha: str) -> None:
+        with self._lock:
+            self._teclas.append(senha.strip())
+            logger.info(f"[MockHenry7x] tecla! fila={len(self._teclas)}")
+
+    def teclas_pendentes(self) -> list[str]:
+        with self._lock:
+            return list(self._teclas)
+
+    def consumir_tecla(self) -> str | None:
+        with self._lock:
+            return self._teclas.pop(0) if self._teclas else None
 
     def _disparar_giro(self, direcao: Direcao) -> None:
         cbs: list[GiroCallback]

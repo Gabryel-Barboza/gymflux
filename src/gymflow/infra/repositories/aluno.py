@@ -15,6 +15,7 @@ class AlunoRepository(Protocol):
     def salvar(self, aluno: Aluno) -> Aluno: ...
     def buscar_por_id(self, aluno_id: str) -> Aluno | None: ...
     def buscar_por_cpf(self, cpf: str) -> Aluno | None: ...
+    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None: ...
     def listar(self) -> list[Aluno]: ...
     def remover(self, aluno_id: str) -> None: ...
     def total(self) -> int: ...
@@ -35,6 +36,8 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
         status=status,
         observacoes=m.observacoes,
         bloqueado_manual=bool(m.bloqueado_manual),
+        senha_hash=m.senha_hash,
+        cartao_id=m.cartao_id,
     )
 
 
@@ -49,6 +52,8 @@ def _domain_to_model(aluno: Aluno) -> AlunoModel:
         status=aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status),
         observacoes=aluno.observacoes,
         bloqueado_manual=bool(aluno.bloqueado_manual),
+        senha_hash=aluno.senha_hash,
+        cartao_id=aluno.cartao_id,
     )
 
 
@@ -74,6 +79,8 @@ class AlunoRepositorySQLAlchemy:
             )
             existing.observacoes = aluno.observacoes
             existing.bloqueado_manual = bool(aluno.bloqueado_manual)
+            existing.senha_hash = aluno.senha_hash
+            existing.cartao_id = aluno.cartao_id
         self.session.flush()
         return aluno
 
@@ -91,6 +98,14 @@ class AlunoRepositorySQLAlchemy:
             if row.cpf and "".join(c for c in row.cpf if c.isdigit()) == digits:
                 return _model_to_domain(row)
         return None
+
+    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None:
+        cid = cartao_id.strip()
+        if not cid:
+            return None
+        stmt = select(AlunoModel).where(AlunoModel.cartao_id == cid)
+        m = self.session.execute(stmt).scalars().first()
+        return _model_to_domain(m) if m else None
 
     def listar(self) -> list[Aluno]:
         stmt = select(AlunoModel)
@@ -128,6 +143,15 @@ class AlunoRepositoryMemoria:
         digits = "".join(c for c in cpf if c.isdigit())
         for a in self._alunos.values():
             if a.cpf and "".join(c for c in a.cpf if c.isdigit()) == digits:
+                return a
+        return None
+
+    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None:
+        cid = cartao_id.strip()
+        if not cid:
+            return None
+        for a in self._alunos.values():
+            if a.cartao_id == cid:
                 return a
         return None
 

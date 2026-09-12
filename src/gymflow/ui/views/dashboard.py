@@ -6,6 +6,7 @@ from typing import Any
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
+    QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -78,6 +79,28 @@ class DashboardView(QWidget):
         self.lbl_resultado = QLabel("Informe o aluno e escolha a direção.")
         layout.addWidget(self.lbl_resultado)
 
+        # -- identificação estilo SCA -------------------------------------------
+        gb_id = QGroupBox("Identificação (teclado/cartão)")
+        hid = QHBoxLayout(gb_id)
+        self.edt_codigo = QLineEdit()
+        self.edt_codigo.setPlaceholderText("Senha numérica ou ID do cartão")
+        self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Password)
+        self.cmb_origem = QComboBox()
+        self.cmb_origem.addItem("Teclado", "TECLADO")
+        self.cmb_origem.addItem("Cartão", "CARTAO")
+        self.btn_identificar = QPushButton("Identificar")
+        hid.addWidget(self.edt_codigo, 2)
+        hid.addWidget(self.cmb_origem)
+        hid.addWidget(self.btn_identificar)
+        layout.addWidget(gb_id)
+
+        self.lbl_verificacao = QLabel("Aguardando identificação...")
+        fonte = self.lbl_verificacao.font()
+        fonte.setPointSize(16)
+        fonte.setBold(True)
+        self.lbl_verificacao.setFont(fonte)
+        layout.addWidget(self.lbl_verificacao)
+
         # -- log + giros ------------------------------------------------------
         hmid = QHBoxLayout()
         self.tbl_log = QTableWidget(0, len(self.COLUNAS_LOG))
@@ -97,6 +120,8 @@ class DashboardView(QWidget):
         self.btn_entrada.clicked.connect(lambda: self._liberar("ENTRADA"))
         self.btn_saida.clicked.connect(lambda: self._liberar("SAIDA"))
         self.btn_bloquear.clicked.connect(self._bloquear)
+        self.btn_identificar.clicked.connect(self._identificar)
+        self.cmb_origem.currentIndexChanged.connect(self._origem_mudou)
         self.bridge.giro_detectado.connect(self._on_giro)
         self.bridge.status_changed.connect(self._on_status_changed)
 
@@ -141,6 +166,38 @@ class DashboardView(QWidget):
         self.lbl_resultado.setText("Catraca bloqueada.")
         self.lbl_resultado.setStyleSheet(estilo_resultado(None))
         self._refresh_status()
+
+    def _origem_mudou(self) -> None:
+        # cartão legível p/ conferência; senha sempre oculta
+        if str(self.cmb_origem.currentData()) == "CARTAO":
+            self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Normal)
+        else:
+            self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Password)
+
+    def _identificar(self) -> None:
+        codigo = self.edt_codigo.text()
+        origem = str(self.cmb_origem.currentData())
+        if not codigo.strip():
+            self.lbl_verificacao.setText("NÃO IDENTIFICADO — informe o código")
+            self.lbl_verificacao.setStyleSheet(estilo_resultado(None))
+            return
+        try:
+            decisao, aluno = self.vm.identificar_acesso(codigo, origem)
+        except (ValueError, RuntimeError) as e:
+            self.lbl_verificacao.setText(f"NÃO IDENTIFICADO — {e}")
+            self.lbl_verificacao.setStyleSheet(estilo_resultado(None))
+            return
+        nome = self.vm.nome_aluno(aluno.id) if aluno is not None else "NÃO IDENTIFICADO"
+        if decisao.liberado:
+            self.lbl_verificacao.setText(f"{nome} — LIBERADO")
+        else:
+            motivo = str(decisao.motivo) if decisao.motivo else "negado"
+            extra = f" ({decisao.detalhes})" if decisao.detalhes else ""
+            self.lbl_verificacao.setText(f"{nome} — NEGADO · {motivo}{extra}")
+        self.lbl_verificacao.setStyleSheet(estilo_resultado(decisao.liberado))
+        self.edt_codigo.clear()
+        self._refresh_status()
+        self._refresh_log()
 
     def _on_giro(self, direcao_nome: str, ts: float) -> None:
         self.vm.registrar_giro(direcao_nome, ts)

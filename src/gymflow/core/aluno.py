@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import secrets
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
@@ -11,6 +14,46 @@ class StatusAluno(StrEnum):
     ATIVO = "ATIVO"
     INATIVO = "INATIVO"
     BLOQUEADO = "BLOQUEADO"
+
+
+SENHA_MIN_DIGITOS = 4
+SENHA_MAX_DIGITOS = 8
+_PBKDF2_ITERACOES = 100_000
+_HASH_PREFIXO = "pbkdf2_sha256"
+
+
+def validar_senha_numerica(senha: str) -> str:
+    """Valida senha estilo SCA: 4-8 dígitos, só dígitos. Retorna normalizada."""
+    digitos = senha.strip()
+    if not digitos.isdigit() or not SENHA_MIN_DIGITOS <= len(digitos) <= SENHA_MAX_DIGITOS:
+        raise ValueError(
+            f"senha deve ter {SENHA_MIN_DIGITOS}-{SENHA_MAX_DIGITOS} dígitos numéricos"
+        )
+    return digitos
+
+
+def gerar_senha_hash(senha: str, salt: bytes | None = None) -> str:
+    """Gera hash com salt (PBKDF2-HMAC-SHA256). Nunca persiste texto puro."""
+    digitos = validar_senha_numerica(senha)
+    sal = salt if salt is not None else secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", digitos.encode(), sal, _PBKDF2_ITERACOES)
+    return f"{_HASH_PREFIXO}${_PBKDF2_ITERACOES}${sal.hex()}${dk.hex()}"
+
+
+def conferir_senha(senha: str, senha_hash: str | None) -> bool:
+    """Confere senha contra hash. Formato desconhecido/nulo => False (nunca levanta)."""
+    if not senha_hash:
+        return False
+    try:
+        prefixo, iter_s, sal_hex, hash_hex = senha_hash.split("$")
+        if prefixo != _HASH_PREFIXO:
+            return False
+        dk = hashlib.pbkdf2_hmac(
+            "sha256", senha.strip().encode(), bytes.fromhex(sal_hex), int(iter_s)
+        )
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(dk.hex(), hash_hex)
 
 
 @dataclass(slots=True)
@@ -30,6 +73,8 @@ class Aluno:
     status: StatusAluno = StatusAluno.ATIVO
     observacoes: str | None = None
     bloqueado_manual: bool = False
+    senha_hash: str | None = None
+    cartao_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():
@@ -61,3 +106,19 @@ class Aluno:
     def reativar(self) -> None:
         if self.status == StatusAluno.INATIVO:
             self.status = StatusAluno.ATIVO
+
+    # -- credenciais estilo SCA (senha numérica / cartão) ----------------------
+    def definir_senha(self, senha: str) -> None:
+        """Define senha numérica (4-8 dígitos); armazena só o hash com salt."""
+        self.senha_hash = gerar_senha_hash(senha)
+
+    def verificar_senha(self, senha: str) -> bool:
+        return conferir_senha(senha, self.senha_hash)
+
+    def definir_cartao(self, cartao_id: str | None) -> None:
+        cid = (cartao_id or "").strip()
+        self.cartao_id = cid or None
+
+    @property
+    def tem_credencial(self) -> bool:
+        return bool(self.senha_hash or self.cartao_id)
