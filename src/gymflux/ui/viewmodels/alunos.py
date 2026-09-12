@@ -62,7 +62,6 @@ class AlunosViewModel:
         email: str | None = None,
         observacoes: str | None = None,
         senha: str | None = None,
-        cartao_id: str | None = None,
     ) -> Aluno:
         aluno = Aluno(
             id=f"aluno-{uuid.uuid4().hex[:8]}",
@@ -75,8 +74,6 @@ class AlunosViewModel:
         )
         if senha and senha.strip():
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
-        if cartao_id and cartao_id.strip():
-            aluno.definir_cartao(cartao_id)
         result = self.alunos.cadastrar(aluno)
         self._commit()
         return result
@@ -92,10 +89,9 @@ class AlunosViewModel:
         email: str | None = None,
         observacoes: str | None = None,
         senha: str | None = None,
-        cartao_id: str | None = None,
         status: StatusAluno | None = None,
     ) -> Aluno:
-        """Atualiza todos os campos editáveis; senha vazia mantém o hash atual."""
+        """Atualiza todos os campos editáveis; senha vazia mantém a atual."""
         aluno = self.alunos.buscar(aluno_id)
         if aluno is None:
             raise ValueError(f"Aluno id={aluno_id} não encontrado")
@@ -109,7 +105,6 @@ class AlunosViewModel:
         aluno.observacoes = (observacoes.strip() or None) if observacoes else None
         if senha and senha.strip():
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
-        aluno.definir_cartao(cartao_id)
         if status is not None:
             aluno.status = status
             if status != StatusAluno.BLOQUEADO:

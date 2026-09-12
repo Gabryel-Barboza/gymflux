@@ -96,7 +96,7 @@ class DashboardViewModel:
         except Exception:
             return None
 
-    # -- identificação estilo SCA (teclado/cartão) -> decisão + aluno ---------
+    # -- identificação estilo SCA (teclado) -> decisão + aluno -----------------
     def identificar_acesso(
         self,
         codigo: str,
@@ -110,23 +110,21 @@ class DashboardViewModel:
             self._commit()
             return negado, None
         ori = OrigemIdentificacao(origem) if isinstance(origem, str) else origem
-        if ori == OrigemIdentificacao.TECLADO:
-            digitos = sum(1 for c in codigo if c.isdigit())
-            if digitos < self.ui_config.senha_min_digitos:
-                self._commit()
-                return (
-                    DecisaoAcesso.negado(
-                        "SENHA_CURTA",
-                        f"Senha com {digitos} dígitos (mínimo {self.ui_config.senha_min_digitos})",
-                    ),
-                    None,
-                )
-        ident = (
-            Identificacao.por_cartao(codigo)
-            if ori == OrigemIdentificacao.CARTAO
-            else Identificacao.por_teclado(codigo)
+        if ori != OrigemIdentificacao.TECLADO:
+            raise ValueError(f"origem {ori} removida na Fase 4.8 (só TECLADO)")
+        digitos = sum(1 for c in codigo if c.isdigit())
+        if digitos < self.ui_config.senha_min_digitos:
+            self._commit()
+            return (
+                DecisaoAcesso.negado(
+                    "SENHA_CURTA",
+                    f"Senha com {digitos} dígitos (mínimo {self.ui_config.senha_min_digitos})",
+                ),
+                None,
+            )
+        decisao, aluno = self.identificar.identificar(
+            Identificacao.por_teclado(codigo), direcao=direcao
         )
-        decisao, aluno = self.identificar.identificar(ident, direcao=direcao)
         self._commit()
         return decisao, aluno
 

@@ -1,4 +1,4 @@
-"""AlunoRepository SQLAlchemy — CRUD, CPF, credenciais, cartão, unicidade."""
+"""AlunoRepository SQLAlchemy — CRUD, CPF, senha visível, unicidade."""
 
 from __future__ import annotations
 
@@ -41,23 +41,22 @@ def test_aluno_crud_e_busca_cpf(session: Session):
     assert repo.buscar_por_id("a1") is None
 
 
-def test_aluno_credenciais_roundtrip_e_busca_cartao(session: Session):
+def test_aluno_senha_roundtrip_e_busca_por_senha(session: Session):
     repo = AlunoRepositorySQLAlchemy(session)
     aluno = Aluno(id="a9", nome="Cred", cpf="33366699957")
     aluno.definir_senha("1234")
-    aluno.definir_cartao("TAG-42")
     repo.salvar(aluno)
     session.commit()
 
     lido = repo.buscar_por_id("a9")
     assert lido is not None
-    assert lido.senha_hash is not None and "1234" not in lido.senha_hash
+    assert lido.senha == "1234"  # texto puro (Fase 4.8)
     assert lido.verificar_senha("1234") is True
     assert lido.verificar_senha("0000") is False
-    assert repo.buscar_por_cartao("TAG-42") is not None
-    assert repo.buscar_por_cartao("TAG-42").id == "a9"  # type: ignore[union-attr]
-    assert repo.buscar_por_cartao("TAG-99") is None
-    assert repo.buscar_por_cartao("   ") is None
+    assert repo.buscar_por_senha("1234") is not None
+    assert repo.buscar_por_senha("1234").id == "a9"  # type: ignore[union-attr]
+    assert repo.buscar_por_senha("0000") is None
+    assert repo.buscar_por_senha("   ") is None
     assert repo.total() == 1
 
 

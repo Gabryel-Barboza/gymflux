@@ -1,4 +1,4 @@
-"""DashboardView — status, liberação, painel senha/cartão, click-through.
+"""DashboardView — status, liberação, painel senha, click-through.
 
 Usa a fixture ``dash`` (view direta, sem montar as 7 abas); só o teste de
 click-through fim a fim monta a janela real.
@@ -25,9 +25,7 @@ def _valor_status(view: DashboardView, campo: str) -> str:
 
 
 def _adimplente_com_senha(ctx: AppContext, senha: str = "1234"):
-    aluno = ctx.alunos_vm.cadastrar(
-        nome="Ana Silva", cpf="11144477735", senha=senha, cartao_id="TAG-42"
-    )
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735", senha=senha)
     plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
     ctx.alunos_vm.matricular(aluno.id, plano.id)
     ctx.caixa_vm.registrar(
@@ -84,15 +82,6 @@ def test_dashboard_painel_verificacao_senha(dash: DashboardView, ctx: AppContext
     dash.edt_codigo.setText("0000")
     dash._identificar()
     assert dash.lbl_verificacao.text().startswith("NÃO IDENTIFICADO — NEGADO")
-
-
-def test_dashboard_painel_verificacao_cartao(dash: DashboardView, ctx: AppContext):
-    _adimplente_com_senha(ctx)
-
-    dash.cmb_origem.setCurrentIndex(1)  # Cartão
-    dash.edt_codigo.setText("TAG-42")
-    dash._identificar()
-    assert dash.lbl_verificacao.text() == "Ana Silva — LIBERADO"
 
 
 def test_dashboard_enxuto_alturas_e_icones(dash: DashboardView):

@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (145 passed + 1 skipped HW em 2026-09-12)
+uv run pytest                # testes (153 passed + 1 skipped HW em 2026-09-12)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -108,6 +108,11 @@ src/gymflux/       # único
 - **2026-09-12 — Fase 4.7 (modo claro) ✅:**
   - `theme.py`: `ModoTema` + `stylesheet(modo)` (claro troca só a base: `#F2F5F7`/`#FFFFFF`/`#1A1E22`/`#5A6B78`/`#D5DCE2`; acentos intactos; títulos com tinta escura e texto-sobre-acento sempre escuro p/ contraste) + `contraste()` WCAG + `estilo_resultado(_, modo)` (selo no claro) + `cores_indicador`/`estilo_selo`; `UiConfig.tema` persistido; aba Configurações alterna sem restart (`app.setStyleSheet`); selo FECHADO revisado; screenshots `/tmp/shots47`.
   - Verificação Linux: 145 passed + 1 skipped, ruff/mypy limpos. **Regras, services, infra e hardware intocados; telas só com estilos inline por modo.**
+- **2026-09-12 — Fase 4.8 (credencial simplificada) ✅:**
+  - `Aluno.senha` em TEXTO (4-8 dígitos, PIN visível no perfil; docstring registra decisão do dono + risco aceito) — `senha_hash`/`cartao_id`/`definir_cartao` removidos; helpers PBKDF2 mantidos só p/ `Funcionario` (hash inalterado); migração `b2c4d6e8f0a1` (add `senha`, drop `cartao_id`+índice+`senha_hash`; hashes irrecuperáveis → campo nasce NULL + aviso logado; reversível).
+  - `buscar_por_senha` (Protocol + SQL + memórias) substitui `buscar_por_cartao`; `IdentificarAcessoService` só TECLADO (origem CARTAO + `por_cartao` removidos; lookup direto, sem varredura); dashboard sem combo de origem; mock `simular_teclado` intocado.
+  - `services/inatividade.py`: `aplicar_inatividade(dias=90, ref)` — ATIVO não-bloqueado sem LIBERADO há 90d (nunca entrou conta; só NEGADO não segura) → INATIVO + `senha=None`; chamada no `_wire` (startup UI, nunca aborta, committa se inativou); `tests/unit/services/test_inatividade.py` (7 testes).
+  - Verificação Linux: 153 passed + 1 skipped, ruff/mypy limpos, upgrade/downgrade `b2c4d6e8f0a1` reversível (dados preservados), `gymflux db seed` idempotente, smoke `create_context` offscreen ok. **RB01-RB05, hardware, factory e mock intocados.**
 - **2026-09-12 — chore(tests): suite rápida ✅ (commit `618a071`):**
   - PBKDF2 configurável: `core/aluno.py` +`_iteracoes_pbkdf2()` lendo `GYMFLUX_PBKDF2_ITERATIONS` (default prod 100_000 INALTERADO; `conferir_senha` já lia a contagem do hash, hashes antigos seguem válidos); `tests/conftest.py` fixa 1000 via fixture autouse + offscreen centralizado. 2 testes-guarda do default em `unit/core/test_senha_hash.py`.
   - Qt: `integration/ui/conftest.py` (`ctx` função-escopo + `dash` view direta sem montar 7 abas); `waitExposed` removido (processEvents); teardown destrói top-levels via `shiboken6.delete` (views vazavam 1000+ widgets/run por lambdas `self` em signals — governança impediu fix em prod, mitigado só nos testes). Nenhum sleep fixo existia (`waitSignal` do bridge já era o padrão certo).
@@ -151,16 +156,16 @@ src/gymflux/       # único
 - [x] Fase 4.1 aplicada (commit no dashboard + nome no log).
 - [x] Fase 4.4 (feedback dono 2026-09-12) ✅: aba Configurações + dashboard enxuto (ver §4).
 - [x] Fase 4.5 (feedback dono 2026-09-12) ✅: perfil editável + Caixa + Planos cards + Funcionários (ver §4).
-- [ ] Follow-up Fase 4.5: passes de funcionário NÃO aparecem no log persistido (`acesso_logs.aluno_id` tem FK p/ alunos; bypass não persiste tentativa) e o painel mostra "NÃO IDENTIFICADO — LIBERADO" (dashboard.py intocado por governança) — futuro: coluna `funcionario_id` ou exibir nome via detalhes.
+- [x] Follow-up Fase 4.5 resolvido na 4.6 (`funcionario_id` em `acesso_logs`).
 - [x] Fase 4.6 (feedback dono 2026-09-12) ✅: click-perfil, log do dia, Frequência global/do aluno, legados de pagamentos removidos (ver §4).
-- [x] Follow-up Fase 4.5 removido na 4.6: `views/pagamentos.py` + `pagamentos_vm` excluídos (`CaixaViewModel` absorveu services).
-- [ ] Follow-up Fase 4.5: `views/pagamentos.py` (`PagamentosView`) e `pagamentos_vm` mantidos mas sem aba (compat testes); remover quando o gerente aprovar.
 - [x] Fase 4.6 original (feedback dono) ✅ concluída — ver linha acima; `test_pagamentos_situacao_rb01` saiu com o `PagamentosViewModel` (RB01 segue em `tests/core`).
 - [ ] Futuro (pós-MVP): minimizar p/ bandeja ao fechar (QSystemTrayIcon, Windows) sem perder a catraca; integração gateway pagamento (Pix recorrente — avaliar provedores).
 - [x] Fase 4.7 (feedback dono 2026-09-12) ✅: modo claro + alternância de tema sem restart (ver §4).
 - [x] Renomeação GymFlux (dono 2026-09-12, após 4.6/4.7) ✅: `src/gymflow`→`src/gymflux` (git mv), imports, `GYMFLUX_*`, `data/gymflux.db`, marca UI/docs, alembic (revisions intactas), `uv lock` + `requirements*.txt` p/ sem-uv. Verificação 2026-09-12: 146 passed + 1 skipped, ruff/mypy limpos, `gymflux --help`/`db upgrade`/smoke UI offscreen ok. Nota histórica em `docs/DECISIONS.md` (único residual `gymflow` permitido).
 - [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
-- [ ] `CadastrarAlunoService` não verifica `cartao_id` duplicado (só CPF) — decidir se cartão deve ser único no cadastro (DB já tem índice único).
+- [x] `cartao_id` duplicado: moot — cartão removido na Fase 4.8 (decisão dono 2026-09-12).
+- [x] Fase 4.8 (feedback dono 2026-09-12) ✅: senha visível no perfil, sem cartão, inatividade 90d (ver §4).
+- [ ] Fase 4.9 (feedback dono 2026-09-12, após 4.8): catraca (status+modal detalhes, toast auto-hide, bloqueados em vermelho, campo CPF/senha + botão único Liberar, sem Bloquear), alunos (2 botões + resto no contexto, header clica-filtra, perfil em abas + Liberar), modais/planos em grade, caixa (sidebar + stats coloridas + vencimento só no perfil + combo com scroll), config em categorias (direção = exige senha vs livre; saída livre = passa sem identificar).
 - [ ] Importação SCA: **adiada pelo dono** (retomar quando enviar `.bak`/dump; só há `henry.fdb` demo Henry 2011 no repo).
 - [x] Identidade visual aprovada: azul `#5AC8FA` + preto `#0F1113` + lima suave `#A3D65C` — aplicar como tema QSS na Fase 4.2.
 - [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*`, convenção relé 1=entrada/2=saída).
@@ -170,7 +175,7 @@ src/gymflux/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev --extra ui && uv run pytest` deve passar (146 passed + 1 skipped HW em 2026-09-12).
+2. `uv sync --group dev --extra ui && uv run pytest` deve passar (153 passed + 1 skipped HW em 2026-09-12).
 3. Se houver `vendor/Henry/Henry7x/Kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 

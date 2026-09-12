@@ -17,7 +17,7 @@ class AlunoRepoProtocol(Protocol):
     def salvar(self, aluno: Aluno) -> Aluno | None: ...
     def buscar_por_id(self, aluno_id: str) -> Aluno | None: ...
     def buscar_por_cpf(self, cpf: str) -> Aluno | None: ...
-    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None: ...
+    def buscar_por_senha(self, senha: str) -> Aluno | None: ...
     def listar(self) -> list[Aluno]: ...
 
 
@@ -39,12 +39,12 @@ class RepositorioAlunosMemoria:
                 return a
         return None
 
-    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None:
-        cid = cartao_id.strip()
-        if not cid:
+    def buscar_por_senha(self, senha: str) -> Aluno | None:
+        codigo = senha.strip()
+        if not codigo:
             return None
         for a in self._alunos.values():
-            if a.cartao_id == cid:
+            if a.senha == codigo:
                 return a
         return None
 

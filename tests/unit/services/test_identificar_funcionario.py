@@ -40,7 +40,6 @@ def _svc() -> IdentificarAcessoService:
 def _adimplente(svc: IdentificarAcessoService, senha: str = "1234") -> Aluno:
     aluno = Aluno(id="a1", nome="Ana Silva", cpf="11144477735")
     aluno.definir_senha(senha)
-    aluno.definir_cartao("TAG-42")
     svc.aluno_repo.salvar(aluno)
     plano = Plano.criar_mensal(id="mensal", nome="Mensal", valor=Decimal("99.90"))
     mat_repo = svc.acesso.matricula_repo

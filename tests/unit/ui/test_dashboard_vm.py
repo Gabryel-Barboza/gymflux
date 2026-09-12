@@ -145,11 +145,8 @@ def _com_identificar(w: dict) -> list[str]:
 def test_dashboard_identificar_por_senha_libera_e_commita():
     w = _wired()
     chamadas = _com_identificar(w)
-    aluno = w["alunos"].cadastrar(
-        nome="Ana Silva", cpf="11144477735", senha="1234", cartao_id="TAG-42"
-    )
-    assert aluno.senha_hash is not None and "1234" not in aluno.senha_hash
-    assert aluno.cartao_id == "TAG-42"
+    aluno = w["alunos"].cadastrar(nome="Ana Silva", cpf="11144477735", senha="1234")
+    assert aluno.senha == "1234"  # PIN visível (Fase 4.8)
     plano = w["planos"].salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
     w["alunos"].matricular(aluno.id, plano.id)
     w["pagamentos"].registrar(
@@ -159,9 +156,6 @@ def test_dashboard_identificar_por_senha_libera_e_commita():
     assert decisao.liberado is True
     assert achado is not None and achado.id == aluno.id
     assert chamadas == ["commit"]
-    decisao2, achado2 = w["dashboard"].identificar_acesso("TAG-42", "CARTAO")
-    assert decisao2.liberado is True
-    assert achado2 is not None and achado2.id == aluno.id
 
 
 def test_dashboard_identificar_desconhecido_nega():
@@ -208,9 +202,7 @@ def test_direcao_bloqueada_vale_para_identificar():
 def test_senha_curta_nega_direto():
     w = _wired()
     _com_identificar(w)
-    aluno = w["alunos"].cadastrar(
-        nome="Ana Silva", cpf="11144477735", senha="123456", cartao_id="TAG-42"
-    )
+    aluno = w["alunos"].cadastrar(nome="Ana Silva", cpf="11144477735", senha="123456")
     plano = w["planos"].salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
     w["alunos"].matricular(aluno.id, plano.id)
     w["pagamentos"].registrar(
@@ -221,12 +213,16 @@ def test_senha_curta_nega_direto():
     assert decisao.liberado is False
     assert decisao.motivo == "SENHA_CURTA"
     assert achado is None
-    # senha de 6 dígitos passa; cartão ignora o mínimo
+    # senha de 6 dígitos passa
     decisao_ok, _ = w["dashboard"].identificar_acesso("123456", "TECLADO")
     assert decisao_ok.liberado is True
-    decisao_cartao, achado_cartao = w["dashboard"].identificar_acesso("TAG-42", "CARTAO")
-    assert decisao_cartao.liberado is True
-    assert achado_cartao is not None and achado_cartao.id == aluno.id
+
+
+def test_origem_removida_rejeita():
+    w = _wired()
+    _com_identificar(w)
+    with pytest.raises(ValueError, match="CARTAO"):
+        w["dashboard"].identificar_acesso("1234", "CARTAO")
 
 
 def _tentativa(aluno_id, dia, hora=9, resultado=None, funcionario_id=None):

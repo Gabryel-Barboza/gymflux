@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from gymflux.core.regras import RegraAcesso, RegraAcessoConfig
 from gymflux.services.cadastrar_aluno import CadastrarAlunoService
 from gymflux.services.identificar_acesso import IdentificarAcessoService
+from gymflux.services.inatividade import aplicar_inatividade
 from gymflux.services.liberar_acesso import LiberarAcessoService
 from gymflux.services.registrar_pagamento import RegistrarPagamentoService
 from gymflux.ui.catraca_bridge import CatracaBridge
@@ -220,6 +221,17 @@ def _wire(
         ui_config=cfg,
         funcionario_repo=func_repo,
     )
+
+    # Fase 4.8: expira quem está sem entrar há 90d (nunca aborta o startup).
+    try:
+        n_inativos = aplicar_inatividade(aluno_repo, acesso_repo)
+        if n_inativos and commit is not None:
+            commit()
+    except Exception as e:
+        n_inativos = 0
+        logger.warning(f"[UI] aplicar_inatividade falhou: {e}")
+    if n_inativos:
+        logger.info(f"[UI] inatividade: {n_inativos} aluno(s) desativado(s)")
 
     def _aplicar(nova: UiConfig) -> None:
         liberar_svc.regra.config = nova.to_regra_config()

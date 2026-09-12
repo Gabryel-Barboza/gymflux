@@ -1,4 +1,4 @@
-"""IdentificarAcessoService — teclado/cartão do aluno (sem funcionário)."""
+"""IdentificarAcessoService — teclado do aluno (cartão removido na Fase 4.8)."""
 
 from __future__ import annotations
 
@@ -44,7 +44,6 @@ def _svc() -> IdentificarAcessoService:
 def _adimplente(svc: IdentificarAcessoService, senha: str = "1234") -> Aluno:
     aluno = Aluno(id="a1", nome="Ana Silva", cpf="11144477735")
     aluno.definir_senha(senha)
-    aluno.definir_cartao("TAG-42")
     svc.aluno_repo.salvar(aluno)
     plano = Plano.criar_mensal(id="mensal", nome="Mensal", valor=Decimal("99.90"))
     mat_repo = svc.acesso.matricula_repo
@@ -90,20 +89,12 @@ def test_teclado_errado_nega_sem_vazar_motivo_interno():
     assert decisao.motivo == MotivoNegado.ALUNO_NAO_ENCONTRADO
 
 
-def test_cartao_correto_libera():
+def test_lookup_direto_por_senha():
     svc = _svc()
     _adimplente(svc)
-    decisao, achado = svc.identificar(Identificacao.por_cartao("TAG-42"))
-    assert decisao.liberado is True
-    assert achado is not None and achado.nome == "Ana Silva"
-
-
-def test_cartao_desconhecido_nega():
-    svc = _svc()
-    _adimplente(svc)
-    decisao, achado = svc.identificar(Identificacao.por_cartao("TAG-99"))
-    assert decisao.liberado is False
-    assert achado is None
+    assert svc.aluno_repo.buscar_por_senha("1234") is not None
+    assert svc.aluno_repo.buscar_por_senha("0000") is None
+    assert svc.aluno_repo.buscar_por_senha("   ") is None
 
 
 def test_aluno_sem_matricula_nega_mas_retorna_aluno():
@@ -122,6 +113,6 @@ def test_aluno_sem_matricula_nega_mas_retorna_aluno():
 def test_identificacao_invalida_rejeita_na_fabrica():
     with pytest.raises(ValueError):
         Identificacao.por_teclado("12")
-    with pytest.raises(ValueError):
-        Identificacao.por_cartao("   ")
     assert OrigemIdentificacao("TECLADO") == OrigemIdentificacao.TECLADO
+    with pytest.raises(ValueError):
+        OrigemIdentificacao("CARTAO")  # removido na Fase 4.8

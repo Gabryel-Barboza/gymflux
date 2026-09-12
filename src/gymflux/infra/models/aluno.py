@@ -22,10 +22,8 @@ class AlunoModel(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ATIVO")
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     bloqueado_manual: Mapped[bool] = mapped_column(nullable=False, default=False)
-    senha_hash: Mapped[str | None] = mapped_column(String(160), nullable=True, default=None)
-    cartao_id: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, default=None, unique=True, index=True
-    )
+    # PIN de catraca em TEXTO (Fase 4.8, decisão do dono — risco aceito).
+    senha: Mapped[str | None] = mapped_column(String(8), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

@@ -15,7 +15,7 @@ class AlunoRepository(Protocol):
     def salvar(self, aluno: Aluno) -> Aluno: ...
     def buscar_por_id(self, aluno_id: str) -> Aluno | None: ...
     def buscar_por_cpf(self, cpf: str) -> Aluno | None: ...
-    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None: ...
+    def buscar_por_senha(self, senha: str) -> Aluno | None: ...
     def listar(self) -> list[Aluno]: ...
     def remover(self, aluno_id: str) -> None: ...
     def total(self) -> int: ...
@@ -36,8 +36,7 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
         status=status,
         observacoes=m.observacoes,
         bloqueado_manual=bool(m.bloqueado_manual),
-        senha_hash=m.senha_hash,
-        cartao_id=m.cartao_id,
+        senha=m.senha,
     )
 
 
@@ -52,8 +51,7 @@ def _domain_to_model(aluno: Aluno) -> AlunoModel:
         status=aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status),
         observacoes=aluno.observacoes,
         bloqueado_manual=bool(aluno.bloqueado_manual),
-        senha_hash=aluno.senha_hash,
-        cartao_id=aluno.cartao_id,
+        senha=aluno.senha,
     )
 
 
@@ -79,8 +77,7 @@ class AlunoRepositorySQLAlchemy:
             )
             existing.observacoes = aluno.observacoes
             existing.bloqueado_manual = bool(aluno.bloqueado_manual)
-            existing.senha_hash = aluno.senha_hash
-            existing.cartao_id = aluno.cartao_id
+            existing.senha = aluno.senha
         self.session.flush()
         return aluno
 
@@ -99,11 +96,12 @@ class AlunoRepositorySQLAlchemy:
                 return _model_to_domain(row)
         return None
 
-    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None:
-        cid = cartao_id.strip()
-        if not cid:
+    def buscar_por_senha(self, senha: str) -> Aluno | None:
+        """Lookup direto pelo PIN (texto) — Fase 4.8, sem varredura."""
+        codigo = senha.strip()
+        if not codigo:
             return None
-        stmt = select(AlunoModel).where(AlunoModel.cartao_id == cid)
+        stmt = select(AlunoModel).where(AlunoModel.senha == codigo)
         m = self.session.execute(stmt).scalars().first()
         return _model_to_domain(m) if m else None
 
@@ -146,12 +144,12 @@ class AlunoRepositoryMemoria:
                 return a
         return None
 
-    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None:
-        cid = cartao_id.strip()
-        if not cid:
+    def buscar_por_senha(self, senha: str) -> Aluno | None:
+        codigo = senha.strip()
+        if not codigo:
             return None
         for a in self._alunos.values():
-            if a.cartao_id == cid:
+            if a.senha == codigo:
                 return a
         return None
 

@@ -1,8 +1,10 @@
-"""IdentificarAcessoService — autenticação estilo SCA (senha numérica/cartão).
+"""IdentificarAcessoService — autenticação estilo SCA (PIN numérico no teclado).
 
-Fluxo: teclado/cartão da catraca → ``Identificacao`` → funcionário (bypass,
-senha) → lookup do aluno → ``LiberarAcessoService`` (RB01-RB05 intactas,
-sem duplicar regra) → ``(DecisaoAcesso, Aluno | None)``.
+Fluxo: teclado da catraca → ``Identificacao`` → funcionário (bypass,
+senha) → lookup do aluno por PIN → ``LiberarAcessoService`` (RB01-RB05
+intactas, sem duplicar regra) → ``(DecisaoAcesso, Aluno | None)``.
+
+Fase 4.8: cartão removido (decisão do dono) — só TECLADO existe.
 
 Funcionário ativo libera direto (sem RB01/RB02); inativo nega (bloqueio
 manual). O pulso vai direto ao driver e a tentativa é persistida com
@@ -35,12 +37,11 @@ from gymflux.services.liberar_acesso import LiberarAcessoService
 
 class OrigemIdentificacao(StrEnum):
     TECLADO = "TECLADO"
-    CARTAO = "CARTAO"
 
 
 @dataclass(frozen=True, slots=True)
 class Identificacao:
-    """Código capturado na catraca + origem. Senha validada (4-8 dígitos)."""
+    """PIN capturado no teclado da catraca. Senha validada (4-8 dígitos)."""
 
     codigo: str
     origem: OrigemIdentificacao
@@ -49,17 +50,10 @@ class Identificacao:
     def por_teclado(cls, senha: str) -> Identificacao:
         return cls(codigo=validar_senha_numerica(senha), origem=OrigemIdentificacao.TECLADO)
 
-    @classmethod
-    def por_cartao(cls, cartao_id: str) -> Identificacao:
-        cid = cartao_id.strip()
-        if not cid:
-            raise ValueError("cartao_id não pode ser vazio")
-        return cls(codigo=cid, origem=OrigemIdentificacao.CARTAO)
-
 
 class _AlunoLookupProto(Protocol):
     def buscar_por_id(self, aluno_id: str) -> Aluno | None: ...
-    def buscar_por_cartao(self, cartao_id: str) -> Aluno | None: ...
+    def buscar_por_senha(self, senha: str) -> Aluno | None: ...
     def listar(self) -> list[Aluno]: ...
 
 
@@ -205,22 +199,9 @@ class IdentificarAcessoService:
                 logger.warning(f"[Identificar] acesso_repo.registrar falhou: {e}")
 
     def _localizar(self, identificacao: Identificacao) -> Aluno | None:
-        if identificacao.origem == OrigemIdentificacao.CARTAO:
-            try:
-                return self.aluno_repo.buscar_por_cartao(identificacao.codigo)
-            except Exception as e:
-                logger.warning(f"[Identificar] buscar_por_cartao falhou: {e}")
-                return None
-        # TECLADO: hashes com salt exigem verificação por candidato (ok p/ <5k alunos).
+        """Lookup direto pelo PIN (texto) — sem varredura de hashes (Fase 4.8)."""
         try:
-            candidatos = self.aluno_repo.listar()
+            return self.aluno_repo.buscar_por_senha(identificacao.codigo)
         except Exception as e:
-            logger.warning(f"[Identificar] listar falhou: {e}")
+            logger.warning(f"[Identificar] buscar_por_senha falhou: {e}")
             return None
-        for aluno in candidatos:
-            try:
-                if aluno.verificar_senha(identificacao.codigo):
-                    return aluno
-            except Exception:
-                continue
-        return None

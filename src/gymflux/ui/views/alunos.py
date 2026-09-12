@@ -66,10 +66,7 @@ class _AlunoForm(QWidget):
         self.edt_email = QLineEdit()
         self.edt_obs = QLineEdit()
         self.edt_senha = QLineEdit()
-        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Password)
         self.edt_senha.setPlaceholderText("4 a 8 dígitos (opcional)")
-        self.edt_cartao = QLineEdit()
-        self.edt_cartao.setPlaceholderText("ID do cartão (opcional)")
         self.cmb_status = QComboBox()
         for st in StatusAluno:
             self.cmb_status.addItem(st.value, st)
@@ -80,7 +77,6 @@ class _AlunoForm(QWidget):
         form.addRow("E-mail:", self.edt_email)
         form.addRow("Observações:", self.edt_obs)
         form.addRow("Senha numérica:", self.edt_senha)
-        form.addRow("Cartão:", self.edt_cartao)
         form.addRow("Status:", self.cmb_status)
 
     def preencher(self, aluno: Aluno) -> None:
@@ -90,9 +86,10 @@ class _AlunoForm(QWidget):
         self.edt_tel.setText(aluno.telefone or "")
         self.edt_email.setText(aluno.email or "")
         self.edt_obs.setText(aluno.observacoes or "")
-        self.edt_senha.clear()  # em branco = mantém o hash atual
+        # PIN visível (Fase 4.8, decisão do dono); em branco no cadastro,
+        # no perfil mostra o atual e em branco = manter
+        self.edt_senha.setText(aluno.senha or "")
         self.edt_senha.setPlaceholderText("em branco = manter atual")
-        self.edt_cartao.setText(aluno.cartao_id or "")
         idx = self.cmb_status.findData(aluno.status)
         if idx >= 0:
             self.cmb_status.setCurrentIndex(idx)
@@ -107,7 +104,6 @@ class _AlunoForm(QWidget):
             "email": self.edt_email.text(),
             "observacoes": self.edt_obs.text(),
             "senha": self.edt_senha.text(),
-            "cartao_id": self.edt_cartao.text().strip(),
             "status": str(status) if status is not None else StatusAluno.ATIVO.value,
         }
 
@@ -126,7 +122,6 @@ class NovoAlunoDialog(QDialog):
         self.edt_email = self.form.edt_email
         self.edt_obs = self.form.edt_obs
         self.edt_senha = self.form.edt_senha
-        self.edt_cartao = self.form.edt_cartao
         layout.addWidget(self.form)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -274,7 +269,6 @@ class PerfilAlunoDialog(QDialog):
                 email=d["email"],
                 observacoes=d["observacoes"],
                 senha=d["senha"],
-                cartao_id=d["cartao_id"],
                 status=status,
             )
         except ValueError as e:
@@ -466,7 +460,6 @@ class AlunosView(QWidget):
                 email=d["email"],
                 observacoes=d["observacoes"],
                 senha=d["senha"],
-                cartao_id=d["cartao_id"],
             )
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))

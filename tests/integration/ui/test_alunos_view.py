@@ -24,15 +24,14 @@ def test_alunos_view_busca_filtra(qtbot, ctx: AppContext):
     assert view.tbl.rowCount() == 2
 
 
-def test_dialog_aluno_tem_senha_e_cartao(qtbot):
+def test_dialog_aluno_tem_senha_visivel(qtbot):
     dlg = NovoAlunoDialog()
     qtbot.addWidget(dlg)
     dlg.edt_nome.setText("Ana")
     dlg.edt_senha.setText("1234")
-    dlg.edt_cartao.setText("TAG-42")
     dados = dlg.dados()
     assert dados["senha"] == "1234"
-    assert dados["cartao_id"] == "TAG-42"
+    assert "cartao_id" not in dados  # cartão removido na Fase 4.8
 
 
 def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx: AppContext):
@@ -46,9 +45,10 @@ def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx: AppContext):
     dlg = PerfilAlunoDialog(ctx.alunos_vm, ctx.caixa_vm, aluno.id)
     qtbot.addWidget(dlg)
     assert dlg.form.edt_nome.text() == "Ana"
+    assert dlg.form.edt_senha.text() == "1234"  # PIN visível (Fase 4.8)
     assert dlg.tbl_pag.rowCount() == 1
     dlg.form.edt_nome.setText("Ana Silva")
-    dlg.form.edt_senha.setText("")  # mantém hash
+    dlg.form.edt_senha.setText("")  # mantém a atual
     dlg._salvar()
     assert dlg.result() == QDialog.DialogCode.Accepted
     atual = ctx.alunos_vm.alunos.buscar(aluno.id)

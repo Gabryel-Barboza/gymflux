@@ -103,7 +103,7 @@ def test_cadastrar_senha_invalida_rejeita():
 def test_alunos_atualizar_tudo():
     w = _wired()
     aluno = w["alunos"].cadastrar(nome="Ana", cpf="11144477735", senha="1234")
-    hash_antes = aluno.senha_hash
+    senha_antes = aluno.senha
     atualizado = w["alunos"].atualizar(
         aluno.id,
         nome="Ana Silva",
@@ -113,17 +113,15 @@ def test_alunos_atualizar_tudo():
         email="ana@mail.com",
         observacoes="obs",
         senha="",
-        cartao_id="TAG-1",
         status=StatusAluno.INATIVO,
     )
     assert atualizado.nome == "Ana Silva"
     assert atualizado.telefone == "11999990000"
-    assert atualizado.senha_hash == hash_antes  # vazia mantém
-    assert atualizado.cartao_id == "TAG-1"
+    assert atualizado.senha == senha_antes  # vazia mantém
     assert atualizado.status == StatusAluno.INATIVO
-    # nova senha troca o hash
+    # nova senha troca o PIN visível
     atualizado2 = w["alunos"].atualizar(aluno.id, nome="Ana Silva", senha="5678")
-    assert atualizado2.senha_hash != hash_antes
+    assert atualizado2.senha == "5678"
     assert atualizado2.verificar_senha("5678") is True
 
 

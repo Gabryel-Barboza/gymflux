@@ -48,7 +48,11 @@ def validar_senha_numerica(senha: str) -> str:
 
 
 def gerar_senha_hash(senha: str, salt: bytes | None = None) -> str:
-    """Gera hash com salt (PBKDF2-HMAC-SHA256). Nunca persiste texto puro."""
+    """Gera hash com salt (PBKDF2-HMAC-SHA256). Nunca persiste texto puro.
+
+    Uso atual: só ``Funcionario`` (Fase 4.8: ``Aluno.senha`` é texto puro
+    por decisão do dono — ver docstring de ``Aluno``).
+    """
     digitos = validar_senha_numerica(senha)
     sal = salt if salt is not None else secrets.token_bytes(16)
     n = _iteracoes_pbkdf2()
@@ -78,6 +82,13 @@ class Aluno:
 
     - `bloqueado_manual` sobrepõe qualquer liberação (RB03).
     - `status == BLOQUEADO` também é bloqueio manual (compat).
+    - `senha` é o PIN de catraca em TEXTO (4-8 dígitos, estilo SCA).
+
+    Decisão do dono (Fase 4.8, risco aceito): sem hash — quem lê o DB vê
+    os PINs. O PIN não é segredo criptográfico, é credencial operacional
+    de catraca digitada na recepção; a recepção precisa exibir o PIN no
+    perfil do aluno. Os helpers PBKDF2 abaixo seguem existindo só para o
+    ``Funcionario`` (que mantém senha hasheada).
     """
 
     id: str
@@ -89,8 +100,7 @@ class Aluno:
     status: StatusAluno = StatusAluno.ATIVO
     observacoes: str | None = None
     bloqueado_manual: bool = False
-    senha_hash: str | None = None
-    cartao_id: str | None = None
+    senha: str | None = None
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():
@@ -123,18 +133,24 @@ class Aluno:
         if self.status == StatusAluno.INATIVO:
             self.status = StatusAluno.ATIVO
 
-    # -- credenciais estilo SCA (senha numérica / cartão) ----------------------
+    # -- credencial estilo SCA (PIN numérico em texto — decisão dono Fase 4.8)
     def definir_senha(self, senha: str) -> None:
-        """Define senha numérica (4-8 dígitos); armazena só o hash com salt."""
-        self.senha_hash = gerar_senha_hash(senha)
+        """Define PIN numérico (4-8 dígitos); armazena em texto (ver docstring)."""
+        self.senha = validar_senha_numerica(senha)
+
+    def limpar_senha(self) -> None:
+        """Remove o PIN (ex: inatividade 90d)."""
+        self.senha = None
 
     def verificar_senha(self, senha: str) -> bool:
-        return conferir_senha(senha, self.senha_hash)
-
-    def definir_cartao(self, cartao_id: str | None) -> None:
-        cid = (cartao_id or "").strip()
-        self.cartao_id = cid or None
+        try:
+            digitos = validar_senha_numerica(senha)
+        except ValueError:
+            return False
+        if self.senha is None:
+            return False
+        return hmac.compare_digest(digitos, self.senha)
 
     @property
     def tem_credencial(self) -> bool:
-        return bool(self.senha_hash or self.cartao_id)
+        return self.senha is not None

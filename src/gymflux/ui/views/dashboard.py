@@ -8,7 +8,6 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -58,18 +57,14 @@ class DashboardView(QWidget):
         self.edt_aluno = QLineEdit()
         self.edt_aluno.setPlaceholderText("ID ou CPF")
         self.edt_codigo = QLineEdit()
-        self.edt_codigo.setPlaceholderText("Senha ou cartão")
+        self.edt_codigo.setPlaceholderText("Senha (teclado)")
         self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Password)
-        self.cmb_origem = QComboBox()
-        self.cmb_origem.addItem("Teclado", "TECLADO")
-        self.cmb_origem.addItem("Cartão", "CARTAO")
         self.btn_identificar = QPushButton("Identificar")
         self.btn_identificar.setIcon(
             estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
         )
         linha1.addWidget(self.edt_aluno, 2)
         linha1.addWidget(self.edt_codigo, 2)
-        linha1.addWidget(self.cmb_origem)
         linha1.addWidget(self.btn_identificar)
         layout.addLayout(linha1)
 
@@ -135,7 +130,6 @@ class DashboardView(QWidget):
         self.btn_saida.clicked.connect(lambda: self._liberar("SAIDA"))
         self.btn_bloquear.clicked.connect(self._bloquear)
         self.btn_identificar.clicked.connect(self._identificar)
-        self.cmb_origem.currentIndexChanged.connect(self._origem_mudou)
         self.tbl_log.cellClicked.connect(self._registro_clicado)
         self.bridge.giro_detectado.connect(self._on_giro)
         self.bridge.status_changed.connect(self._on_status_changed)
@@ -200,22 +194,14 @@ class DashboardView(QWidget):
         self.lbl_resultado.setStyleSheet(self._estilo(None))
         self._refresh_status()
 
-    def _origem_mudou(self) -> None:
-        # cartão legível p/ conferência; senha sempre oculta
-        if str(self.cmb_origem.currentData()) == "CARTAO":
-            self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Normal)
-        else:
-            self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Password)
-
     def _identificar(self) -> None:
         codigo = self.edt_codigo.text()
-        origem = str(self.cmb_origem.currentData())
         if not codigo.strip():
             self.lbl_verificacao.setText("NÃO IDENTIFICADO — informe o código")
             self.lbl_verificacao.setStyleSheet(self._estilo(None))
             return
         try:
-            decisao, aluno = self.vm.identificar_acesso(codigo, origem)
+            decisao, aluno = self.vm.identificar_acesso(codigo, "TECLADO")
         except (ValueError, RuntimeError) as e:
             self.lbl_verificacao.setText(f"NÃO IDENTIFICADO — {e}")
             self.lbl_verificacao.setStyleSheet(self._estilo(None))
