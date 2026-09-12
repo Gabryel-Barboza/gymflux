@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflow.core.pagamento import FormaPagamento
-from gymflow.ui.theme import VERMELHO
+from gymflow.ui.theme import estilo_selo
 from gymflow.ui.viewmodels.caixa import CaixaViewModel
 
 
@@ -85,10 +85,7 @@ class CaixaView(QWidget):
         htopo.addWidget(QLabel("Mês:"))
         self.cmb_mes = QComboBox()
         self.lbl_fechado = QLabel("FECHADO")
-        self.lbl_fechado.setStyleSheet(
-            f"color: {VERMELHO}; font-weight: bold; "
-            f"border: 2px solid {VERMELHO}; border-radius: 6px; padding: 2px 8px;"
-        )
+        self.lbl_fechado.setStyleSheet(estilo_selo(self.vm.ui_config.tema))
         self.lbl_fechado.setVisible(False)
         htopo.addWidget(self.cmb_mes, 2)
         htopo.addWidget(self.lbl_fechado)
@@ -167,6 +164,7 @@ class CaixaView(QWidget):
             f"Pendente R$ {pendente:.2f} · Total R$ {total:.2f}"
         )
         fechado = mes is not None and self.vm.mes_fechado(mes)
+        self.lbl_fechado.setStyleSheet(estilo_selo(self.vm.ui_config.tema))
         self.lbl_fechado.setVisible(fechado)
 
         linhas = self.vm.por_mes(mes)

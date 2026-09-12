@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from gymflow.core.acesso import TentativaAcesso
 from gymflow.ui.catraca_bridge import CatracaBridge
-from gymflow.ui.theme import LIMA, VERMELHO, estilo_resultado
+from gymflow.ui.theme import cores_indicador, estilo_resultado
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 
 LINHAS_VISIVEIS = 5
@@ -162,17 +162,21 @@ class DashboardView(QWidget):
         passo = self.tbl_log.verticalHeader().defaultSectionSize()
         return itens * passo + 2 * self.lst_giros.frameWidth() + 2
 
+    def _estilo(self, liberado: bool | None) -> str:
+        """Estilo de resultado no tema atual (claro usa selos legíveis)."""
+        return estilo_resultado(liberado, self.vm.ui_config.tema)
+
     # -- slots ---------------------------------------------------------------
     def _aluno_id_ou_erro(self) -> str | None:
         texto = self.edt_aluno.text().strip()
         if not texto:
             self.lbl_resultado.setText("Informe o ID ou CPF do aluno.")
-            self.lbl_resultado.setStyleSheet(estilo_resultado(None))
+            self.lbl_resultado.setStyleSheet(self._estilo(None))
             return None
         aluno = self.vm.resolver_aluno(texto)
         if aluno is None:
             self.lbl_resultado.setText(f"Aluno '{texto}' não encontrado.")
-            self.lbl_resultado.setStyleSheet(estilo_resultado(None))
+            self.lbl_resultado.setStyleSheet(self._estilo(None))
             return None
         return aluno.id
 
@@ -186,14 +190,14 @@ class DashboardView(QWidget):
             else self.vm.liberar_saida(aluno_id)
         )
         self.lbl_resultado.setText(self.vm.resume_decisao(decisao))
-        self.lbl_resultado.setStyleSheet(estilo_resultado(decisao.liberado))
+        self.lbl_resultado.setStyleSheet(self._estilo(decisao.liberado))
         self._refresh_status()
         self._refresh_log()
 
     def _bloquear(self) -> None:
         self.bridge.bloquear()
         self.lbl_resultado.setText("Catraca bloqueada.")
-        self.lbl_resultado.setStyleSheet(estilo_resultado(None))
+        self.lbl_resultado.setStyleSheet(self._estilo(None))
         self._refresh_status()
 
     def _origem_mudou(self) -> None:
@@ -208,13 +212,13 @@ class DashboardView(QWidget):
         origem = str(self.cmb_origem.currentData())
         if not codigo.strip():
             self.lbl_verificacao.setText("NÃO IDENTIFICADO — informe o código")
-            self.lbl_verificacao.setStyleSheet(estilo_resultado(None))
+            self.lbl_verificacao.setStyleSheet(self._estilo(None))
             return
         try:
             decisao, aluno = self.vm.identificar_acesso(codigo, origem)
         except (ValueError, RuntimeError) as e:
             self.lbl_verificacao.setText(f"NÃO IDENTIFICADO — {e}")
-            self.lbl_verificacao.setStyleSheet(estilo_resultado(None))
+            self.lbl_verificacao.setStyleSheet(self._estilo(None))
             return
         nome = self.vm.nome_aluno(aluno.id) if aluno is not None else "NÃO IDENTIFICADO"
         if decisao.liberado:
@@ -223,7 +227,7 @@ class DashboardView(QWidget):
             motivo = str(decisao.motivo) if decisao.motivo else "negado"
             extra = f" ({decisao.detalhes})" if decisao.detalhes else ""
             self.lbl_verificacao.setText(f"{nome} — NEGADO · {motivo}{extra}")
-        self.lbl_verificacao.setStyleSheet(estilo_resultado(decisao.liberado))
+        self.lbl_verificacao.setStyleSheet(self._estilo(decisao.liberado))
         self.edt_codigo.clear()
         self._refresh_status()
         self._refresh_log()
@@ -259,7 +263,11 @@ class DashboardView(QWidget):
             item = self._itens_status[campo]
             item.setText(valor)
             if campo == "Online":
-                item.setForeground(QBrush(QColor(LIMA if online else VERMELHO)))
+                fg, bg = cores_indicador(online, self.vm.ui_config.tema)
+                item.setForeground(QBrush(QColor(fg)))
+                item.setBackground(
+                    QBrush(QColor(bg)) if bg is not None else QBrush(Qt.BrushStyle.NoBrush)
+                )
 
     def _refresh_log(self) -> None:
         tentativas = self.vm.tentativas_do_dia()

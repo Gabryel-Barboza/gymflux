@@ -77,3 +77,16 @@ def test_viewmodel_salvar_persiste_e_aplica(tmp_path):
     vm2 = ConfigViewModel(store=ConfigStore(tmp_path / "cfg.json"))
     assert vm2.config.porta_catraca == "COM3"
     assert vm2.config.tolerancia_dias == 9
+
+
+def test_tema_default_e_roundtrip(tmp_path):
+    from gymflow.ui.theme import ModoTema
+
+    assert UiConfig().tema == ModoTema.ESCURO
+    store = ConfigStore(tmp_path / "cfg.json")
+    store.save(UiConfig(tema=ModoTema.CLARO))
+    assert store.load().tema == ModoTema.CLARO
+    assert UiConfig.from_dict({"tema": "CLARO"}).tema == ModoTema.CLARO
+    assert UiConfig.from_dict({"tema": "escuro"}).tema == ModoTema.ESCURO
+    assert UiConfig.from_dict({"tema": "rosa"}).tema == ModoTema.ESCURO
+    assert UiConfig.from_dict({}).tema == ModoTema.ESCURO

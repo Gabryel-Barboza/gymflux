@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -16,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflow.ui.config_store import UiConfig
-from gymflow.ui.theme import estilo_resultado
+from gymflow.ui.theme import ModoTema, estilo_resultado, modo_de
 from gymflow.ui.viewmodels.config import ConfigViewModel
 
 
@@ -43,6 +44,9 @@ class ConfigView(QWidget):
         self.chk_passback = QCheckBox("Anti-passback (RB05)")
         self.edt_porta = QLineEdit()
         self.edt_porta.setPlaceholderText("Ex.: 1, COM3, MOCK:1")
+        self.cmb_tema = QComboBox()
+        self.cmb_tema.addItem("Escuro", ModoTema.ESCURO)
+        self.cmb_tema.addItem("Claro", ModoTema.CLARO)
         form.addRow(self.chk_bloq_entrada)
         form.addRow(self.chk_bloq_saida)
         form.addRow("Senha mínima:", self.spn_senha_min)
@@ -50,6 +54,7 @@ class ConfigView(QWidget):
         form.addRow("Timeout giro:", self.spn_timeout)
         form.addRow(self.chk_passback)
         form.addRow("Porta catraca:", self.edt_porta)
+        form.addRow("Tema:", self.cmb_tema)
         layout.addLayout(form)
 
         botoes = QHBoxLayout()
@@ -77,8 +82,11 @@ class ConfigView(QWidget):
         self.spn_timeout.setValue(cfg.timeout_giro_s)
         self.chk_passback.setChecked(cfg.anti_passback)
         self.edt_porta.setText(cfg.porta_catraca)
+        idx = self.cmb_tema.findData(cfg.tema)
+        self.cmb_tema.setCurrentIndex(idx if idx >= 0 else 0)
 
     def _salvar(self) -> None:
+        # currentData volta como str puro do QVariant: normaliza via modo_de
         cfg = UiConfig(
             bloquear_entrada=self.chk_bloq_entrada.isChecked(),
             bloquear_saida=self.chk_bloq_saida.isChecked(),
@@ -87,13 +95,14 @@ class ConfigView(QWidget):
             timeout_giro_s=self.spn_timeout.value(),
             anti_passback=self.chk_passback.isChecked(),
             porta_catraca=self.edt_porta.text(),
+            tema=modo_de(self.cmb_tema.currentData()),
         )
         try:
             self.vm.salvar(cfg)
         except OSError as e:
             self.lbl_status.setText(f"Erro ao salvar: {e}")
-            self.lbl_status.setStyleSheet(estilo_resultado(False))
+            self.lbl_status.setStyleSheet(estilo_resultado(False, self.vm.config.tema))
             return
         self._carregar(self.vm.config)
         self.lbl_status.setText("Configurações salvas e aplicadas.")
-        self.lbl_status.setStyleSheet(estilo_resultado(True))
+        self.lbl_status.setStyleSheet(estilo_resultado(True, self.vm.config.tema))

@@ -196,6 +196,7 @@ def _wire(
         alunos=cadastrar_svc,
         fechamentos=fech_repo,
         commit=commit,
+        ui_config=cfg,
     )
     frequencia_vm = FrequenciaViewModel(
         log_repo=acesso_repo, aluno_repo=aluno_repo, funcionario_repo=func_repo
@@ -223,8 +224,12 @@ def _wire(
     def _aplicar(nova: UiConfig) -> None:
         liberar_svc.regra.config = nova.to_regra_config()
         dashboard_vm.ui_config = nova
+        caixa_vm.ui_config = nova
         if nova.porta_catraca != bridge.porta:
             bridge.trocar_porta(nova.porta_catraca)
+        app_inst = QApplication.instance()
+        if isinstance(app_inst, QApplication):
+            app_inst.setStyleSheet(stylesheet(nova.tema))
         logger.info("[UI] configurações aplicadas na sessão")
 
     config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
@@ -314,8 +319,8 @@ def run(argv: list[str] | None = None) -> int:
     """Abre o app desktop (bloqueia até fechar)."""
     existing = QApplication.instance()
     app = existing if isinstance(existing, QApplication) else QApplication(argv or [])
-    app.setStyleSheet(stylesheet())
     ctx = create_context()
+    app.setStyleSheet(stylesheet(ctx.config_vm.config.tema))
     try:
         ok = ctx.bridge.conectar()
         logger.info(f"[UI] catraca conectar() -> {ok}")

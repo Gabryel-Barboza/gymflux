@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Protocol
@@ -14,6 +14,7 @@ from gymflow.core.caixa import FechamentoCaixa, validar_mes
 from gymflow.core.pagamento import FormaPagamento, Pagamento
 from gymflow.services.cadastrar_aluno import CadastrarAlunoService
 from gymflow.services.registrar_pagamento import RegistrarPagamentoService
+from gymflow.ui.config_store import UiConfig
 
 
 class FechamentoRepoProto(Protocol):
@@ -28,6 +29,7 @@ class CaixaViewModel:
     alunos: CadastrarAlunoService
     fechamentos: FechamentoRepoProto
     commit: Callable[[], None] | None = None
+    ui_config: UiConfig = field(default_factory=UiConfig)
 
     def _commit(self) -> None:
         if self.commit is not None:

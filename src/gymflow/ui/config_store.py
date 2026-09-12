@@ -15,6 +15,7 @@ from typing import Any
 from loguru import logger
 
 from gymflow.core.regras import RegraAcessoConfig
+from gymflow.ui.theme import ModoTema
 
 DEFAULT_CONFIG_PATH = Path("data/gymflow_config.json")
 
@@ -38,6 +39,16 @@ def _as_bool(valor: Any, default: bool = False) -> bool:
     return default
 
 
+def _as_modo_tema(valor: Any) -> ModoTema:
+    """Normaliza o tema; valor inválido/ausente => ESCURO (padrão legado)."""
+    if isinstance(valor, ModoTema):
+        return valor
+    try:
+        return ModoTema(str(valor).strip().upper())
+    except ValueError:
+        return ModoTema.ESCURO
+
+
 @dataclass
 class UiConfig:
     """Ajustes da aba Configurações (valores sempre normalizados)."""
@@ -49,6 +60,7 @@ class UiConfig:
     timeout_giro_s: int = 7
     anti_passback: bool = False
     porta_catraca: str = "1"
+    tema: ModoTema = ModoTema.ESCURO
 
     def __post_init__(self) -> None:
         self.bloquear_entrada = _as_bool(self.bloquear_entrada)
@@ -59,6 +71,7 @@ class UiConfig:
         self.anti_passback = _as_bool(self.anti_passback)
         porta = str(self.porta_catraca or "").strip()
         self.porta_catraca = porta or "1"
+        self.tema = _as_modo_tema(self.tema)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

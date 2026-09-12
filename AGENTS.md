@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (138 passed + 1 skipped HW em 2026-09-12)
+uv run pytest                # testes (145 passed + 1 skipped HW em 2026-09-12)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -105,6 +105,9 @@ src/gymflow/       # único
   - `FrequenciaViewModel` (Qt-free: filtros dia/mês/aluno, meses, resumo por dia LIBERADO) + aba Frequência + seção "Frequência (outros dias)" no perfil.
   - Removidos `views/pagamentos.py` + `PagamentosViewModel` (`CaixaViewModel` absorve services; `NovoPagamentoDialog` mora em `views/caixa.py`; testes atualizados, RB01 segue coberta em `tests/core`).
   - Verificação Linux: 138 passed + 1 skipped, ruff/mypy limpos, upgrade/downgrade `a41f0c9d2e7b` reversível. **Regras, hardware e dashboard 4.4 (só click-through) intocados.**
+- **2026-09-12 — Fase 4.7 (modo claro) ✅:**
+  - `theme.py`: `ModoTema` + `stylesheet(modo)` (claro troca só a base: `#F2F5F7`/`#FFFFFF`/`#1A1E22`/`#5A6B78`/`#D5DCE2`; acentos intactos; títulos com tinta escura e texto-sobre-acento sempre escuro p/ contraste) + `contraste()` WCAG + `estilo_resultado(_, modo)` (selo no claro) + `cores_indicador`/`estilo_selo`; `UiConfig.tema` persistido; aba Configurações alterna sem restart (`app.setStyleSheet`); selo FECHADO revisado; screenshots `/tmp/shots47`.
+  - Verificação Linux: 145 passed + 1 skipped, ruff/mypy limpos. **Regras, services, infra e hardware intocados; telas só com estilos inline por modo.**
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11)
 
@@ -146,7 +149,7 @@ src/gymflow/       # único
 - [ ] Follow-up Fase 4.5: `views/pagamentos.py` (`PagamentosView`) e `pagamentos_vm` mantidos mas sem aba (compat testes); remover quando o gerente aprovar.
 - [x] Fase 4.6 original (feedback dono) ✅ concluída — ver linha acima; `test_pagamentos_situacao_rb01` saiu com o `PagamentosViewModel` (RB01 segue em `tests/core`).
 - [ ] Futuro (pós-MVP): minimizar p/ bandeja ao fechar (QSystemTrayIcon, Windows) sem perder a catraca; integração gateway pagamento (Pix recorrente — avaliar provedores).
-- [ ] Fase 4.7 (feedback dono 2026-09-12, após 4.6): modo claro + alternância de tema (mesma paleta, troca só o preto; design consistente).
+- [x] Fase 4.7 (feedback dono 2026-09-12) ✅: modo claro + alternância de tema sem restart (ver §4).
 - [ ] Renomeação GymFlux (dono 2026-09-12, após 4.6/4.7): marca `gymflux` em tudo (pacote, env, DB, UI, docs) p/ não confundir com outros "GymFlow".
 - [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
 - [ ] `CadastrarAlunoService` não verifica `cartao_id` duplicado (só CPF) — decidir se cartão deve ser único no cadastro (DB já tem índice único).
@@ -159,7 +162,7 @@ src/gymflow/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev && uv run pytest` deve passar (138 passed + 1 skipped HW em 2026-09-12).
+2. `uv sync --group dev && uv run pytest` deve passar (145 passed + 1 skipped HW em 2026-09-12).
 3. Se houver `vendor/Henry/Henry7x/Kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 

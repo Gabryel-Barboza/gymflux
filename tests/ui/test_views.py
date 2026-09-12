@@ -260,6 +260,43 @@ def test_config_salvar_aplica_regra_porta_e_persiste(qtbot, ctx, tmp_path):
     assert decisao.liberado is False
 
 
+def test_config_alternar_tema_aplica_sem_restart(qtbot, ctx, tmp_path, qapp):
+    from gymflow.ui.config_store import ConfigStore
+    from gymflow.ui.theme import LIMA, VERMELHO, ModoTema
+    from gymflow.ui.views.dashboard import DashboardView
+
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    # isola o arquivo p/ não sujar data/
+    ctx.config_vm.store = ConfigStore(tmp_path / "gymflow_config.json")
+    idx = [win.tabs.tabText(i) for i in range(win.tabs.count())].index("Configurações")
+    view = win.tabs.widget(idx)
+    assert view.cmb_tema.currentData() == ModoTema.ESCURO
+
+    view.cmb_tema.setCurrentIndex(view.cmb_tema.findData(ModoTema.CLARO))
+    view._salvar()
+    assert view.lbl_status.text() == "Configurações salvas e aplicadas."
+    assert ConfigStore(tmp_path / "gymflow_config.json").load().tema == ModoTema.CLARO
+    assert "background-color: #FFFFFF" in qapp.styleSheet()
+
+    # rótulos passam a usar selo legível no claro
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    dash.edt_codigo.setText("0000")
+    dash._identificar()
+    assert "NEGADO" in dash.lbl_verificacao.text()
+    assert VERMELHO in dash.lbl_verificacao.styleSheet()
+
+    # volta p/ escuro sem restart
+    view.cmb_tema.setCurrentIndex(view.cmb_tema.findData(ModoTema.ESCURO))
+    view._salvar()
+    assert ConfigStore(tmp_path / "gymflow_config.json").load().tema == ModoTema.ESCURO
+    assert "background-color: #0F1113" in qapp.styleSheet()
+    dash.edt_codigo.setText("0000")
+    dash._identificar()
+    assert LIMA not in dash.lbl_verificacao.styleSheet()  # negado: sem lima
+
+
 def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx):
     from PySide6.QtWidgets import QDialog
 
