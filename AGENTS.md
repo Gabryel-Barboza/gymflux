@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (45 verdes em 2026-09-11)
+uv run pytest                # testes (62 passed + 1 skipped HW em 2026-09-11)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -80,6 +80,9 @@ src/gymflow/       # único
   - `RegistrarPagamentoService.registrar` simplificado p/ `buscar_por_id` direto; `liberar_acesso` removido `TYPE_CHECKING` vazio; `AcessoLogRepository` + `Memoria` com `buscar_ultimo_por_aluno`; `_AcessoRepoProto` idem (sem `hasattr`).
   - `__main__.py:135` `suppress` trocado por `try/log` explícito (loguru + print).
   - Verificação: 45 passed (47−2 duplicados), ruff/mypy limpos, `alembic upgrade head` em `8c81436e0086`, `gymflow db seed` idempotente.
+- **2026-09-11 — Fase 4 (UI desktop PySide6) ✅:**
+  - `ui/` Qt6 PT-BR: `catraca_bridge.py` (QObject giro→Signal, único ponto que importa `hardware`), `viewmodels/` (dashboard/alunos/planos/pagamentos, Qt-free, só `services`+`core` + Protocols locais + callback commit), `views/` (4 telas + dialogs), `app.py` (composition root: SQLite via alembic c/ fallback memória + QMainWindow 4 abas). CLI `gymflow ui` (erro amigável sem PySide6). `tests/ui/` (8 VMs + 6 pytest-qt offscreen).
+  - Verificação Linux: 62 passed + 1 skipped, ruff/mypy limpos, `gymflow ui` abre com mock+SQLite. **core/services/infra/hardware e testes Fases 1-3 intocados.**
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11)
 
