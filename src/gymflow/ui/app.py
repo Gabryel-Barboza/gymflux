@@ -153,7 +153,7 @@ def _wire(
     )
     return AppContext(
         bridge=bridge,
-        dashboard_vm=DashboardViewModel(acesso=liberar_svc, log_repo=acesso_repo),
+        dashboard_vm=DashboardViewModel(acesso=liberar_svc, log_repo=acesso_repo, commit=commit),
         alunos_vm=AlunosViewModel(
             alunos=cadastrar_svc,
             commit=commit,

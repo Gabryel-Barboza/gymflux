@@ -69,6 +69,9 @@ def test_fluxo_completo_pela_ui_cadastra_e_libera(qtbot, ctx):
     dash._liberar("ENTRADA")
     assert dash.lbl_resultado.text().startswith("LIBERADO")
     assert dash.tbl_log.rowCount() == 1
+    item_nome = dash.tbl_log.item(0, 1)
+    assert item_nome is not None
+    assert item_nome.text() == "Ana Silva"
 
 
 def test_dashboard_negado_mostra_motivo(qtbot, ctx):

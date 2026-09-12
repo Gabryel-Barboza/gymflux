@@ -166,3 +166,20 @@ def test_matricular_sem_plano_da_erro_amigavel():
     aluno = w["alunos"].cadastrar(nome="Ana", cpf="11144477735")
     with pytest.raises(ValueError, match="Plano"):
         w["alunos"].matricular(aluno.id, "plano-inexistente")
+
+
+def test_dashboard_commit_apos_liberacao():
+    w = _wired()
+    chamadas: list[str] = []
+    w["dashboard"].commit = lambda: chamadas.append("commit")
+    aluno_id = _fluxo_adimplente(w)
+    w["dashboard"].liberar_entrada(aluno_id)
+    w["dashboard"].liberar_saida(aluno_id)
+    assert chamadas == ["commit", "commit"]
+
+
+def test_dashboard_log_exibe_nome_com_fallback_id():
+    w = _wired()
+    aluno_id = _fluxo_adimplente(w)
+    assert w["dashboard"].nome_aluno(aluno_id) == "Ana Silva"
+    assert w["dashboard"].nome_aluno("aluno-inexistente") == "aluno-inexistente"

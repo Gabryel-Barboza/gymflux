@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -22,14 +23,23 @@ class DashboardViewModel:
 
     acesso: LiberarAcessoService
     log_repo: LogRepoProto | None = None
+    commit: Callable[[], None] | None = None
     giros: list[tuple[str, float]] = field(default_factory=list)
+
+    def _commit(self) -> None:
+        if self.commit is not None:
+            self.commit()
 
     # -- liberação (passa pela RB01-RB05 + hardware via service) --------------
     def liberar_entrada(self, aluno_id: str) -> DecisaoAcesso:
-        return self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.ENTRADA)
+        decisao = self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.ENTRADA)
+        self._commit()
+        return decisao
 
     def liberar_saida(self, aluno_id: str) -> DecisaoAcesso:
-        return self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.SAIDA)
+        decisao = self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.SAIDA)
+        self._commit()
+        return decisao
 
     # -- resolução de aluno p/ recepção (id exato ou CPF) ----------------------
     def resolver_aluno(self, texto: str) -> Aluno | None:
@@ -57,6 +67,17 @@ class DashboardViewModel:
         if self.log_repo is not None:
             return self.log_repo.listar()[-n:]
         return self.acesso.registro.tentativas[-n:]
+
+    def nome_aluno(self, aluno_id: str) -> str:
+        """Nome p/ exibir no log; fallback p/ ID se aluno sumiu do cadastro."""
+        repo = self.acesso.aluno_repo
+        if repo is None:
+            return aluno_id
+        try:
+            aluno = repo.buscar_por_id(aluno_id)
+        except Exception:
+            return aluno_id
+        return aluno.nome if aluno is not None else aluno_id
 
     @staticmethod
     def resume_decisao(d: DecisaoAcesso) -> str:

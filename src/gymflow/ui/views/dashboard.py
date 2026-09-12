@@ -168,7 +168,7 @@ class DashboardView(QWidget):
         for row, t in enumerate(reversed(tentativas)):
             vals = (
                 t.timestamp.strftime("%d/%m %H:%M:%S"),
-                t.aluno_id,
+                self.vm.nome_aluno(t.aluno_id),
                 str(t.direcao),
                 str(t.resultado),
                 str(t.motivo or "—"),
