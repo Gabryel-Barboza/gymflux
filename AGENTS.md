@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (47 verdes em 2026-09-11)
+uv run pytest                # testes (45 verdes em 2026-09-11)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -63,10 +63,15 @@ src/gymflow/       # único
   - Renomeado `src/gms_app` → `src/gymflow`, `name: gymflow`, `GYMFLOW_*` puro, licença **Apache-2.0**.
 - **2026-09-11 — Fase 1 (domínio + mock) ✅:**
   - `core/` puro e tipado (RB01-RB05) + `services/` com repos memória + `LiberarAcessoService`.
-  - Testes `tests/core`, `tests/services`, `tests/hardware` — base dos 47 verdes.
+  - Testes `tests/core`, `tests/services`, `tests/hardware` — base dos 45 verdes.
 - **2026-09-11 — Fase 2 (persistência SQLite + Alembic) ✅:**
   - `infra/db.py` (WAL, FK ON), 5 models Typed, migração inicial `f2d9f6545bb8`, 5 repos Protocol+SQLAlchemy, `services` com injeção opcional + `tentar_acesso_por_id`, CLI `gymflow db upgrade|downgrade|seed` (seed idempotente 3 alunos + 2 planos).
   - Verificação: 47 passed, ruff/mypy limpos, `gymflow info`/`db seed` ok.
+- **2026-09-11 — Fase 3 (driver real Henry 7x, commissioning pendente VM) ⏳:**
+  - `hardware/henry7x/real.py` implementado (COM `Henry.Kernel7x` via `EnsureDispatch`+fallback `Dispatch`): `conectar` (`AdicionaCard(SComConfig)` + fallback `AdicionaCardSerial`), `desconectar` (`PararColetaEventos`+`RemoveCard`), `liberar` (`EnviaTipoCatraca`+pulso `EnviaAcionaCtrl` relé 1/2), `bloquear` (`csgBloqueada`), `on_giro` (polling `ColetaEventos`+`QuantRegsColetados` em thread daemon), `status` (`Versao`/`ListaPortasSeriais`/`ThreadLastError`). Falha graciosa fora de Windows 32-bit; factory **inalterada**.
+  - `docs/DLL_CONTRACT.md` §3 reescrito (tabelas COM SComConfig/SVelocidade/modos csg*/enums ctc*/cmc*/cv* via TYPELIB+`strings`, sem `ctypes`) + §4 fluxo serial e checklist VM; `scripts/dump_henry_typelib.py` (commissioning Windows); CLI `gymflow catraca status|liberar|bloquear`; `tests/hardware/test_real_henry.py` (3 testes Linux + 1 integração `GYMFLOW_HENRY_HW=1` skipada).
+  - Verificação Linux: 48 passed + 1 skipped, ruff/mypy limpos, CLI mock ok. **Pendente VM Windows 32-bit:** `dump_henry_typelib` + checklist §4.1.
+  - Nota env: `.venv` recriado (shebangs apontavam p/ `gms_app` pré-renomeação, `pytest`/`mypy` não spawnados).
 - **2026-09-11 — Fase 2.1 (correções auditoria) ✅:**
   - `pyproject.toml`: removido override `gymflow.infra.*` + removido `types-sqlalchemy` 1.4 obsoleto (conflitava com SQLAlchemy 2.0 tipado); corrigido erro real `migrations/env.py:41` (`str|None`).
   - Deletado `tests/test_mock_henry.py` duplicado (mantido `tests/hardware/test_mock_henry.py`).
@@ -107,12 +112,14 @@ src/gymflow/       # único
 - [x] Licença: **Apache-2.0** aceito.
 - [x] Nome: **GymFlow** v1 puro (sem GMS).
 - [ ] Modelo catraca exato? (7x / 7x Plus / Biométrica — confirmar p/ Fase 3).
+- [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*`, convenção relé 1=entrada/2=saída).
+- [ ] Nota: `docs/` e `vendor/` são 100% gitignored — atualizações do contrato (§3/§4) e `dumps/` vivem só localmente, não sobem no commit.
 - [x] Correções Fase 2.1 aplicadas (2026-09-11: mypy override, teste duplicado, session_scope, campos não persistidos).
 
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev && uv run pytest` deve passar (47 verdes).
+2. `uv sync --group dev && uv run pytest` deve passar (48 passed + 1 skipped HW em 2026-09-11).
 3. Se houver `vendor/kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 
@@ -125,4 +132,4 @@ src/gymflow/       # único
 - Serial: `ListaPortasSeriais` → escolher `COM3` etc, `SComConfig` define baud/paridade; `AdicionaCard(SComConfig, int)` abre porta.
 
 ---
-*Última atualização: 2026-09-11 por agente Fase 2.1 GymFlow (auditoria aplicada). Mantenha este arquivo enxuto e factual.*
+*Última atualização: 2026-09-11 por agente subordinado Fase 3 (driver real + contrato §3/§4, commissioning pendente VM). Mantenha este arquivo enxuto e factual.*

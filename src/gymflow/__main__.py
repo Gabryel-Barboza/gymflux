@@ -34,6 +34,102 @@ def cmd_mock_demo(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_catraca_status(args: argparse.Namespace) -> int:
+    """Mostra status do driver (mock ou real) — Fase 3, VM Windows 32-bit."""
+    from gymflow.hardware.henry7x.factory import get_henry_driver
+
+    try:
+        driver = get_henry_driver()
+    except Exception as e:
+        print(f"[erro] factory falhou: {e}")
+        return 1
+    print(f"[GymFlow] Driver: {driver.__class__.__name__} (mock={driver.is_mock})")
+    print(f"[GymFlow] status={driver.status()}")
+    return 0
+
+
+def cmd_catraca_liberar(args: argparse.Namespace) -> int:
+    """Conecta, libera giro na direção e aguarda giro físico (Fase 3)."""
+    import threading
+    import time
+
+    from gymflow.config.settings import get_settings
+    from gymflow.hardware.henry7x.factory import get_henry_driver
+    from gymflow.hardware.henry7x.interface import Direcao
+
+    settings = get_settings()
+    porta = args.porta or settings.henry_porta
+    direcao = Direcao.ENTRADA if args.direcao == "entrada" else Direcao.SAIDA
+    timeout_s = (args.timeout_ms or settings.henry_timeout_ms) / 1000.0
+    try:
+        driver = get_henry_driver()
+    except Exception as e:
+        print(f"[erro] factory falhou: {e}")
+        return 1
+    print(f"[GymFlow] Driver: {driver.__class__.__name__} (mock={driver.is_mock})")
+    try:
+        ok = driver.conectar(porta=porta)
+    except Exception as e:
+        print(f"[erro] conectar({porta}) falhou: {e}")
+        return 1
+    print(f"[GymFlow] conectar({porta}) -> {ok}")
+    if not ok:
+        return 1
+    giro = threading.Event()
+
+    def on_giro(d, ts):
+        print(f"[EVENTO] giro detectado direcao={d} ts={ts}")
+        giro.set()
+
+    driver.on_giro(on_giro)
+    try:
+        res = driver.liberar(direcao)
+    except Exception as e:
+        print(f"[erro] liberar({direcao.name}) falhou: {e}")
+        driver.desconectar()
+        return 1
+    print(f"[GymFlow] liberar({direcao.name}) -> {res}")
+    if "LIBERADO" not in res.name:
+        driver.desconectar()
+        return 1
+    print(f"[GymFlow] Gire a catraca (aguardando até {timeout_s:.0f}s)...")
+    deadline = time.time() + timeout_s
+    while time.time() < deadline and not giro.is_set():
+        time.sleep(0.2)
+    print(f"[GymFlow] giro={'detectado' if giro.is_set() else 'TIMEOUT'} status={driver.status()}")
+    driver.desconectar()
+    print("[GymFlow] desconectado.")
+    return 0 if giro.is_set() else 2
+
+
+def cmd_catraca_bloquear(args: argparse.Namespace) -> int:
+    """Conecta e bloqueia a catraca (Fase 3)."""
+    from gymflow.config.settings import get_settings
+    from gymflow.hardware.henry7x.factory import get_henry_driver
+
+    settings = get_settings()
+    porta = args.porta or settings.henry_porta
+    try:
+        driver = get_henry_driver()
+    except Exception as e:
+        print(f"[erro] factory falhou: {e}")
+        return 1
+    try:
+        driver.conectar(porta=porta)
+    except Exception as e:
+        print(f"[erro] conectar({porta}) falhou: {e}")
+        return 1
+    try:
+        driver.bloquear()
+    except Exception as e:
+        print(f"[erro] bloquear() falhou: {e}")
+        driver.desconectar()
+        return 1
+    print(f"[GymFlow] bloqueada. status={driver.status()}")
+    driver.desconectar()
+    return 0
+
+
 def cmd_info(_args: argparse.Namespace) -> int:
     import platform
     import struct
@@ -257,6 +353,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp2 = sub.add_parser("info", help="mostra info do ambiente")
     sp2.set_defaults(func=cmd_info)
+
+    # catraca group (Fase 3: mock em Linux, COM real em VM Windows 32-bit)
+    sp_cat = sub.add_parser("catraca", help="operações da catraca Henry 7x")
+    cat_sub = sp_cat.add_subparsers(dest="catraca_cmd", required=True)
+
+    sp_st = cat_sub.add_parser("status", help="mostra status do driver")
+    sp_st.set_defaults(func=cmd_catraca_status)
+
+    sp_lib = cat_sub.add_parser("liberar", help="libera giro e aguarda giro físico")
+    sp_lib.add_argument("--porta", default=None, help="ex.: COM3 (default: GYMFLOW_HENRY_PORTA)")
+    sp_lib.add_argument(
+        "--direcao", choices=["entrada", "saida"], default="entrada", help="direção do giro"
+    )
+    sp_lib.add_argument("--timeout-ms", type=int, default=None, help="espera do giro (ms)")
+    sp_lib.set_defaults(func=cmd_catraca_liberar)
+
+    sp_blo = cat_sub.add_parser("bloquear", help="bloqueia a catraca")
+    sp_blo.add_argument("--porta", default=None, help="ex.: COM3 (default: GYMFLOW_HENRY_PORTA)")
+    sp_blo.set_defaults(func=cmd_catraca_bloquear)
 
     # db group
     sp_db = sub.add_parser("db", help="operações de banco (alembic/seed)")
