@@ -23,14 +23,15 @@ from gymflow.ui.catraca_bridge import CatracaBridge
 from gymflow.ui.config_store import ConfigStore, UiConfig
 from gymflow.ui.theme import stylesheet
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
+from gymflow.ui.viewmodels.caixa import CaixaViewModel
 from gymflow.ui.viewmodels.config import ConfigViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 from gymflow.ui.views.alunos import AlunosView
+from gymflow.ui.views.caixa import CaixaView
 from gymflow.ui.views.config import ConfigView
 from gymflow.ui.views.dashboard import DashboardView
-from gymflow.ui.views.pagamentos import PagamentosView
 from gymflow.ui.views.planos import PlanosView
 
 
@@ -43,6 +44,7 @@ class AppContext:
     alunos_vm: AlunosViewModel
     planos_vm: PlanosViewModel
     pagamentos_vm: PagamentosViewModel
+    caixa_vm: CaixaViewModel
     config_vm: ConfigViewModel
     config_store: ConfigStore
     session: Session | None = None
@@ -100,6 +102,9 @@ def create_context(use_db: bool = True) -> AppContext:
             from gymflow.infra.db import get_session
             from gymflow.infra.repositories.acesso_log import AcessoLogRepositorySQLAlchemy
             from gymflow.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+            from gymflow.infra.repositories.fechamento_caixa import (
+                FechamentoCaixaRepositorySQLAlchemy,
+            )
             from gymflow.infra.repositories.matricula import MatriculaRepositorySQLAlchemy
             from gymflow.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
             from gymflow.infra.repositories.plano import PlanoRepositorySQLAlchemy
@@ -110,6 +115,7 @@ def create_context(use_db: bool = True) -> AppContext:
             mat_repo: Any = MatriculaRepositorySQLAlchemy(session)
             pag_repo: Any = PagamentoRepositorySQLAlchemy(session)
             acesso_repo: Any = AcessoLogRepositorySQLAlchemy(session)
+            fech_repo: Any = FechamentoCaixaRepositorySQLAlchemy(session)
             commit = _safe_commit(session)
             logger.info("[UI] contexto com SQLite")
             return _wire(
@@ -119,6 +125,7 @@ def create_context(use_db: bool = True) -> AppContext:
                 mat_repo,
                 pag_repo,
                 acesso_repo,
+                fech_repo,
                 ui_config=ui_config,
                 config_store=config_store,
                 session=session,
@@ -128,6 +135,7 @@ def create_context(use_db: bool = True) -> AppContext:
             logger.warning(f"[UI] DB indisponível ({e}) — fallback memória")
 
     from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+    from gymflow.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
     from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
     from gymflow.infra.repositories.plano import PlanoRepositoryMemoria
     from gymflow.services.cadastrar_aluno import RepositorioAlunosMemoria
@@ -141,6 +149,7 @@ def create_context(use_db: bool = True) -> AppContext:
         MatriculaRepositoryMemoria(),
         RepositorioPagamentosMemoria(),
         AcessoLogRepositoryMemoria(),
+        FechamentoCaixaRepositoryMemoria(),
         ui_config=ui_config,
         config_store=config_store,
     )
@@ -153,6 +162,7 @@ def _wire(
     mat_repo: Any,
     pag_repo: Any,
     acesso_repo: Any,
+    fech_repo: Any,
     ui_config: UiConfig | None = None,
     config_store: ConfigStore | None = None,
     session: Session | None = None,
@@ -169,6 +179,10 @@ def _wire(
     )
     cadastrar_svc = CadastrarAlunoService(repo=aluno_repo)
     pagamento_svc = RegistrarPagamentoService(repo=pag_repo)
+    pagamentos_vm = PagamentosViewModel(
+        pagamentos=pagamento_svc, alunos=cadastrar_svc, commit=commit
+    )
+    caixa_vm = CaixaViewModel(pagamentos=pagamentos_vm, fechamentos=fech_repo, commit=commit)
     liberar_svc = LiberarAcessoService(
         driver=bridge.driver,
         regra=regra,
@@ -204,9 +218,8 @@ def _wire(
             plano_repo=plano_repo,
         ),
         planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
-        pagamentos_vm=PagamentosViewModel(
-            pagamentos=pagamento_svc, alunos=cadastrar_svc, commit=commit
-        ),
+        pagamentos_vm=pagamentos_vm,
+        caixa_vm=caixa_vm,
         config_vm=config_vm,
         config_store=store,
         session=session,
@@ -228,7 +241,7 @@ class GymFlowMainWindow(QMainWindow):
             "Catraca",
         )
         tabs.addTab(
-            AlunosView(ctx.alunos_vm, ctx.pagamentos_vm),
+            AlunosView(ctx.alunos_vm, ctx.caixa_vm),
             estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
             "Alunos",
         )
@@ -238,9 +251,9 @@ class GymFlowMainWindow(QMainWindow):
             "Planos",
         )
         tabs.addTab(
-            PagamentosView(ctx.pagamentos_vm),
+            CaixaView(ctx.caixa_vm),
             estilo.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
-            "Pagamentos",
+            "Caixa",
         )
         tabs.addTab(
             ConfigView(ctx.config_vm),
