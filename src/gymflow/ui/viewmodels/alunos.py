@@ -81,6 +81,43 @@ class AlunosViewModel:
         self._commit()
         return result
 
+    def atualizar(
+        self,
+        aluno_id: str,
+        *,
+        nome: str,
+        cpf: str | None = None,
+        data_nasc: date | None = None,
+        telefone: str | None = None,
+        email: str | None = None,
+        observacoes: str | None = None,
+        senha: str | None = None,
+        cartao_id: str | None = None,
+        status: StatusAluno | None = None,
+    ) -> Aluno:
+        """Atualiza todos os campos editáveis; senha vazia mantém o hash atual."""
+        aluno = self.alunos.buscar(aluno_id)
+        if aluno is None:
+            raise ValueError(f"Aluno id={aluno_id} não encontrado")
+        if not nome or not nome.strip():
+            raise ValueError("nome não pode ser vazio")
+        aluno.nome = nome.strip()
+        aluno.cpf = (cpf.strip() or None) if cpf else None
+        aluno.data_nasc = data_nasc
+        aluno.telefone = (telefone.strip() or None) if telefone else None
+        aluno.email = (email.strip() or None) if email else None
+        aluno.observacoes = (observacoes.strip() or None) if observacoes else None
+        if senha and senha.strip():
+            aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
+        aluno.definir_cartao(cartao_id)
+        if status is not None:
+            aluno.status = status
+            if status != StatusAluno.BLOQUEADO:
+                aluno.bloqueado_manual = False
+        result = self.alunos.atualizar(aluno)
+        self._commit()
+        return result
+
     def bloquear(self, aluno_id: str) -> Aluno:
         result = self.alunos.bloquear(aluno_id)
         self._commit()

@@ -249,3 +249,45 @@ def test_config_salvar_aplica_regra_porta_e_persiste(qtbot, ctx, tmp_path):
     dash.edt_codigo.setText("1234")
     decisao, _ = ctx.dashboard_vm.identificar_acesso("1234", "TECLADO", direcao=DirecaoAcesso.SAIDA)
     assert decisao.liberado is False
+
+
+def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx):
+    from PySide6.QtWidgets import QDialog
+
+    from gymflow.ui.views.alunos import PerfilAlunoDialog
+
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana", senha="1234")
+    ctx.pagamentos_vm.registrar(
+        aluno_id=aluno.id,
+        valor=Decimal("99.90"),
+        data_vencimento=date.today(),
+        pago=True,
+    )
+    dlg = PerfilAlunoDialog(ctx.alunos_vm, ctx.pagamentos_vm, aluno.id)
+    qtbot.addWidget(dlg)
+    assert dlg.form.edt_nome.text() == "Ana"
+    assert dlg.tbl_pag.rowCount() == 1
+    dlg.form.edt_nome.setText("Ana Silva")
+    dlg.form.edt_senha.setText("")  # mantém hash
+    dlg._salvar()
+    assert dlg.result() == QDialog.DialogCode.Accepted
+    atual = ctx.alunos_vm.alunos.buscar(aluno.id)
+    assert atual is not None and atual.nome == "Ana Silva"
+    assert atual.verificar_senha("1234") is True
+
+
+def test_alunos_duplo_clique_e_menu_abrem_perfil(qtbot, ctx, mocker):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QDialog
+
+    from gymflow.ui.views.alunos import AlunosView, PerfilAlunoDialog
+
+    view = AlunosView(ctx.alunos_vm, ctx.pagamentos_vm)
+    qtbot.addWidget(view)
+    ctx.alunos_vm.cadastrar(nome="Ana")
+    view.recarregar()
+    assert view.tbl.contextMenuPolicy() == Qt.ContextMenuPolicy.CustomContextMenu
+    view.tbl.selectRow(0)
+    mocker.patch.object(PerfilAlunoDialog, "exec", return_value=QDialog.DialogCode.Accepted)
+    view._abrir_perfil()  # via duplo-clique/menu, sem travar
+    assert view.tbl.rowCount() == 1

@@ -228,7 +228,7 @@ class GymFlowMainWindow(QMainWindow):
             "Catraca",
         )
         tabs.addTab(
-            AlunosView(ctx.alunos_vm),
+            AlunosView(ctx.alunos_vm, ctx.pagamentos_vm),
             estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
             "Alunos",
         )
