@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 from dataclasses import dataclass
 from datetime import date
@@ -18,8 +19,22 @@ class StatusAluno(StrEnum):
 
 SENHA_MIN_DIGITOS = 4
 SENHA_MAX_DIGITOS = 8
-_PBKDF2_ITERACOES = 100_000
+_PBKDF2_ITERACOES = 100_000  # default prod — NÃO reduzir (segurança)
+_ENV_PBKDF2_ITERACOES = "GYMFLOW_PBKDF2_ITERATIONS"
 _HASH_PREFIXO = "pbkdf2_sha256"
+
+
+def _iteracoes_pbkdf2() -> int:
+    """Iterações do PBKDF2 — lê o env a cada chamada.
+
+    Gancho de testabilidade: a suite fixa ``GYMFLOW_PBKDF2_ITERATIONS`` baixo
+    via fixture autouse (ver ``tests/conftest.py``). Em prod a variável não
+    existe e o default 100_000 vale sempre. Valor inválido => default.
+    """
+    try:
+        return max(1, int(os.environ.get(_ENV_PBKDF2_ITERACOES, "") or _PBKDF2_ITERACOES))
+    except ValueError:
+        return _PBKDF2_ITERACOES
 
 
 def validar_senha_numerica(senha: str) -> str:
@@ -36,8 +51,9 @@ def gerar_senha_hash(senha: str, salt: bytes | None = None) -> str:
     """Gera hash com salt (PBKDF2-HMAC-SHA256). Nunca persiste texto puro."""
     digitos = validar_senha_numerica(senha)
     sal = salt if salt is not None else secrets.token_bytes(16)
-    dk = hashlib.pbkdf2_hmac("sha256", digitos.encode(), sal, _PBKDF2_ITERACOES)
-    return f"{_HASH_PREFIXO}${_PBKDF2_ITERACOES}${sal.hex()}${dk.hex()}"
+    n = _iteracoes_pbkdf2()
+    dk = hashlib.pbkdf2_hmac("sha256", digitos.encode(), sal, n)
+    return f"{_HASH_PREFIXO}${n}${sal.hex()}${dk.hex()}"
 
 
 def conferir_senha(senha: str, senha_hash: str | None) -> bool:

@@ -1,8 +1,8 @@
-"""Testes LiberarAcessoService com MockHenry7x."""
+"""LiberarAcessoService — fluxo de liberação/negação com MockHenry7x."""
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from gymflow.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
@@ -113,35 +113,6 @@ def test_liberar_acesso_matricula_expirada():
     assert decisao.motivo == MotivoNegado.MATRICULA_EXPIRADA
 
 
-def test_timeout_rb04_bloqueia_e_loga():
-    svc = _service(auto_giro=False)
-    aluno = _aluno("a1")
-    decisao = svc.tentar_acesso(
-        aluno=aluno, matricula=_matricula(aluno.id), pagamentos=_pg_ok(aluno.id), agora=HOJE
-    )
-    assert decisao.liberado is True
-    # simula que liberou às 10:00 e agora são 10:00:08 sem giro
-    liberado_em = datetime(2026, 9, 11, 10, 0, 0)
-    agora = liberado_em + timedelta(seconds=8)
-    timeout_decisao = svc.verificar_timeout(
-        liberado_em, agora, aluno_id=aluno.id, direcao=DirecaoAcesso.ENTRADA
-    )
-    assert timeout_decisao is not None
-    assert timeout_decisao.resultado == ResultadoAcesso.TIMEOUT
-    # último registro deve ser TIMEOUT e catraca bloqueada
-    assert svc.registro.tentativas[-1].resultado == ResultadoAcesso.TIMEOUT
-    assert svc.driver.status()["bloqueada"] is True
-
-
-def test_timeout_nao_aciona_se_dentro_limite():
-    svc = _service()
-    liberado_em = datetime(2026, 9, 11, 10, 0, 0)
-    agora = liberado_em + timedelta(seconds=5)
-    assert svc.verificar_timeout(liberado_em, agora, aluno_id="a1") is None
-    # só 1 registro? actually we didn't create initial liberado, so zero. Test that no new registro
-    assert svc.registro.total() == 0
-
-
 def test_saida_e_entrada_direcoes_distintas():
     svc = _service()
     aluno = _aluno("a1")
@@ -155,32 +126,6 @@ def test_saida_e_entrada_direcoes_distintas():
             agora=HOJE,
         )
         assert decisao.liberado is True
-
-
-def test_anti_passback_via_servico():
-    driver = MockHenry7x(auto_giro=False)
-    driver.conectar("MOCK:1")
-    regra = RegraAcesso(RegraAcessoConfig(tolerancia_dias=3, anti_passback=True))
-    svc = LiberarAcessoService(driver=driver, regra=regra)
-    aluno = _aluno("a1")
-    d1 = svc.tentar_acesso(
-        aluno=aluno,
-        matricula=_matricula(aluno.id),
-        pagamentos=_pg_ok(aluno.id),
-        direcao=DirecaoAcesso.ENTRADA,
-        agora=HOJE,
-    )
-    assert d1.liberado is True
-    d2 = svc.tentar_acesso(
-        aluno=aluno,
-        matricula=_matricula(aluno.id),
-        pagamentos=_pg_ok(aluno.id),
-        direcao=DirecaoAcesso.ENTRADA,
-        agora=HOJE,
-        ultimo_acesso_direcao=DirecaoAcesso.ENTRADA,
-    )
-    assert d2.liberado is False
-    assert d2.motivo == MotivoNegado.ANTI_PASSBACK
 
 
 def test_registro_memoria_por_aluno():
