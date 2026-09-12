@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (96 passed + 1 skipped HW em 2026-09-12)
+uv run pytest                # testes (111 passed + 1 skipped HW em 2026-09-12)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -86,6 +86,9 @@ src/gymflow/       # único
 - **2026-09-12 — Fase 4.3 (senha numérica estilo SCA, sem driver) ✅:**
   - `Aluno` +`senha_hash` (PBKDF2+salt, validação 4-8 dígitos) +`cartao_id`; migração `3f9a2c1bd4e5`; repos com `buscar_por_cartao`; `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`, sem commit próprio); mock `simular_teclado`/fila; dashboard painel `NOME — LIBERADO/NEGADO` + dialog com senha/cartão.
   - Verificação Linux: 96 passed + 1 skipped, ruff/mypy limpos, downgrade/upgrade `3f9a2c1bd4e5` reversível. **RB01-RB05, real.py, factory e migrations aplicadas intocados.**
+- **2026-09-12 — Fase 4.4 (dashboard enxuto + configurações) ✅:**
+  - `ui/config_store.py` (`UiConfig` + JSON `data/gymflow_config.json`, Qt-free) + `viewmodels/config.py`; aba Configurações (bloqueios, senha mín 4-8, tolerância, timeout, anti-passback, porta; salva+aplica sem restart); `DashboardViewModel.ui_config` (direção bloqueada e senha curta → NEGADO direto); regra do domínio montada da config; dashboard em 2 linhas compactas + status tabela Campo|Valor + log/giros ~5 linhas + ícones QStyle; screenshots `/tmp/shots44`.
+  - Verificação Linux: 111 passed + 1 skipped, ruff/mypy limpos. **core/regras, services, infra/models, migrations e hardware intocados.**
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11)
 
@@ -119,6 +122,7 @@ src/gymflow/       # único
 - [x] Nome: **GymFlow** v1 puro (sem GMS).
 - [ ] Modelo catraca exato? (7x / 7x Plus / Biométrica — confirmar p/ Fase 3).
 - [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
+- [x] Fase 4.4 (feedback dono 2026-09-12) ✅: aba Configurações + dashboard enxuto (ver §4).
 - [ ] `CadastrarAlunoService` não verifica `cartao_id` duplicado (só CPF) — decidir se cartão deve ser único no cadastro (DB já tem índice único).
 - [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*`, convenção relé 1=entrada/2=saída).
 - [ ] Nota: `docs/` e `vendor/` são 100% gitignored — atualizações do contrato (§3/§4) e `dumps/` vivem só localmente, não sobem no commit.
@@ -127,7 +131,7 @@ src/gymflow/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev && uv run pytest` deve passar (96 passed + 1 skipped HW em 2026-09-12).
+2. `uv sync --group dev && uv run pytest` deve passar (111 passed + 1 skipped HW em 2026-09-12).
 3. Se houver `vendor/kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 
