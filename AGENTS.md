@@ -108,6 +108,14 @@ src/gymflow/       # único
 - **2026-09-12 — Fase 4.7 (modo claro) ✅:**
   - `theme.py`: `ModoTema` + `stylesheet(modo)` (claro troca só a base: `#F2F5F7`/`#FFFFFF`/`#1A1E22`/`#5A6B78`/`#D5DCE2`; acentos intactos; títulos com tinta escura e texto-sobre-acento sempre escuro p/ contraste) + `contraste()` WCAG + `estilo_resultado(_, modo)` (selo no claro) + `cores_indicador`/`estilo_selo`; `UiConfig.tema` persistido; aba Configurações alterna sem restart (`app.setStyleSheet`); selo FECHADO revisado; screenshots `/tmp/shots47`.
   - Verificação Linux: 145 passed + 1 skipped, ruff/mypy limpos. **Regras, services, infra e hardware intocados; telas só com estilos inline por modo.**
+- **2026-09-12 — chore(tests): suite rápida ✅ (commit `618a071`):**
+  - PBKDF2 configurável: `core/aluno.py` +`_iteracoes_pbkdf2()` lendo `GYMFLOW_PBKDF2_ITERATIONS` (default prod 100_000 INALTERADO; `conferir_senha` já lia a contagem do hash, hashes antigos seguem válidos); `tests/conftest.py` fixa 1000 via fixture autouse + offscreen centralizado. 2 testes-guarda do default em `unit/core/test_senha_hash.py`.
+  - Qt: `integration/ui/conftest.py` (`ctx` função-escopo + `dash` view direta sem montar 7 abas); `waitExposed` removido (processEvents); teardown destrói top-levels via `shiboken6.delete` (views vazavam 1000+ widgets/run por lambdas `self` em signals — governança impediu fix em prod, mitigado só nos testes). Nenhum sleep fixo existia (`waitSignal` do bridge já era o padrão certo).
+  - Coverage fora do default (`addopts=-v`; CI: `uv run pytest --cov=gymflow --cov-report=term-missing`); xdist avaliado e REJEITADO (7,5s vs 2,5s serial — spawn domina); markers `unit|integration|ui|slow` (`-m "not slow"`, `-m ui` ok).
+  - Migrations isolado: upgrade roda em `tmp_path` via `GYMFLOW_DB_URL` + `cache_clear` (+`slow`); `data/gymflow.db` intocado; `test_migrations_criam_tabelas` ganhou `import gymflow.infra.models` (antes só passava por ordem de imports). Infra com engine `:memory:` por sessão + limpeza por teste.
+  - Reorg `tests/unit|integration`: splits por domínio (regras RB01-RB05, senha valid/hash/aluno, identificar teclado-cartão/funcionário, liberar fluxo/regras, VMs por tela, views por tela, theme puro/render, repos por entidade). Nenhum teste perdido.
+  - Verificação Linux: **146 passed + 1 skipped** (145 +2 guardas −1 fusão theme), `uv run pytest -q` 3,4–5,2s (3 rodadas; 18,1s→~4s com cov fora), ruff/mypy limpos. **Lógica prod, segurança (100k), regras e UI intocados.**
+  - Nota env: `uv sync --group dev` REMOVE o extra `ui` (PySide6 some) — usar `uv sync --group dev --extra ui`.
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11)
 
@@ -162,7 +170,7 @@ src/gymflow/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev && uv run pytest` deve passar (145 passed + 1 skipped HW em 2026-09-12).
+2. `uv sync --group dev --extra ui && uv run pytest` deve passar (146 passed + 1 skipped HW em 2026-09-12).
 3. Se houver `vendor/Henry/Henry7x/Kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 
