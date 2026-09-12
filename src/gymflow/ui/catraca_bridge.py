@@ -97,3 +97,16 @@ class CatracaBridge(QObject):
     @property
     def driver(self) -> Henry7xDriver:
         return self._driver
+
+    @property
+    def porta(self) -> str:
+        return self._porta
+
+    def trocar_porta(self, porta: str) -> bool:
+        """Reconecta em outra porta (ex: Configurações). Sem mudança => True."""
+        nova = porta.strip() or self._porta
+        if nova == self._porta:
+            return True
+        self.desconectar()
+        self._porta = nova
+        return self.conectar()

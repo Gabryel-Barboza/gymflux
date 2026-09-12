@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from gymflow.core.acesso import ResultadoAcesso
+from gymflow.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
 from gymflow.core.aluno import StatusAluno
 from gymflow.core.plano import TipoPlano
 from gymflow.hardware.henry7x.mock import MockHenry7x
@@ -23,6 +23,7 @@ from gymflow.services.registrar_pagamento import (
     RegistrarPagamentoService,
     RepositorioPagamentosMemoria,
 )
+from gymflow.ui.config_store import UiConfig
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
@@ -240,3 +241,52 @@ def test_cadastrar_senha_invalida_rejeita():
     w = _wired()
     with pytest.raises(ValueError):
         w["alunos"].cadastrar(nome="Ana", cpf="11144477735", senha="12")
+
+
+def test_direcao_bloqueada_nega_direto_sem_hardware():
+    w = _wired()
+    aluno_id = _fluxo_adimplente(w)
+    w["dashboard"].ui_config = UiConfig(bloquear_entrada=True)
+    antes = w["driver"].status()["bloqueada"]
+    decisao = w["dashboard"].liberar_entrada(aluno_id)
+    assert decisao.liberado is False
+    assert decisao.motivo == MotivoNegado.BLOQUEIO_MANUAL
+    assert w["driver"].status()["bloqueada"] == antes  # hardware nem acionado
+    # saída segue liberando
+    assert w["dashboard"].liberar_saida(aluno_id).liberado is True
+
+
+def test_direcao_bloqueada_vale_para_identificar():
+    w = _wired()
+    _com_identificar(w)
+    w["dashboard"].ui_config = UiConfig(bloquear_saida=True)
+    decisao, achado = w["dashboard"].identificar_acesso(
+        "0000", "TECLADO", direcao=DirecaoAcesso.SAIDA
+    )
+    assert decisao.liberado is False
+    assert decisao.motivo == MotivoNegado.BLOQUEIO_MANUAL
+    assert achado is None
+
+
+def test_senha_curta_nega_direto():
+    w = _wired()
+    _com_identificar(w)
+    aluno = w["alunos"].cadastrar(
+        nome="Ana Silva", cpf="11144477735", senha="123456", cartao_id="TAG-42"
+    )
+    plano = w["planos"].salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
+    w["alunos"].matricular(aluno.id, plano.id)
+    w["pagamentos"].registrar(
+        aluno_id=aluno.id, valor=Decimal("99.90"), data_vencimento=HOJE, pago=True
+    )
+    w["dashboard"].ui_config = UiConfig(senha_min_digitos=6)
+    decisao, achado = w["dashboard"].identificar_acesso("1234", "TECLADO")
+    assert decisao.liberado is False
+    assert decisao.motivo == "SENHA_CURTA"
+    assert achado is None
+    # senha de 6 dígitos passa; cartão ignora o mínimo
+    decisao_ok, _ = w["dashboard"].identificar_acesso("123456", "TECLADO")
+    assert decisao_ok.liberado is True
+    decisao_cartao, achado_cartao = w["dashboard"].identificar_acesso("TAG-42", "CARTAO")
+    assert decisao_cartao.liberado is True
+    assert achado_cartao is not None and achado_cartao.id == aluno.id

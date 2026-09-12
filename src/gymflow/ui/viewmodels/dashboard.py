@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from gymflow.core.acesso import DecisaoAcesso, DirecaoAcesso, TentativaAcesso
+from gymflow.core.acesso import DecisaoAcesso, DirecaoAcesso, MotivoNegado, TentativaAcesso
 from gymflow.core.aluno import Aluno
 from gymflow.services.identificar_acesso import (
     Identificacao,
@@ -14,6 +14,7 @@ from gymflow.services.identificar_acesso import (
     OrigemIdentificacao,
 )
 from gymflow.services.liberar_acesso import LiberarAcessoService
+from gymflow.ui.config_store import UiConfig
 
 
 class LogRepoProto(Protocol):
@@ -31,18 +32,41 @@ class DashboardViewModel:
     commit: Callable[[], None] | None = None
     giros: list[tuple[str, float]] = field(default_factory=list)
     identificar: IdentificarAcessoService | None = None
+    ui_config: UiConfig = field(default_factory=UiConfig)
 
     def _commit(self) -> None:
         if self.commit is not None:
             self.commit()
 
+    def _direcao_bloqueada(self, direcao: DirecaoAcesso) -> DecisaoAcesso | None:
+        """NEGADO direto se a direção está bloqueada nas Configurações."""
+        bloqueada = (
+            self.ui_config.bloquear_entrada
+            if direcao == DirecaoAcesso.ENTRADA
+            else self.ui_config.bloquear_saida
+        )
+        if not bloqueada:
+            return None
+        return DecisaoAcesso.negado(
+            MotivoNegado.BLOQUEIO_MANUAL,
+            f"{direcao.value.capitalize()} bloqueada (Configurações)",
+        )
+
     # -- liberação (passa pela RB01-RB05 + hardware via service) --------------
     def liberar_entrada(self, aluno_id: str) -> DecisaoAcesso:
+        negado = self._direcao_bloqueada(DirecaoAcesso.ENTRADA)
+        if negado is not None:
+            self._commit()
+            return negado
         decisao = self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.ENTRADA)
         self._commit()
         return decisao
 
     def liberar_saida(self, aluno_id: str) -> DecisaoAcesso:
+        negado = self._direcao_bloqueada(DirecaoAcesso.SAIDA)
+        if negado is not None:
+            self._commit()
+            return negado
         decisao = self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.SAIDA)
         self._commit()
         return decisao
@@ -72,7 +96,22 @@ class DashboardViewModel:
     ) -> tuple[DecisaoAcesso, Aluno | None]:
         if self.identificar is None:
             raise RuntimeError("IdentificarAcessoService não injetado")
+        negado = self._direcao_bloqueada(direcao)
+        if negado is not None:
+            self._commit()
+            return negado, None
         ori = OrigemIdentificacao(origem) if isinstance(origem, str) else origem
+        if ori == OrigemIdentificacao.TECLADO:
+            digitos = sum(1 for c in codigo if c.isdigit())
+            if digitos < self.ui_config.senha_min_digitos:
+                self._commit()
+                return (
+                    DecisaoAcesso.negado(
+                        "SENHA_CURTA",
+                        f"Senha com {digitos} dígitos (mínimo {self.ui_config.senha_min_digitos})",
+                    ),
+                    None,
+                )
         ident = (
             Identificacao.por_cartao(codigo)
             if ori == OrigemIdentificacao.CARTAO

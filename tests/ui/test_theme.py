@@ -55,7 +55,7 @@ def test_tema_aplicado_nas_4_abas(qapp, qtbot):
     try:
         win = build_window(ctx)
         qtbot.addWidget(win)
-        assert win.tabs.count() == 4
+        assert win.tabs.count() == 5
         win.show()
         assert win.isVisible()
     finally:

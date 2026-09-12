@@ -1,19 +1,20 @@
-"""Dashboard da catraca — status tempo real, liberação e log de tentativas."""
+"""Catraca — ação em linhas compactas, status em tabela, log/giros enxutos."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QPushButton,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -21,14 +22,17 @@ from PySide6.QtWidgets import (
 )
 
 from gymflow.ui.catraca_bridge import CatracaBridge
-from gymflow.ui.theme import estilo_resultado
+from gymflow.ui.theme import LIMA, VERMELHO, estilo_resultado
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
+
+LINHAS_VISIVEIS = 5
 
 
 class DashboardView(QWidget):
-    """Status (QTimer 1s) + Liberar Entrada/Saída + Bloquear + log + giros."""
+    """Duas linhas de ação + status compacto + log/giros com altura p/ ~5 itens."""
 
     COLUNAS_LOG = ("Hora", "Aluno", "Direção", "Resultado", "Motivo")
+    LINHAS_STATUS = ("Online", "Bloqueada", "Giros", "Firmware", "Driver", "Porta")
 
     def __init__(
         self,
@@ -41,79 +45,85 @@ class DashboardView(QWidget):
         self.bridge = bridge
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(4)
+        estilo = self.style()
 
-        # -- status ---------------------------------------------------------
-        gb_status = QGroupBox("Status da catraca")
-        grid = QGridLayout(gb_status)
-        self.lbl_online = QLabel("—")
-        self.lbl_bloqueada = QLabel("—")
-        self.lbl_contador = QLabel("—")
-        self.lbl_firmware = QLabel("—")
-        self.lbl_driver = QLabel("—")
-        grid.addWidget(QLabel("Online:"), 0, 0)
-        grid.addWidget(self.lbl_online, 0, 1)
-        grid.addWidget(QLabel("Bloqueada:"), 0, 2)
-        grid.addWidget(self.lbl_bloqueada, 0, 3)
-        grid.addWidget(QLabel("Giros:"), 1, 0)
-        grid.addWidget(self.lbl_contador, 1, 1)
-        grid.addWidget(QLabel("Firmware:"), 1, 2)
-        grid.addWidget(self.lbl_firmware, 1, 3)
-        grid.addWidget(QLabel("Driver:"), 2, 0)
-        grid.addWidget(self.lbl_driver, 2, 1, 1, 3)
-        layout.addWidget(gb_status)
-
-        # -- liberação -------------------------------------------------------
-        gb_lib = QGroupBox("Liberar acesso")
-        hlib = QHBoxLayout(gb_lib)
+        # -- linha 1: identificação -------------------------------------------
+        linha1 = QHBoxLayout()
         self.edt_aluno = QLineEdit()
-        self.edt_aluno.setPlaceholderText("ID ou CPF do aluno")
-        self.btn_entrada = QPushButton("Liberar Entrada")
-        self.btn_saida = QPushButton("Liberar Saída")
-        self.btn_bloquear = QPushButton("Bloquear")
-        hlib.addWidget(self.edt_aluno, 2)
-        hlib.addWidget(self.btn_entrada)
-        hlib.addWidget(self.btn_saida)
-        hlib.addWidget(self.btn_bloquear)
-        layout.addWidget(gb_lib)
-
-        self.lbl_resultado = QLabel("Informe o aluno e escolha a direção.")
-        layout.addWidget(self.lbl_resultado)
-
-        # -- identificação estilo SCA -------------------------------------------
-        gb_id = QGroupBox("Identificação (teclado/cartão)")
-        hid = QHBoxLayout(gb_id)
+        self.edt_aluno.setPlaceholderText("ID ou CPF")
         self.edt_codigo = QLineEdit()
-        self.edt_codigo.setPlaceholderText("Senha numérica ou ID do cartão")
+        self.edt_codigo.setPlaceholderText("Senha ou cartão")
         self.edt_codigo.setEchoMode(QLineEdit.EchoMode.Password)
         self.cmb_origem = QComboBox()
         self.cmb_origem.addItem("Teclado", "TECLADO")
         self.cmb_origem.addItem("Cartão", "CARTAO")
         self.btn_identificar = QPushButton("Identificar")
-        hid.addWidget(self.edt_codigo, 2)
-        hid.addWidget(self.cmb_origem)
-        hid.addWidget(self.btn_identificar)
-        layout.addWidget(gb_id)
+        self.btn_identificar.setIcon(
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+        )
+        linha1.addWidget(self.edt_aluno, 2)
+        linha1.addWidget(self.edt_codigo, 2)
+        linha1.addWidget(self.cmb_origem)
+        linha1.addWidget(self.btn_identificar)
+        layout.addLayout(linha1)
 
+        # -- linha 2: ações ----------------------------------------------------
+        linha2 = QHBoxLayout()
+        self.btn_entrada = QPushButton("Liberar Entrada")
+        self.btn_entrada.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_ArrowForward))
+        self.btn_saida = QPushButton("Liberar Saída")
+        self.btn_saida.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
+        self.btn_bloquear = QPushButton("Bloquear")
+        self.btn_bloquear.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton))
+        linha2.addWidget(self.btn_entrada)
+        linha2.addWidget(self.btn_saida)
+        linha2.addWidget(self.btn_bloquear)
+        linha2.addStretch(1)
+        layout.addLayout(linha2)
+
+        self.lbl_resultado = QLabel("Informe o aluno e escolha a direção.")
+        layout.addWidget(self.lbl_resultado)
         self.lbl_verificacao = QLabel("Aguardando identificação...")
         fonte = self.lbl_verificacao.font()
-        fonte.setPointSize(16)
+        fonte.setPointSize(14)
         fonte.setBold(True)
         self.lbl_verificacao.setFont(fonte)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- log + giros ------------------------------------------------------
+        # -- status compacto (tabela Campo|Valor) -------------------------------
+        self.tbl_status = QTableWidget(len(self.LINHAS_STATUS), 2)
+        self.tbl_status.setHorizontalHeaderLabels(["Campo", "Valor"])
+        self.tbl_status.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_status.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.tbl_status.verticalHeader().setVisible(False)
+        self.tbl_status.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.tbl_status.horizontalHeader().setStretchLastSection(True)
+        self._itens_status: dict[str, QTableWidgetItem] = {}
+        for row, campo in enumerate(self.LINHAS_STATUS):
+            self.tbl_status.setItem(row, 0, QTableWidgetItem(campo))
+            item = QTableWidgetItem("—")
+            self.tbl_status.setItem(row, 1, item)
+            self._itens_status[campo] = item
+        linha_status = self._altura_tabela(self.tbl_status, len(self.LINHAS_STATUS))
+        self.tbl_status.setMaximumHeight(linha_status)
+        layout.addWidget(self.tbl_status)
+
+        # -- log + giros (altura p/ ~5 itens, com scroll) ------------------------
         hmid = QHBoxLayout()
         self.tbl_log = QTableWidget(0, len(self.COLUNAS_LOG))
         self.tbl_log.setHorizontalHeaderLabels(list(self.COLUNAS_LOG))
         self.tbl_log.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_log.verticalHeader().setVisible(False)
         self.tbl_log.horizontalHeader().setStretchLastSection(True)
+        self.tbl_log.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.tbl_log.setMaximumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
         hmid.addWidget(self.tbl_log, 3)
 
-        gb_giros = QGroupBox("Giros detectados")
-        vg = QVBoxLayout(gb_giros)
         self.lst_giros = QListWidget()
-        vg.addWidget(self.lst_giros)
-        hmid.addWidget(gb_giros, 1)
+        self.lst_giros.setMaximumHeight(self._altura_lista(LINHAS_VISIVEIS))
+        hmid.addWidget(self.lst_giros, 1)
         layout.addLayout(hmid, 1)
 
         # -- sinais ------------------------------------------------------------
@@ -132,6 +142,20 @@ class DashboardView(QWidget):
 
         self._refresh_status()
         self._refresh_log()
+
+    # -- medidas -----------------------------------------------------------------
+    @staticmethod
+    def _passo_linha(tbl: QTableWidget) -> int:
+        return tbl.verticalHeader().defaultSectionSize()
+
+    def _altura_tabela(self, tbl: QTableWidget, linhas: int) -> int:
+        cab = tbl.horizontalHeader()
+        h_cab = cab.height() or cab.defaultSectionSize()
+        return h_cab + linhas * self._passo_linha(tbl) + 2 * tbl.frameWidth() + 2
+
+    def _altura_lista(self, itens: int) -> int:
+        passo = self.tbl_log.verticalHeader().defaultSectionSize()
+        return itens * passo + 2 * self.lst_giros.frameWidth() + 2
 
     # -- slots ---------------------------------------------------------------
     def _aluno_id_ou_erro(self) -> str | None:
@@ -215,15 +239,22 @@ class DashboardView(QWidget):
         st = self.bridge.status()
         online = bool(st.get("online"))
         bloqueada = bool(st.get("bloqueada", True))
-        self.lbl_online.setText("SIM" if online else "NÃO")
-        self.lbl_online.setStyleSheet(estilo_resultado(online))
-        self.lbl_bloqueada.setText("SIM" if bloqueada else "NÃO")
-        self.lbl_contador.setText(str(st.get("contador_giros", "—")))
-        self.lbl_firmware.setText(str(st.get("firmware", "—")))
         driver = str(st.get("driver", "?"))
         porta = str(st.get("porta", "?"))
         mock = " (mock)" if st.get("mock") else ""
-        self.lbl_driver.setText(f"{driver} @ {porta}{mock}")
+        valores = {
+            "Online": "SIM" if online else "NÃO",
+            "Bloqueada": "SIM" if bloqueada else "NÃO",
+            "Giros": str(st.get("contador_giros", "—")),
+            "Firmware": str(st.get("firmware", "—")),
+            "Driver": f"{driver}{mock}",
+            "Porta": porta,
+        }
+        for campo, valor in valores.items():
+            item = self._itens_status[campo]
+            item.setText(valor)
+            if campo == "Online":
+                item.setForeground(QBrush(QColor(LIMA if online else VERMELHO)))
 
     def _refresh_log(self) -> None:
         tentativas = self.vm.ultimas_tentativas(50)

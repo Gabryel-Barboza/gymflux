@@ -11,20 +11,24 @@ from dataclasses import dataclass
 from typing import Any
 
 from loguru import logger
-from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QStyle, QTabWidget
 from sqlalchemy.orm import Session
 
+from gymflow.core.regras import RegraAcesso, RegraAcessoConfig
 from gymflow.services.cadastrar_aluno import CadastrarAlunoService
 from gymflow.services.identificar_acesso import IdentificarAcessoService
 from gymflow.services.liberar_acesso import LiberarAcessoService
 from gymflow.services.registrar_pagamento import RegistrarPagamentoService
 from gymflow.ui.catraca_bridge import CatracaBridge
+from gymflow.ui.config_store import ConfigStore, UiConfig
 from gymflow.ui.theme import stylesheet
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
+from gymflow.ui.viewmodels.config import ConfigViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
 from gymflow.ui.viewmodels.planos import PlanosViewModel
 from gymflow.ui.views.alunos import AlunosView
+from gymflow.ui.views.config import ConfigView
 from gymflow.ui.views.dashboard import DashboardView
 from gymflow.ui.views.pagamentos import PagamentosView
 from gymflow.ui.views.planos import PlanosView
@@ -39,6 +43,8 @@ class AppContext:
     alunos_vm: AlunosViewModel
     planos_vm: PlanosViewModel
     pagamentos_vm: PagamentosViewModel
+    config_vm: ConfigViewModel
+    config_store: ConfigStore
     session: Session | None = None
     commit: Callable[[], None] | None = None
 
@@ -84,7 +90,9 @@ def create_context(use_db: bool = True) -> AppContext:
     from gymflow.config.settings import get_settings
 
     settings = get_settings()
-    bridge = CatracaBridge(porta=settings.henry_porta)
+    config_store = ConfigStore(fallback_porta=settings.henry_porta)
+    ui_config = config_store.load()
+    bridge = CatracaBridge(porta=ui_config.porta_catraca)
 
     if use_db:
         try:
@@ -111,6 +119,8 @@ def create_context(use_db: bool = True) -> AppContext:
                 mat_repo,
                 pag_repo,
                 acesso_repo,
+                ui_config=ui_config,
+                config_store=config_store,
                 session=session,
                 commit=commit,
             )
@@ -131,6 +141,8 @@ def create_context(use_db: bool = True) -> AppContext:
         MatriculaRepositoryMemoria(),
         RepositorioPagamentosMemoria(),
         AcessoLogRepositoryMemoria(),
+        ui_config=ui_config,
+        config_store=config_store,
     )
 
 
@@ -141,27 +153,50 @@ def _wire(
     mat_repo: Any,
     pag_repo: Any,
     acesso_repo: Any,
+    ui_config: UiConfig | None = None,
+    config_store: ConfigStore | None = None,
     session: Session | None = None,
     commit: Callable[[], None] | None = None,
 ) -> AppContext:
+    cfg = ui_config or UiConfig()
+    store = config_store or ConfigStore()
+    regra = RegraAcesso(
+        RegraAcessoConfig(
+            tolerancia_dias=cfg.tolerancia_dias,
+            timeout_giro_s=cfg.timeout_giro_s,
+            anti_passback=cfg.anti_passback,
+        )
+    )
     cadastrar_svc = CadastrarAlunoService(repo=aluno_repo)
     pagamento_svc = RegistrarPagamentoService(repo=pag_repo)
     liberar_svc = LiberarAcessoService(
         driver=bridge.driver,
+        regra=regra,
         aluno_repo=aluno_repo,
         matricula_repo=mat_repo,
         pagamento_repo=pag_repo,
         acesso_repo=acesso_repo,
     )
     identificar_svc = IdentificarAcessoService(acesso=liberar_svc, aluno_repo=aluno_repo)
+    dashboard_vm = DashboardViewModel(
+        acesso=liberar_svc,
+        log_repo=acesso_repo,
+        commit=commit,
+        identificar=identificar_svc,
+        ui_config=cfg,
+    )
+
+    def _aplicar(nova: UiConfig) -> None:
+        liberar_svc.regra.config = nova.to_regra_config()
+        dashboard_vm.ui_config = nova
+        if nova.porta_catraca != bridge.porta:
+            bridge.trocar_porta(nova.porta_catraca)
+        logger.info("[UI] configurações aplicadas na sessão")
+
+    config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
     return AppContext(
         bridge=bridge,
-        dashboard_vm=DashboardViewModel(
-            acesso=liberar_svc,
-            log_repo=acesso_repo,
-            commit=commit,
-            identificar=identificar_svc,
-        ),
+        dashboard_vm=dashboard_vm,
         alunos_vm=AlunosViewModel(
             alunos=cadastrar_svc,
             commit=commit,
@@ -172,6 +207,8 @@ def _wire(
         pagamentos_vm=PagamentosViewModel(
             pagamentos=pagamento_svc, alunos=cadastrar_svc, commit=commit
         ),
+        config_vm=config_vm,
+        config_store=store,
         session=session,
         commit=commit,
     )
@@ -184,10 +221,32 @@ class GymFlowMainWindow(QMainWindow):
         self.setWindowTitle("GymFlow")
         self.resize(1024, 640)
         tabs = QTabWidget(self)
-        tabs.addTab(DashboardView(ctx.dashboard_vm, ctx.bridge), "Catraca")
-        tabs.addTab(AlunosView(ctx.alunos_vm), "Alunos")
-        tabs.addTab(PlanosView(ctx.planos_vm), "Planos")
-        tabs.addTab(PagamentosView(ctx.pagamentos_vm), "Pagamentos")
+        estilo = self.style()
+        tabs.addTab(
+            DashboardView(ctx.dashboard_vm, ctx.bridge),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
+            "Catraca",
+        )
+        tabs.addTab(
+            AlunosView(ctx.alunos_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            "Alunos",
+        )
+        tabs.addTab(
+            PlanosView(ctx.planos_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
+            "Planos",
+        )
+        tabs.addTab(
+            PagamentosView(ctx.pagamentos_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
+            "Pagamentos",
+        )
+        tabs.addTab(
+            ConfigView(ctx.config_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
+            "Configurações",
+        )
         self.setCentralWidget(tabs)
         self.tabs = tabs
 

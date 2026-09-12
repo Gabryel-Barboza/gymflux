@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from PySide6.QtWidgets import QWidget
 
+from gymflow.core.acesso import DirecaoAcesso
 from gymflow.core.plano import TipoPlano
 from gymflow.hardware.henry7x.interface import Direcao
 from gymflow.hardware.henry7x.mock import MockHenry7x
@@ -23,11 +24,21 @@ from gymflow.ui.catraca_bridge import CatracaBridge
 from gymflow.ui.views.dashboard import DashboardView
 
 
-def test_janela_principal_tem_4_abas(qtbot, ctx):
+def test_janela_principal_tem_5_abas(qtbot, ctx):
     win = build_window(ctx)
     qtbot.addWidget(win)
     textos = [win.tabs.tabText(i) for i in range(win.tabs.count())]
-    assert textos == ["Catraca", "Alunos", "Planos", "Pagamentos"]
+    assert textos == ["Catraca", "Alunos", "Planos", "Pagamentos", "Configurações"]
+
+
+def _valor_status(view, campo):
+    for row in range(view.tbl_status.rowCount()):
+        item_campo = view.tbl_status.item(row, 0)
+        if item_campo is not None and item_campo.text() == campo:
+            item_valor = view.tbl_status.item(row, 1)
+            assert item_valor is not None
+            return item_valor.text()
+    raise AssertionError(f"campo {campo} ausente no status")
 
 
 def test_dashboard_renderiza_status_mock(qtbot, ctx):
@@ -36,8 +47,9 @@ def test_dashboard_renderiza_status_mock(qtbot, ctx):
     view = win.tabs.widget(0)
     assert isinstance(view, DashboardView)
     view._refresh_status()
-    assert view.lbl_online.text() == "SIM"
-    assert "MockHenry7x" in view.lbl_driver.text()
+    assert _valor_status(view, "Online") == "SIM"
+    assert "MockHenry7x" in _valor_status(view, "Driver")
+    assert _valor_status(view, "Porta") == ctx.dashboard_vm.ui_config.porta_catraca
 
 
 def test_fluxo_completo_pela_ui_cadastra_e_libera(qtbot, ctx):
@@ -156,3 +168,84 @@ def test_dialog_aluno_tem_senha_e_cartao(qtbot):
     dados = dlg.dados()
     assert dados["senha"] == "1234"
     assert dados["cartao_id"] == "TAG-42"
+
+
+def test_dashboard_enxuto_alturas_e_icones(qtbot, ctx):
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    # log e giros: viewport p/ ~5 itens (altura limitada, com scroll)
+    assert 0 < dash.tbl_log.maximumHeight() < 1000
+    assert 0 < dash.lst_giros.maximumHeight() < 1000
+    assert dash.tbl_log.rowCount() == 0  # vazio, sem erro
+    # botões com ícones do sistema (sem assets binários)
+    for btn in (dash.btn_entrada, dash.btn_saida, dash.btn_bloquear, dash.btn_identificar):
+        assert not btn.icon().isNull()
+    # abas com ícones
+    for i in range(win.tabs.count()):
+        assert not win.tabs.tabIcon(i).isNull()
+
+
+def test_dashboard_status_tabela_compacta(qtbot, ctx):
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    assert dash.tbl_status.columnCount() == 2
+    assert dash.tbl_status.rowCount() == 6
+    assert dash.tbl_status.maximumHeight() < 1000
+
+
+def test_painel_senha_curta_e_direcao_bloqueada(qtbot, ctx):
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    _adimplente_com_senha(ctx, senha="123456")
+    ctx.dashboard_vm.ui_config.senha_min_digitos = 6
+
+    dash.edt_codigo.setText("1234")
+    dash._identificar()
+    assert "SENHA_CURTA" in dash.lbl_verificacao.text()
+    assert "NEGADO" in dash.lbl_verificacao.text()
+
+    ctx.dashboard_vm.ui_config.senha_min_digitos = 4
+    ctx.dashboard_vm.ui_config.bloquear_entrada = True
+    dash.edt_codigo.setText("123456")
+    dash._identificar()
+    assert "BLOQUEIO_MANUAL" in dash.lbl_verificacao.text()
+
+
+def test_config_salvar_aplica_regra_porta_e_persiste(qtbot, ctx, tmp_path):
+    from gymflow.ui.config_store import ConfigStore
+
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    # isola o arquivo p/ não sujar data/
+    ctx.config_vm.store = ConfigStore(tmp_path / "gymflow_config.json")
+    view = win.tabs.widget(4)
+    assert view.lbl_status.text() == ""
+
+    view.spn_tolerancia.setValue(9)
+    view.spn_timeout.setValue(12)
+    view.chk_passback.setChecked(True)
+    view.chk_bloq_saida.setChecked(True)
+    view.edt_porta.setText("COM9")
+    view._salvar()
+
+    assert view.lbl_status.text() == "Configurações salvas e aplicadas."
+    # aplicada na sessão: regra do domínio + porta do bridge
+    regra_cfg = ctx.dashboard_vm.acesso.regra.config
+    assert regra_cfg.tolerancia_dias == 9
+    assert regra_cfg.timeout_giro_s == 12
+    assert regra_cfg.anti_passback is True
+    assert ctx.bridge.porta == "COM9"
+    # persistida: nova VM lê do disco
+    assert ConfigStore(tmp_path / "gymflow_config.json").load().bloquear_saida is True
+    # bloqueio de saída vale na hora
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    dash.edt_codigo.setText("1234")
+    decisao, _ = ctx.dashboard_vm.identificar_acesso("1234", "TECLADO", direcao=DirecaoAcesso.SAIDA)
+    assert decisao.liberado is False
