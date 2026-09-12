@@ -30,7 +30,7 @@
 
 ```bash
 uv sync --group dev          # instala deps
-uv run pytest                # testes (111 passed + 1 skipped HW em 2026-09-12)
+uv run pytest                # testes (128 passed + 1 skipped HW em 2026-09-12)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
@@ -67,11 +67,6 @@ src/gymflow/       # único
 - **2026-09-11 — Fase 2 (persistência SQLite + Alembic) ✅:**
   - `infra/db.py` (WAL, FK ON), 5 models Typed, migração inicial `f2d9f6545bb8`, 5 repos Protocol+SQLAlchemy, `services` com injeção opcional + `tentar_acesso_por_id`, CLI `gymflow db upgrade|downgrade|seed` (seed idempotente 3 alunos + 2 planos).
   - Verificação: 47 passed, ruff/mypy limpos, `gymflow info`/`db seed` ok.
-- **2026-09-11 — Fase 3 (driver real Henry 7x, commissioning pendente VM) ⏳:**
-  - `hardware/henry7x/real.py` implementado (COM `Henry.Kernel7x` via `EnsureDispatch`+fallback `Dispatch`): `conectar` (`AdicionaCard(SComConfig)` + fallback `AdicionaCardSerial`), `desconectar` (`PararColetaEventos`+`RemoveCard`), `liberar` (`EnviaTipoCatraca`+pulso `EnviaAcionaCtrl` relé 1/2), `bloquear` (`csgBloqueada`), `on_giro` (polling `ColetaEventos`+`QuantRegsColetados` em thread daemon), `status` (`Versao`/`ListaPortasSeriais`/`ThreadLastError`). Falha graciosa fora de Windows 32-bit; factory **inalterada**.
-  - `docs/DLL_CONTRACT.md` §3 reescrito (tabelas COM SComConfig/SVelocidade/modos csg*/enums ctc*/cmc*/cv* via TYPELIB+`strings`, sem `ctypes`) + §4 fluxo serial e checklist VM; `scripts/dump_henry_typelib.py` (commissioning Windows); CLI `gymflow catraca status|liberar|bloquear`; `tests/hardware/test_real_henry.py` (3 testes Linux + 1 integração `GYMFLOW_HENRY_HW=1` skipada).
-  - Verificação Linux: 48 passed + 1 skipped, ruff/mypy limpos, CLI mock ok. **Pendente VM Windows 32-bit:** `dump_henry_typelib` + checklist §4.1.
-  - Nota env: `.venv` recriado (shebangs apontavam p/ `gms_app` pré-renomeação, `pytest`/`mypy` não spawnados).
 - **2026-09-11 — Fase 2.1 (correções auditoria) ✅:**
   - `pyproject.toml`: removido override `gymflow.infra.*` + removido `types-sqlalchemy` 1.4 obsoleto (conflitava com SQLAlchemy 2.0 tipado); corrigido erro real `migrations/env.py:41` (`str|None`).
   - Deletado `tests/test_mock_henry.py` duplicado (mantido `tests/hardware/test_mock_henry.py`).
@@ -80,15 +75,30 @@ src/gymflow/       # único
   - `RegistrarPagamentoService.registrar` simplificado p/ `buscar_por_id` direto; `liberar_acesso` removido `TYPE_CHECKING` vazio; `AcessoLogRepository` + `Memoria` com `buscar_ultimo_por_aluno`; `_AcessoRepoProto` idem (sem `hasattr`).
   - `__main__.py:135` `suppress` trocado por `try/log` explícito (loguru + print).
   - Verificação: 45 passed (47−2 duplicados), ruff/mypy limpos, `alembic upgrade head` em `8c81436e0086`, `gymflow db seed` idempotente.
+- **2026-09-11 — Fase 3 (driver real Henry 7x, commissioning pendente VM) ⏳:**
+  - `hardware/henry7x/real.py` implementado (COM `Henry.Kernel7x` via `EnsureDispatch`+fallback `Dispatch`): `conectar` (`AdicionaCard(SComConfig)` + fallback `AdicionaCardSerial`), `desconectar` (`PararColetaEventos`+`RemoveCard`), `liberar` (`EnviaTipoCatraca`+pulso `EnviaAcionaCtrl` relé 1/2), `bloquear` (`csgBloqueada`), `on_giro` (polling `ColetaEventos`+`QuantRegsColetados` em thread daemon), `status` (`Versao`/`ListaPortasSeriais`/`ThreadLastError`). Falha graciosa fora de Windows 32-bit; factory **inalterada**.
+  - `docs/DLL_CONTRACT.md` §3/§4 (contrato local, gitignored) + `scripts/dump_henry_typelib.py` (commissioning Windows); CLI `gymflow catraca status|liberar|bloquear`; `tests/hardware/test_real_henry.py` (3 testes Linux + 1 integração `GYMFLOW_HENRY_HW=1` skipada).
+  - Verificação Linux: 48 passed + 1 skipped, ruff/mypy limpos, CLI mock ok. **Pendente VM Windows 32-bit:** `dump_henry_typelib` + checklist §4.1.
 - **2026-09-11 — Fase 4 (UI desktop PySide6) ✅:**
   - `ui/` Qt6 PT-BR: `catraca_bridge.py` (QObject giro→Signal, único ponto que importa `hardware`), `viewmodels/` (dashboard/alunos/planos/pagamentos, Qt-free, só `services`+`core` + Protocols locais + callback commit), `views/` (4 telas + dialogs), `app.py` (composition root: SQLite via alembic c/ fallback memória + QMainWindow 4 abas). CLI `gymflow ui` (erro amigável sem PySide6). `tests/ui/` (8 VMs + 6 pytest-qt offscreen).
   - Verificação Linux: 62 passed + 1 skipped, ruff/mypy limpos, `gymflow ui` abre com mock+SQLite. **core/services/infra/hardware e testes Fases 1-3 intocados.**
+- **2026-09-11 — Fase 4.1 (fix dashboard) ✅:**
+  - `DashboardViewModel` recebe `commit` e persiste após `liberar_entrada/saida`; log exibe `nome_aluno()` com fallback p/ ID.
+- **2026-09-11 — Fase 4.2 (tema academia) ✅:**
+  - `ui/theme.py` (paleta aprovada `#5AC8FA`/`#0F1113`/`#A3D65C`/`#E57373`/`#F2F5F7` + QSS dark nas 4 abas, LIBERADO verde/NEGADO vermelho); `tests/ui/test_theme.py` + `conftest.py`.
+  - Verificação Linux: 69 passed + 1 skipped, ruff/mypy limpos. **core/services/infra/hardware intocados.**
 - **2026-09-12 — Fase 4.3 (senha numérica estilo SCA, sem driver) ✅:**
   - `Aluno` +`senha_hash` (PBKDF2+salt, validação 4-8 dígitos) +`cartao_id`; migração `3f9a2c1bd4e5`; repos com `buscar_por_cartao`; `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`, sem commit próprio); mock `simular_teclado`/fila; dashboard painel `NOME — LIBERADO/NEGADO` + dialog com senha/cartão.
   - Verificação Linux: 96 passed + 1 skipped, ruff/mypy limpos, downgrade/upgrade `3f9a2c1bd4e5` reversível. **RB01-RB05, real.py, factory e migrations aplicadas intocados.**
 - **2026-09-12 — Fase 4.4 (dashboard enxuto + configurações) ✅:**
   - `ui/config_store.py` (`UiConfig` + JSON `data/gymflow_config.json`, Qt-free) + `viewmodels/config.py`; aba Configurações (bloqueios, senha mín 4-8, tolerância, timeout, anti-passback, porta; salva+aplica sem restart); `DashboardViewModel.ui_config` (direção bloqueada e senha curta → NEGADO direto); regra do domínio montada da config; dashboard em 2 linhas compactas + status tabela Campo|Valor + log/giros ~5 linhas + ícones QStyle; screenshots `/tmp/shots44`.
   - Verificação Linux: 111 passed + 1 skipped, ruff/mypy limpos. **core/regras, services, infra/models, migrations e hardware intocados.**
+- **2026-09-12 — Fase 4.5 (evolução das telas) ✅:**
+  - Alunos editável: `AlunosViewModel.atualizar` + `PerfilAlunoDialog` (form reutilizável + status + pagamentos do aluno + novo pagamento); duplo-clique/botão-direito abrem o perfil.
+  - Caixa (substitui aba Pagamentos): `FechamentoCaixa` (model `fechamentos_caixa` + migração `9a0cf12f3688` + repo SQL/memória) + `CaixaViewModel` (filtro por mês, totais recebido/pendente/total, `fechar_mes`, bloqueio de registro em mês fechado) + selo FECHADO.
+  - Planos em cards (`QFrame#PlanoCard` no tema) + dialog com `preencher()` p/ edição; `vm.salvar(plano_id=...)` já cobria update.
+  - Funcionários: `Funcionario` (core novo, hash PBKDF2) + model `funcionarios` + migração `f7e9182ac1bb` + repo; `IdentificarAcessoService` checa funcionário antes (ativo → pulso direto + LIBERADO "Funcionário", inativo → BLOQUEIO_MANUAL, sem persistir tentativa por FK); tela + aba.
+  - Verificação Linux: 128 passed + 1 skipped, ruff/mypy limpos, `alembic upgrade head` ok. **RB01-RB05, hardware, migrations aplicadas e dashboard 4.4 intocados.**
 
 ## 5. Contrato Henry 7x — O que sabemos (2026-09-11)
 
@@ -112,7 +122,7 @@ src/gymflow/       # único
 - Fase 1: Domínio + Hardware mockado + Testes ✅
 - Fase 2: Persistência SQLite + Alembic ✅
 - Fase 3: Integração real kernel7x.dll + testes em VM Windows 32-bit
-- Fase 4: UI PySide6 (cadastro, dashboard catraca)
+- Fase 4: UI PySide6 (cadastro, dashboard catraca) ✅
 - Fase 5: Biometria + instalador + assinatura
 
 ## 8. Pendências / Perguntas para o Dono
@@ -121,9 +131,15 @@ src/gymflow/       # único
 - [x] Licença: **Apache-2.0** aceito.
 - [x] Nome: **GymFlow** v1 puro (sem GMS).
 - [ ] Modelo catraca exato? (7x / 7x Plus / Biométrica — confirmar p/ Fase 3).
-- [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
+- [x] Fase 4.1 aplicada (commit no dashboard + nome no log).
 - [x] Fase 4.4 (feedback dono 2026-09-12) ✅: aba Configurações + dashboard enxuto (ver §4).
+- [x] Fase 4.5 (feedback dono 2026-09-12) ✅: perfil editável + Caixa + Planos cards + Funcionários (ver §4).
+- [ ] Follow-up Fase 4.5: passes de funcionário NÃO aparecem no log persistido (`acesso_logs.aluno_id` tem FK p/ alunos; bypass não persiste tentativa) e o painel mostra "NÃO IDENTIFICADO — LIBERADO" (dashboard.py intocado por governança) — futuro: coluna `funcionario_id` ou exibir nome via detalhes.
+- [ ] Follow-up Fase 4.5: `views/pagamentos.py` (`PagamentosView`) e `pagamentos_vm` mantidos mas sem aba (compat testes); remover quando o gerente aprovar.
+- [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
 - [ ] `CadastrarAlunoService` não verifica `cartao_id` duplicado (só CPF) — decidir se cartão deve ser único no cadastro (DB já tem índice único).
+- [ ] Importação SCA: **adiada pelo dono** (retomar quando enviar `.bak`/dump; só há `henry.fdb` demo Henry 2011 no repo).
+- [x] Identidade visual aprovada: azul `#5AC8FA` + preto `#0F1113` + lima suave `#A3D65C` — aplicar como tema QSS na Fase 4.2.
 - [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*`, convenção relé 1=entrada/2=saída).
 - [ ] Nota: `docs/` e `vendor/` são 100% gitignored — atualizações do contrato (§3/§4) e `dumps/` vivem só localmente, não sobem no commit.
 - [x] Correções Fase 2.1 aplicadas (2026-09-11: mypy override, teste duplicado, session_scope, campos não persistidos).
@@ -131,8 +147,8 @@ src/gymflow/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev && uv run pytest` deve passar (111 passed + 1 skipped HW em 2026-09-12).
-3. Se houver `vendor/kernel7x.dll`, rodar `scripts/inspect_dll.py`.
+2. `uv sync --group dev && uv run pytest` deve passar (128 passed + 1 skipped HW em 2026-09-12).
+3. Se houver `vendor/Henry/Henry7x/Kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 
 ## 10. Notas de Cross-Platform
@@ -144,4 +160,4 @@ src/gymflow/       # único
 - Serial: `ListaPortasSeriais` → escolher `COM3` etc, `SComConfig` define baud/paridade; `AdicionaCard(SComConfig, int)` abre porta.
 
 ---
-*Última atualização: 2026-09-11 por agente subordinado Fase 3 (driver real + contrato §3/§4, commissioning pendente VM). Mantenha este arquivo enxuto e factual.*
+*Última atualização: 2026-09-11 por gerente GymFlow (auditoria Fase 3 + limpeza). Mantenha este arquivo enxuto e factual.*
