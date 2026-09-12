@@ -7,21 +7,21 @@ from decimal import Decimal
 
 import pytest
 
-from gymflow.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
-from gymflow.core.aluno import Aluno
-from gymflow.core.pagamento import Pagamento
-from gymflow.core.plano import Matricula, Plano, Vigencia
-from gymflow.hardware.henry7x.mock import MockHenry7x
-from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
-from gymflow.infra.repositories.aluno import AlunoRepositoryMemoria
-from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
-from gymflow.infra.repositories.pagamento import PagamentoRepositoryMemoria
-from gymflow.services.identificar_acesso import (
+from gymflux.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
+from gymflux.core.aluno import Aluno
+from gymflux.core.pagamento import Pagamento
+from gymflux.core.plano import Matricula, Plano, Vigencia
+from gymflux.hardware.henry7x.mock import MockHenry7x
+from gymflux.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+from gymflux.infra.repositories.aluno import AlunoRepositoryMemoria
+from gymflux.infra.repositories.matricula import MatriculaRepositoryMemoria
+from gymflux.infra.repositories.pagamento import PagamentoRepositoryMemoria
+from gymflux.services.identificar_acesso import (
     Identificacao,
     IdentificarAcessoService,
     OrigemIdentificacao,
 )
-from gymflow.services.liberar_acesso import LiberarAcessoService
+from gymflux.services.liberar_acesso import LiberarAcessoService
 
 HOJE = date.today()
 

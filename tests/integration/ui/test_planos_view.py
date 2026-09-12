@@ -6,9 +6,9 @@ from decimal import Decimal
 
 from PySide6.QtWidgets import QMessageBox
 
-from gymflow.core.plano import TipoPlano
-from gymflow.ui.app import AppContext
-from gymflow.ui.views.planos import NovoPlanoDialog, PlanosView
+from gymflux.core.plano import TipoPlano
+from gymflux.ui.app import AppContext
+from gymflux.ui.views.planos import NovoPlanoDialog, PlanosView
 
 
 def test_planos_cards_renderizam_editar_excluir(qtbot, ctx: AppContext, mocker):

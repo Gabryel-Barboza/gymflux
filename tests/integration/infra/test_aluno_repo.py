@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from gymflow.core.aluno import Aluno
-from gymflow.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+from gymflux.core.aluno import Aluno
+from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
 
 
 def test_aluno_crud_e_busca_cpf(session: Session):

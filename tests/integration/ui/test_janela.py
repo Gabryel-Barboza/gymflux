@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from gymflow.ui.app import build_window
+from gymflux.ui.app import build_window
 
 
 def test_janela_principal_abas(qtbot, ctx):

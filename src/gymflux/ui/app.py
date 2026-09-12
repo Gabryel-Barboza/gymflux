@@ -1,0 +1,332 @@
+"""Composition root da UI — ÚNICO lugar da UI que importa ``infra``/``hardware``.
+
+Monta ``Session`` + repos + services + bridge + ViewModels + janela.
+ViewModels/Views recebem dependências prontas (nunca importam infra/hardware).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+from loguru import logger
+from PySide6.QtWidgets import QApplication, QMainWindow, QStyle, QTabWidget
+from sqlalchemy.orm import Session
+
+from gymflux.core.regras import RegraAcesso, RegraAcessoConfig
+from gymflux.services.cadastrar_aluno import CadastrarAlunoService
+from gymflux.services.identificar_acesso import IdentificarAcessoService
+from gymflux.services.liberar_acesso import LiberarAcessoService
+from gymflux.services.registrar_pagamento import RegistrarPagamentoService
+from gymflux.ui.catraca_bridge import CatracaBridge
+from gymflux.ui.config_store import ConfigStore, UiConfig
+from gymflux.ui.theme import stylesheet
+from gymflux.ui.viewmodels.alunos import AlunosViewModel
+from gymflux.ui.viewmodels.caixa import CaixaViewModel
+from gymflux.ui.viewmodels.config import ConfigViewModel
+from gymflux.ui.viewmodels.dashboard import DashboardViewModel
+from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
+from gymflux.ui.viewmodels.funcionarios import FuncionariosViewModel
+from gymflux.ui.viewmodels.planos import PlanosViewModel
+from gymflux.ui.views.alunos import AlunosView
+from gymflux.ui.views.caixa import CaixaView
+from gymflux.ui.views.config import ConfigView
+from gymflux.ui.views.dashboard import DashboardView
+from gymflux.ui.views.frequencia import FrequenciaView
+from gymflux.ui.views.funcionarios import FuncionariosView
+from gymflux.ui.views.planos import PlanosView
+
+
+@dataclass
+class AppContext:
+    """Tudo que a janela precisa — criado por ``create_context``."""
+
+    bridge: CatracaBridge
+    dashboard_vm: DashboardViewModel
+    alunos_vm: AlunosViewModel
+    planos_vm: PlanosViewModel
+    caixa_vm: CaixaViewModel
+    funcionarios_vm: FuncionariosViewModel
+    frequencia_vm: FrequenciaViewModel
+    config_vm: ConfigViewModel
+    config_store: ConfigStore
+    session: Session | None = None
+    commit: Callable[[], None] | None = None
+
+    def close(self) -> None:
+        if self.session is not None:
+            try:
+                self.session.close()
+            except Exception as e:
+                logger.warning(f"[UI] session.close falhou: {e}")
+            self.session = None
+
+
+def _ensure_schema() -> None:
+    """Garante tabelas: alembic upgrade head (se alembic.ini) ou create_all."""
+    from pathlib import Path
+
+    ini = Path("alembic.ini")
+    if ini.exists():
+        from alembic import command
+        from alembic.config import Config
+
+        cfg = Config(str(ini))
+        command.upgrade(cfg, "head")
+    else:
+        from gymflux.infra.db import init_db
+
+        init_db()
+
+
+def _safe_commit(session: Session) -> Callable[[], None]:
+    def _do() -> None:
+        try:
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+    return _do
+
+
+def create_context(use_db: bool = True) -> AppContext:
+    """Monta repos + services + VMs. Sem DB (ou falha) => fallback memória."""
+    from gymflux.config.settings import get_settings
+
+    settings = get_settings()
+    config_store = ConfigStore(fallback_porta=settings.henry_porta)
+    ui_config = config_store.load()
+    bridge = CatracaBridge(porta=ui_config.porta_catraca)
+
+    if use_db:
+        try:
+            _ensure_schema()
+            from gymflux.infra.db import get_session
+            from gymflux.infra.repositories.acesso_log import AcessoLogRepositorySQLAlchemy
+            from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+            from gymflux.infra.repositories.fechamento_caixa import (
+                FechamentoCaixaRepositorySQLAlchemy,
+            )
+            from gymflux.infra.repositories.funcionario import (
+                FuncionarioRepositorySQLAlchemy,
+            )
+            from gymflux.infra.repositories.matricula import MatriculaRepositorySQLAlchemy
+            from gymflux.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
+            from gymflux.infra.repositories.plano import PlanoRepositorySQLAlchemy
+
+            session = get_session()
+            aluno_repo: Any = AlunoRepositorySQLAlchemy(session)
+            plano_repo: Any = PlanoRepositorySQLAlchemy(session)
+            mat_repo: Any = MatriculaRepositorySQLAlchemy(session)
+            pag_repo: Any = PagamentoRepositorySQLAlchemy(session)
+            acesso_repo: Any = AcessoLogRepositorySQLAlchemy(session)
+            fech_repo: Any = FechamentoCaixaRepositorySQLAlchemy(session)
+            func_repo: Any = FuncionarioRepositorySQLAlchemy(session)
+            commit = _safe_commit(session)
+            logger.info("[UI] contexto com SQLite")
+            return _wire(
+                bridge,
+                aluno_repo,
+                plano_repo,
+                mat_repo,
+                pag_repo,
+                acesso_repo,
+                fech_repo,
+                func_repo,
+                ui_config=ui_config,
+                config_store=config_store,
+                session=session,
+                commit=commit,
+            )
+        except Exception as e:
+            logger.warning(f"[UI] DB indisponível ({e}) — fallback memória")
+
+    from gymflux.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+    from gymflux.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
+    from gymflux.infra.repositories.funcionario import FuncionarioRepositoryMemoria
+    from gymflux.infra.repositories.matricula import MatriculaRepositoryMemoria
+    from gymflux.infra.repositories.plano import PlanoRepositoryMemoria
+    from gymflux.services.cadastrar_aluno import RepositorioAlunosMemoria
+    from gymflux.services.registrar_pagamento import RepositorioPagamentosMemoria
+
+    logger.info("[UI] contexto em memória (sem persistência)")
+    return _wire(
+        bridge,
+        RepositorioAlunosMemoria(),
+        PlanoRepositoryMemoria(),
+        MatriculaRepositoryMemoria(),
+        RepositorioPagamentosMemoria(),
+        AcessoLogRepositoryMemoria(),
+        FechamentoCaixaRepositoryMemoria(),
+        FuncionarioRepositoryMemoria(),
+        ui_config=ui_config,
+        config_store=config_store,
+    )
+
+
+def _wire(
+    bridge: CatracaBridge,
+    aluno_repo: Any,
+    plano_repo: Any,
+    mat_repo: Any,
+    pag_repo: Any,
+    acesso_repo: Any,
+    fech_repo: Any,
+    func_repo: Any,
+    ui_config: UiConfig | None = None,
+    config_store: ConfigStore | None = None,
+    session: Session | None = None,
+    commit: Callable[[], None] | None = None,
+) -> AppContext:
+    cfg = ui_config or UiConfig()
+    store = config_store or ConfigStore()
+    regra = RegraAcesso(
+        RegraAcessoConfig(
+            tolerancia_dias=cfg.tolerancia_dias,
+            timeout_giro_s=cfg.timeout_giro_s,
+            anti_passback=cfg.anti_passback,
+        )
+    )
+    cadastrar_svc = CadastrarAlunoService(repo=aluno_repo)
+    pagamento_svc = RegistrarPagamentoService(repo=pag_repo)
+    caixa_vm = CaixaViewModel(
+        pagamentos=pagamento_svc,
+        alunos=cadastrar_svc,
+        fechamentos=fech_repo,
+        commit=commit,
+        ui_config=cfg,
+    )
+    frequencia_vm = FrequenciaViewModel(
+        log_repo=acesso_repo, aluno_repo=aluno_repo, funcionario_repo=func_repo
+    )
+    liberar_svc = LiberarAcessoService(
+        driver=bridge.driver,
+        regra=regra,
+        aluno_repo=aluno_repo,
+        matricula_repo=mat_repo,
+        pagamento_repo=pag_repo,
+        acesso_repo=acesso_repo,
+    )
+    identificar_svc = IdentificarAcessoService(
+        acesso=liberar_svc, aluno_repo=aluno_repo, funcionario_repo=func_repo
+    )
+    dashboard_vm = DashboardViewModel(
+        acesso=liberar_svc,
+        log_repo=acesso_repo,
+        commit=commit,
+        identificar=identificar_svc,
+        ui_config=cfg,
+        funcionario_repo=func_repo,
+    )
+
+    def _aplicar(nova: UiConfig) -> None:
+        liberar_svc.regra.config = nova.to_regra_config()
+        dashboard_vm.ui_config = nova
+        caixa_vm.ui_config = nova
+        if nova.porta_catraca != bridge.porta:
+            bridge.trocar_porta(nova.porta_catraca)
+        app_inst = QApplication.instance()
+        if isinstance(app_inst, QApplication):
+            app_inst.setStyleSheet(stylesheet(nova.tema))
+        logger.info("[UI] configurações aplicadas na sessão")
+
+    config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
+    return AppContext(
+        bridge=bridge,
+        dashboard_vm=dashboard_vm,
+        alunos_vm=AlunosViewModel(
+            alunos=cadastrar_svc,
+            commit=commit,
+            matricula_repo=mat_repo,
+            plano_repo=plano_repo,
+        ),
+        planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
+        caixa_vm=caixa_vm,
+        funcionarios_vm=FuncionariosViewModel(repo=func_repo, commit=commit),
+        frequencia_vm=frequencia_vm,
+        config_vm=config_vm,
+        config_store=store,
+        session=session,
+        commit=commit,
+    )
+
+
+class GymFluxMainWindow(QMainWindow):
+    def __init__(self, ctx: AppContext, parent: Any = None) -> None:
+        super().__init__(parent)
+        self.ctx = ctx
+        self.setWindowTitle("GymFlux")
+        self.resize(1024, 640)
+        tabs = QTabWidget(self)
+        estilo = self.style()
+        dashboard_view = DashboardView(ctx.dashboard_vm, ctx.bridge)
+        dashboard_view.perfil_solicitado.connect(self._abrir_perfil_aluno)
+        tabs.addTab(
+            dashboard_view,
+            estilo.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
+            "Catraca",
+        )
+        self.alunos_view = AlunosView(ctx.alunos_vm, ctx.caixa_vm, frequencia_vm=ctx.frequencia_vm)
+        tabs.addTab(
+            self.alunos_view,
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            "Alunos",
+        )
+        tabs.addTab(
+            PlanosView(ctx.planos_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
+            "Planos",
+        )
+        tabs.addTab(
+            CaixaView(ctx.caixa_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
+            "Caixa",
+        )
+        tabs.addTab(
+            FuncionariosView(ctx.funcionarios_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
+            "Funcionários",
+        )
+        tabs.addTab(
+            FrequenciaView(ctx.frequencia_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogListView),
+            "Frequência",
+        )
+        tabs.addTab(
+            ConfigView(ctx.config_vm),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
+            "Configurações",
+        )
+        self.setCentralWidget(tabs)
+        self.tabs = tabs
+
+    def _abrir_perfil_aluno(self, aluno_id: str) -> None:
+        """Click-through do log: troca p/ aba Alunos e abre o modal de perfil."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Alunos":
+                self.tabs.setCurrentIndex(i)
+                break
+        self.alunos_view.abrir_perfil_por_id(aluno_id)
+
+
+def build_window(ctx: AppContext) -> GymFluxMainWindow:
+    return GymFluxMainWindow(ctx)
+
+
+def run(argv: list[str] | None = None) -> int:
+    """Abre o app desktop (bloqueia até fechar)."""
+    existing = QApplication.instance()
+    app = existing if isinstance(existing, QApplication) else QApplication(argv or [])
+    ctx = create_context()
+    app.setStyleSheet(stylesheet(ctx.config_vm.config.tema))
+    try:
+        ok = ctx.bridge.conectar()
+        logger.info(f"[UI] catraca conectar() -> {ok}")
+    except Exception as e:
+        logger.warning(f"[UI] falha ao conectar catraca: {e}")
+    win = build_window(ctx)
+    app.aboutToQuit.connect(ctx.close)
+    win.show()
+    return app.exec()

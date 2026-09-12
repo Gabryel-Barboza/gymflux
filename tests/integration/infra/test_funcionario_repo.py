@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from gymflow.core.funcionario import Funcionario
-from gymflow.infra.repositories.funcionario import FuncionarioRepositorySQLAlchemy
+from gymflux.core.funcionario import Funcionario
+from gymflux.infra.repositories.funcionario import FuncionarioRepositorySQLAlchemy
 
 
 def test_funcionario_crud_sql(session: Session):

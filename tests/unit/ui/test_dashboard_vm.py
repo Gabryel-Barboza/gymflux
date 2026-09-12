@@ -7,31 +7,31 @@ from decimal import Decimal
 
 import pytest
 
-from gymflow.core.acesso import (
+from gymflux.core.acesso import (
     DirecaoAcesso,
     MotivoNegado,
     ResultadoAcesso,
     TentativaAcesso,
 )
-from gymflow.core.funcionario import Funcionario
-from gymflow.core.plano import TipoPlano
-from gymflow.hardware.henry7x.mock import MockHenry7x
-from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
-from gymflow.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
-from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
-from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
-from gymflow.infra.repositories.plano import PlanoRepositoryMemoria
-from gymflow.services.cadastrar_aluno import (
+from gymflux.core.funcionario import Funcionario
+from gymflux.core.plano import TipoPlano
+from gymflux.hardware.henry7x.mock import MockHenry7x
+from gymflux.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+from gymflux.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
+from gymflux.infra.repositories.funcionario import FuncionarioRepositoryMemoria
+from gymflux.infra.repositories.matricula import MatriculaRepositoryMemoria
+from gymflux.infra.repositories.plano import PlanoRepositoryMemoria
+from gymflux.services.cadastrar_aluno import (
     CadastrarAlunoService,
     RepositorioAlunosMemoria,
 )
-from gymflow.services.liberar_acesso import LiberarAcessoService
-from gymflow.services.registrar_pagamento import (
+from gymflux.services.liberar_acesso import LiberarAcessoService
+from gymflux.services.registrar_pagamento import (
     RegistrarPagamentoService,
     RepositorioPagamentosMemoria,
 )
-from gymflow.ui.config_store import UiConfig
-from gymflow.ui.viewmodels.dashboard import DashboardViewModel
+from gymflux.ui.config_store import UiConfig
+from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
 HOJE = date.today()
 
@@ -53,9 +53,9 @@ def _wired(auto_giro: bool = False) -> dict:
         pagamento_repo=pag_repo,
         acesso_repo=acesso_repo,
     )
-    from gymflow.ui.viewmodels.alunos import AlunosViewModel
-    from gymflow.ui.viewmodels.caixa import CaixaViewModel
-    from gymflow.ui.viewmodels.planos import PlanosViewModel
+    from gymflux.ui.viewmodels.alunos import AlunosViewModel
+    from gymflux.ui.viewmodels.caixa import CaixaViewModel
+    from gymflux.ui.viewmodels.planos import PlanosViewModel
 
     return {
         "driver": driver,
@@ -130,7 +130,7 @@ def test_dashboard_log_exibe_nome_com_fallback_id():
 
 
 def _com_identificar(w: dict) -> list[str]:
-    from gymflow.services.identificar_acesso import IdentificarAcessoService
+    from gymflux.services.identificar_acesso import IdentificarAcessoService
 
     repo = w["dashboard"].acesso.aluno_repo
     assert repo is not None

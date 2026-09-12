@@ -1,0 +1,57 @@
+# GymFlux — dev completo (UI + pytest/ruff/mypy) p/ ambientes SEM uv (gerado via `uv export --extra ui --group dev`).
+# Uso: pip install -r requirements-dev.txt
+-e .
+alembic==1.20.0
+altgraph==0.17.5
+annotated-types==0.8.0
+ast-serialize==0.11.1
+cfgv==3.5.0
+colorama==0.4.6 ; sys_platform == 'win32'
+coverage==7.16.0
+distlib==0.4.3
+execnet==2.1.2
+filelock==3.32.6
+greenlet==3.5.5 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
+identify==2.6.19
+iniconfig==2.3.0
+librt==0.15.0 ; platform_python_implementation != 'PyPy'
+loguru==0.7.3
+macholib==1.16.4 ; sys_platform == 'darwin'
+mako==1.4.1
+markupsafe==3.0.3
+mypy==2.3.1
+mypy-extensions==1.1.0
+nodeenv==1.10.0
+packaging==26.3
+pathspec==1.1.1
+pefile==2024.8.26
+platformdirs==4.11.8
+pluggy==1.6.0
+pre-commit==4.6.2
+pydantic==2.13.5
+pydantic-core==2.46.5
+pydantic-settings==2.15.0
+pygments==2.21.0
+pyinstaller==6.22.2
+pyinstaller-hooks-contrib==2026.7
+pyside6==6.11.2
+pyside6-addons==6.11.2
+pyside6-essentials==6.11.2
+pytest==9.1.1
+pytest-cov==7.1.0
+pytest-mock==3.15.1
+pytest-qt==4.5.0
+pytest-xdist==3.8.0
+python-discovery==1.6.0
+python-dotenv==1.2.3
+pywin32-ctypes==0.2.3 ; sys_platform == 'win32'
+pyyaml==6.0.3
+ruff==0.16.7
+setuptools==84.0.0
+shiboken6==6.11.2
+sqlalchemy==2.0.52
+tomli==2.4.1 ; python_full_version <= '3.11'
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+virtualenv==21.7.9
+win32-setctime==1.2.0 ; sys_platform == 'win32'

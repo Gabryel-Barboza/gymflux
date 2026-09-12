@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
-from gymflow.ui.app import AppContext
-from gymflow.ui.views.frequencia import FrequenciaView
+from gymflux.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
+from gymflux.ui.app import AppContext
+from gymflux.ui.views.frequencia import FrequenciaView
 
 
 def test_frequencia_global_filtra(qtbot, ctx: AppContext):

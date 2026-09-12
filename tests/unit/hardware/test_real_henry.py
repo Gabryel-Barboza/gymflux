@@ -18,7 +18,7 @@ import pytest
 def test_real_henry_falha_graciosa_fora_de_windows():
     if sys.platform == "win32" and struct.calcsize("P") * 8 == 32:
         pytest.skip("só fora de Windows 32-bit")
-    from gymflow.hardware.henry7x.real import RealHenry7x
+    from gymflux.hardware.henry7x.real import RealHenry7x
 
     with pytest.raises(RuntimeError, match="Windows"):
         RealHenry7x()
@@ -27,14 +27,14 @@ def test_real_henry_falha_graciosa_fora_de_windows():
 def test_factory_nunca_retorna_real_fora_de_win32():
     if sys.platform == "win32" and struct.calcsize("P") * 8 == 32:
         pytest.skip("só fora de Windows 32-bit")
-    from gymflow.hardware.henry7x.factory import get_henry_driver
+    from gymflux.hardware.henry7x.factory import get_henry_driver
 
     driver = get_henry_driver(prefer_mock=False)
     assert driver.is_mock  # regra Fase 3 inalterada: fallback mock
 
 
 def test_normalizar_porta():
-    from gymflow.hardware.henry7x.real import _normalizar_porta
+    from gymflux.hardware.henry7x.real import _normalizar_porta
 
     assert _normalizar_porta(3) == "COM3"
     assert _normalizar_porta("3") == "COM3"
@@ -49,18 +49,18 @@ def test_normalizar_porta():
 _requer_hw = pytest.mark.skipif(
     sys.platform != "win32"
     or struct.calcsize("P") * 8 != 32
-    or os.getenv("GYMFLOW_HENRY_HW") != "1",
-    reason="requer VM Windows 32-bit + catraca (GYMFLOW_HENRY_HW=1)",
+    or os.getenv("GYMFLUX_HENRY_HW") != "1",
+    reason="requer VM Windows 32-bit + catraca (GYMFLUX_HENRY_HW=1)",
 )
 
 
 @_requer_hw
 def test_integracao_conectar_liberar_bloquear():
     """Checklist DLL_CONTRACT §4.1 automatizado (VM Windows 32-bit)."""
-    from gymflow.hardware.henry7x.interface import Direcao, ResultadoCatraca
-    from gymflow.hardware.henry7x.real import RealHenry7x
+    from gymflux.hardware.henry7x.interface import Direcao, ResultadoCatraca
+    from gymflux.hardware.henry7x.real import RealHenry7x
 
-    porta = os.getenv("GYMFLOW_HENRY_PORTA", "COM1")
+    porta = os.getenv("GYMFLUX_HENRY_PORTA", "COM1")
     eventos: list = []
     driver = RealHenry7x()
     try:

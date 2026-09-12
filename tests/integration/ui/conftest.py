@@ -14,8 +14,8 @@ import pytest
 
 pytest.importorskip("PySide6", reason="UI requer extra ui: uv sync --extra ui")
 
-from gymflow.ui.app import AppContext, create_context
-from gymflow.ui.views.dashboard import DashboardView
+from gymflux.ui.app import AppContext, create_context
+from gymflux.ui.views.dashboard import DashboardView
 
 _AQUI = Path(__file__).parent
 

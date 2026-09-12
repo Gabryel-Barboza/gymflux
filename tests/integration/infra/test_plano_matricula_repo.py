@@ -7,11 +7,11 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from gymflow.core.aluno import Aluno
-from gymflow.core.plano import Matricula, Plano, Vigencia
-from gymflow.infra.repositories.aluno import AlunoRepositorySQLAlchemy
-from gymflow.infra.repositories.matricula import MatriculaRepositorySQLAlchemy
-from gymflow.infra.repositories.plano import PlanoRepositorySQLAlchemy
+from gymflux.core.aluno import Aluno
+from gymflux.core.plano import Matricula, Plano, Vigencia
+from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+from gymflux.infra.repositories.matricula import MatriculaRepositorySQLAlchemy
+from gymflux.infra.repositories.plano import PlanoRepositorySQLAlchemy
 
 
 def test_plano_crud(session: Session):

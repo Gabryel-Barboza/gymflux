@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
-from gymflow.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
-from gymflow.core.aluno import Aluno
-from gymflow.core.pagamento import Pagamento
-from gymflow.core.plano import Matricula, Plano, Vigencia
-from gymflow.core.regras import RegraAcesso, RegraAcessoConfig
-from gymflow.hardware.henry7x.mock import MockHenry7x
-from gymflow.services.liberar_acesso import LiberarAcessoService
+from gymflux.core.acesso import DirecaoAcesso, MotivoNegado, ResultadoAcesso
+from gymflux.core.aluno import Aluno
+from gymflux.core.pagamento import Pagamento
+from gymflux.core.plano import Matricula, Plano, Vigencia
+from gymflux.core.regras import RegraAcesso, RegraAcessoConfig
+from gymflux.hardware.henry7x.mock import MockHenry7x
+from gymflux.services.liberar_acesso import LiberarAcessoService
 
 HOJE = date(2026, 9, 11)
 VIG = Vigencia(inicio=date(2026, 8, 11), fim=date(2026, 9, 30))
@@ -141,7 +141,7 @@ def test_registro_memoria_por_aluno():
 
 
 def test_hardware_erro_gracioso():
-    from gymflow.hardware.henry7x.interface import Direcao, Henry7xDriver
+    from gymflux.hardware.henry7x.interface import Direcao, Henry7xDriver
 
     class BrokenDriver(Henry7xDriver):
         is_mock = True

@@ -1,11 +1,11 @@
-# AGENTS.md — Memória Operacional do Projeto GymFlow
+# AGENTS.md — Memória Operacional do Projeto GymFlux
 
 > Este arquivo é a fonte de verdade para qualquer agente/LLM que retomar o projeto.
 > Leia-o **inteiro** no início de cada sessão. Atualize-o ao final de cada marco.
 
-## 1. O que é o GymFlow
+## 1. O que é o GymFlux
 
-**GymFlow** — substituto open-source para controle de catracas **Henry 7x** em academias Windows. v1 sem legado GMS (ver `docs/DECISIONS.md` ADR-007/ADR-009).
+**GymFlux** — substituto open-source para controle de catracas **Henry 7x** em academias Windows. v1 sem legado GMS (ver `docs/DECISIONS.md` ADR-007/ADR-009).
 
 - **Objetivo final:** executável/instalador Windows (.exe/.msi via Inno Setup) que roda em recepção, gerencia alunos, planos, pagamentos e libera/bloqueia catraca por biometria/cartão/teclado.
 - **Inspiração SCA:** apenas domínio, não copiar código. Código 100% próprio, licença **Apache-2.0** (ver `LICENSE` + ADR-004).
@@ -18,7 +18,7 @@
 |------|-------|
 | Linguagem | Python 3.11 (pinado em `.python-version`, `requires-python >=3.11,<3.13`) |
 | Gerenciador | `uv` (NUNCA pip/poetry/conda) |
-| Estrutura | `src/gymflow` (único, sem shim), `uv_build` |
+| Estrutura | `src/gymflux` (único, sem shim), `uv_build` |
 | SO dev | Linux x86_64 (você está aqui) |
 | SO prod | Windows 10/11 64-bit rodando app 32-bit |
 | DB local | SQLite + SQLAlchemy 2.0 + Alembic (Postgres futuro opcional) |
@@ -34,8 +34,8 @@ uv run pytest                # testes (145 passed + 1 skipped HW em 2026-09-12)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
-uv run gymflow --help        # entry point único
-uv run gymflow db upgrade && uv run gymflow db seed
+uv run gymflux --help        # entry point único
+uv run gymflux db upgrade && uv run gymflux db seed
 # Inspeção DLL (quando tiver kernel7x.dll):
 uv run python scripts/inspect_dll.py vendor/kernel7x.dll
 ```
@@ -43,8 +43,8 @@ uv run python scripts/inspect_dll.py vendor/kernel7x.dll
 ## 3. Arquitetura (resumo, detalhes em `docs/ARCHITECTURE.md`)
 
 ```
-src/gymflow/       # único
-├── config/        # pydantic-settings (.env GYMFLOW_*)
+src/gymflux/       # único
+├── config/        # pydantic-settings (.env GYMFLUX_*)
 ├── core/          # domínio puro: aluno, plano, pagamento, acesso, regras de catraca
 ├── hardware/
 │   ├── henry7x/   # -> interface.py (ABC) + mock.py + real.py (COM pywin32 32-bit)
@@ -60,28 +60,28 @@ src/gymflow/       # único
 
 - **2026-09-11 — Bootstrap + renomeação:**
   - `uv init`, docs base, `hardware/henry7x` (interface + mock + factory), `scripts/inspect_dll.py`.
-  - Renomeado `src/gms_app` → `src/gymflow`, `name: gymflow`, `GYMFLOW_*` puro, licença **Apache-2.0**.
+  - Renomeado `src/gms_app` → `src/gymflux`, `name: gymflux`, `GYMFLUX_*` puro, licença **Apache-2.0**.
 - **2026-09-11 — Fase 1 (domínio + mock) ✅:**
   - `core/` puro e tipado (RB01-RB05) + `services/` com repos memória + `LiberarAcessoService`.
   - Testes `tests/core`, `tests/services`, `tests/hardware` — base dos 45 verdes.
 - **2026-09-11 — Fase 2 (persistência SQLite + Alembic) ✅:**
-  - `infra/db.py` (WAL, FK ON), 5 models Typed, migração inicial `f2d9f6545bb8`, 5 repos Protocol+SQLAlchemy, `services` com injeção opcional + `tentar_acesso_por_id`, CLI `gymflow db upgrade|downgrade|seed` (seed idempotente 3 alunos + 2 planos).
-  - Verificação: 47 passed, ruff/mypy limpos, `gymflow info`/`db seed` ok.
+  - `infra/db.py` (WAL, FK ON), 5 models Typed, migração inicial `f2d9f6545bb8`, 5 repos Protocol+SQLAlchemy, `services` com injeção opcional + `tentar_acesso_por_id`, CLI `gymflux db upgrade|downgrade|seed` (seed idempotente 3 alunos + 2 planos).
+  - Verificação: 47 passed, ruff/mypy limpos, `gymflux info`/`db seed` ok.
 - **2026-09-11 — Fase 2.1 (correções auditoria) ✅:**
-  - `pyproject.toml`: removido override `gymflow.infra.*` + removido `types-sqlalchemy` 1.4 obsoleto (conflitava com SQLAlchemy 2.0 tipado); corrigido erro real `migrations/env.py:41` (`str|None`).
+  - `pyproject.toml`: removido override `gymflux.infra.*` + removido `types-sqlalchemy` 1.4 obsoleto (conflitava com SQLAlchemy 2.0 tipado); corrigido erro real `migrations/env.py:41` (`str|None`).
   - Deletado `tests/test_mock_henry.py` duplicado (mantido `tests/hardware/test_mock_henry.py`).
   - `infra/db.py:86` `session_scope` com `@contextmanager` (`Iterator[Session]`).
   - `AlunoModel` +`data_nasc Date nullable` +`observacoes Text`; `AcessoLogModel` +`detalhes Text`; migração `8c81436e0086` (autogenerate limpo); repos mapeiam novos campos.
   - `RegistrarPagamentoService.registrar` simplificado p/ `buscar_por_id` direto; `liberar_acesso` removido `TYPE_CHECKING` vazio; `AcessoLogRepository` + `Memoria` com `buscar_ultimo_por_aluno`; `_AcessoRepoProto` idem (sem `hasattr`).
   - `__main__.py:135` `suppress` trocado por `try/log` explícito (loguru + print).
-  - Verificação: 45 passed (47−2 duplicados), ruff/mypy limpos, `alembic upgrade head` em `8c81436e0086`, `gymflow db seed` idempotente.
+  - Verificação: 45 passed (47−2 duplicados), ruff/mypy limpos, `alembic upgrade head` em `8c81436e0086`, `gymflux db seed` idempotente.
 - **2026-09-11 — Fase 3 (driver real Henry 7x, commissioning pendente VM) ⏳:**
   - `hardware/henry7x/real.py` implementado (COM `Henry.Kernel7x` via `EnsureDispatch`+fallback `Dispatch`): `conectar` (`AdicionaCard(SComConfig)` + fallback `AdicionaCardSerial`), `desconectar` (`PararColetaEventos`+`RemoveCard`), `liberar` (`EnviaTipoCatraca`+pulso `EnviaAcionaCtrl` relé 1/2), `bloquear` (`csgBloqueada`), `on_giro` (polling `ColetaEventos`+`QuantRegsColetados` em thread daemon), `status` (`Versao`/`ListaPortasSeriais`/`ThreadLastError`). Falha graciosa fora de Windows 32-bit; factory **inalterada**.
-  - `docs/DLL_CONTRACT.md` §3/§4 (contrato local, gitignored) + `scripts/dump_henry_typelib.py` (commissioning Windows); CLI `gymflow catraca status|liberar|bloquear`; `tests/hardware/test_real_henry.py` (3 testes Linux + 1 integração `GYMFLOW_HENRY_HW=1` skipada).
+  - `docs/DLL_CONTRACT.md` §3/§4 (contrato local, gitignored) + `scripts/dump_henry_typelib.py` (commissioning Windows); CLI `gymflux catraca status|liberar|bloquear`; `tests/hardware/test_real_henry.py` (3 testes Linux + 1 integração `GYMFLUX_HENRY_HW=1` skipada).
   - Verificação Linux: 48 passed + 1 skipped, ruff/mypy limpos, CLI mock ok. **Pendente VM Windows 32-bit:** `dump_henry_typelib` + checklist §4.1.
 - **2026-09-11 — Fase 4 (UI desktop PySide6) ✅:**
-  - `ui/` Qt6 PT-BR: `catraca_bridge.py` (QObject giro→Signal, único ponto que importa `hardware`), `viewmodels/` (dashboard/alunos/planos/pagamentos, Qt-free, só `services`+`core` + Protocols locais + callback commit), `views/` (4 telas + dialogs), `app.py` (composition root: SQLite via alembic c/ fallback memória + QMainWindow 4 abas). CLI `gymflow ui` (erro amigável sem PySide6). `tests/ui/` (8 VMs + 6 pytest-qt offscreen).
-  - Verificação Linux: 62 passed + 1 skipped, ruff/mypy limpos, `gymflow ui` abre com mock+SQLite. **core/services/infra/hardware e testes Fases 1-3 intocados.**
+  - `ui/` Qt6 PT-BR: `catraca_bridge.py` (QObject giro→Signal, único ponto que importa `hardware`), `viewmodels/` (dashboard/alunos/planos/pagamentos, Qt-free, só `services`+`core` + Protocols locais + callback commit), `views/` (4 telas + dialogs), `app.py` (composition root: SQLite via alembic c/ fallback memória + QMainWindow 4 abas). CLI `gymflux ui` (erro amigável sem PySide6). `tests/ui/` (8 VMs + 6 pytest-qt offscreen).
+  - Verificação Linux: 62 passed + 1 skipped, ruff/mypy limpos, `gymflux ui` abre com mock+SQLite. **core/services/infra/hardware e testes Fases 1-3 intocados.**
 - **2026-09-11 — Fase 4.1 (fix dashboard) ✅:**
   - `DashboardViewModel` recebe `commit` e persiste após `liberar_entrada/saida`; log exibe `nome_aluno()` com fallback p/ ID.
 - **2026-09-11 — Fase 4.2 (tema academia) ✅:**
@@ -91,7 +91,7 @@ src/gymflow/       # único
   - `Aluno` +`senha_hash` (PBKDF2+salt, validação 4-8 dígitos) +`cartao_id`; migração `3f9a2c1bd4e5`; repos com `buscar_por_cartao`; `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`, sem commit próprio); mock `simular_teclado`/fila; dashboard painel `NOME — LIBERADO/NEGADO` + dialog com senha/cartão.
   - Verificação Linux: 96 passed + 1 skipped, ruff/mypy limpos, downgrade/upgrade `3f9a2c1bd4e5` reversível. **RB01-RB05, real.py, factory e migrations aplicadas intocados.**
 - **2026-09-12 — Fase 4.4 (dashboard enxuto + configurações) ✅:**
-  - `ui/config_store.py` (`UiConfig` + JSON `data/gymflow_config.json`, Qt-free) + `viewmodels/config.py`; aba Configurações (bloqueios, senha mín 4-8, tolerância, timeout, anti-passback, porta; salva+aplica sem restart); `DashboardViewModel.ui_config` (direção bloqueada e senha curta → NEGADO direto); regra do domínio montada da config; dashboard em 2 linhas compactas + status tabela Campo|Valor + log/giros ~5 linhas + ícones QStyle; screenshots `/tmp/shots44`.
+  - `ui/config_store.py` (`UiConfig` + JSON `data/gymflux_config.json`, Qt-free) + `viewmodels/config.py`; aba Configurações (bloqueios, senha mín 4-8, tolerância, timeout, anti-passback, porta; salva+aplica sem restart); `DashboardViewModel.ui_config` (direção bloqueada e senha curta → NEGADO direto); regra do domínio montada da config; dashboard em 2 linhas compactas + status tabela Campo|Valor + log/giros ~5 linhas + ícones QStyle; screenshots `/tmp/shots44`.
   - Verificação Linux: 111 passed + 1 skipped, ruff/mypy limpos. **core/regras, services, infra/models, migrations e hardware intocados.**
 - **2026-09-12 — Fase 4.5 (evolução das telas) ✅:**
   - Alunos editável: `AlunosViewModel.atualizar` + `PerfilAlunoDialog` (form reutilizável + status + pagamentos do aluno + novo pagamento); duplo-clique/botão-direito abrem o perfil.
@@ -109,10 +109,10 @@ src/gymflow/       # único
   - `theme.py`: `ModoTema` + `stylesheet(modo)` (claro troca só a base: `#F2F5F7`/`#FFFFFF`/`#1A1E22`/`#5A6B78`/`#D5DCE2`; acentos intactos; títulos com tinta escura e texto-sobre-acento sempre escuro p/ contraste) + `contraste()` WCAG + `estilo_resultado(_, modo)` (selo no claro) + `cores_indicador`/`estilo_selo`; `UiConfig.tema` persistido; aba Configurações alterna sem restart (`app.setStyleSheet`); selo FECHADO revisado; screenshots `/tmp/shots47`.
   - Verificação Linux: 145 passed + 1 skipped, ruff/mypy limpos. **Regras, services, infra e hardware intocados; telas só com estilos inline por modo.**
 - **2026-09-12 — chore(tests): suite rápida ✅ (commit `618a071`):**
-  - PBKDF2 configurável: `core/aluno.py` +`_iteracoes_pbkdf2()` lendo `GYMFLOW_PBKDF2_ITERATIONS` (default prod 100_000 INALTERADO; `conferir_senha` já lia a contagem do hash, hashes antigos seguem válidos); `tests/conftest.py` fixa 1000 via fixture autouse + offscreen centralizado. 2 testes-guarda do default em `unit/core/test_senha_hash.py`.
+  - PBKDF2 configurável: `core/aluno.py` +`_iteracoes_pbkdf2()` lendo `GYMFLUX_PBKDF2_ITERATIONS` (default prod 100_000 INALTERADO; `conferir_senha` já lia a contagem do hash, hashes antigos seguem válidos); `tests/conftest.py` fixa 1000 via fixture autouse + offscreen centralizado. 2 testes-guarda do default em `unit/core/test_senha_hash.py`.
   - Qt: `integration/ui/conftest.py` (`ctx` função-escopo + `dash` view direta sem montar 7 abas); `waitExposed` removido (processEvents); teardown destrói top-levels via `shiboken6.delete` (views vazavam 1000+ widgets/run por lambdas `self` em signals — governança impediu fix em prod, mitigado só nos testes). Nenhum sleep fixo existia (`waitSignal` do bridge já era o padrão certo).
-  - Coverage fora do default (`addopts=-v`; CI: `uv run pytest --cov=gymflow --cov-report=term-missing`); xdist avaliado e REJEITADO (7,5s vs 2,5s serial — spawn domina); markers `unit|integration|ui|slow` (`-m "not slow"`, `-m ui` ok).
-  - Migrations isolado: upgrade roda em `tmp_path` via `GYMFLOW_DB_URL` + `cache_clear` (+`slow`); `data/gymflow.db` intocado; `test_migrations_criam_tabelas` ganhou `import gymflow.infra.models` (antes só passava por ordem de imports). Infra com engine `:memory:` por sessão + limpeza por teste.
+  - Coverage fora do default (`addopts=-v`; CI: `uv run pytest --cov=gymflux --cov-report=term-missing`); xdist avaliado e REJEITADO (7,5s vs 2,5s serial — spawn domina); markers `unit|integration|ui|slow` (`-m "not slow"`, `-m ui` ok).
+  - Migrations isolado: upgrade roda em `tmp_path` via `GYMFLUX_DB_URL` + `cache_clear` (+`slow`); `data/gymflux.db` intocado; `test_migrations_criam_tabelas` ganhou `import gymflux.infra.models` (antes só passava por ordem de imports). Infra com engine `:memory:` por sessão + limpeza por teste.
   - Reorg `tests/unit|integration`: splits por domínio (regras RB01-RB05, senha valid/hash/aluno, identificar teclado-cartão/funcionário, liberar fluxo/regras, VMs por tela, views por tela, theme puro/render, repos por entidade). Nenhum teste perdido.
   - Verificação Linux: **146 passed + 1 skipped** (145 +2 guardas −1 fusão theme), `uv run pytest -q` 3,4–5,2s (3 rodadas; 18,1s→~4s com cov fora), ruff/mypy limpos. **Lógica prod, segurança (100k), regras e UI intocados.**
   - Nota env: `uv sync --group dev` REMOVE o extra `ui` (PySide6 some) — usar `uv sync --group dev --extra ui`.
@@ -130,7 +130,7 @@ src/gymflow/       # único
 3. **PySide6** — Qt LGPL, faseado (ADR-003).
 4. **Mock-first** — Linux mock, COM real só Windows 32-bit (ADR-005).
 5. **Licença Apache-2.0** — aceito (ADR-004).
-6. **GymFlow** — nome sem marca Henry (ADR-007/ADR-009).
+6. **GymFlux** — nome sem marca Henry (ADR-007/ADR-009).
 7. **vendor/docs gitignore** — `vendor/` 100% ignorado, `docs/` opcional (ADR-008).
 
 ## 7. Roadmap (ver `docs/ROADMAP.md`)
@@ -146,7 +146,7 @@ src/gymflow/       # único
 
 - [x] Dump PowerShell colado em `docs/DLL_CONTRACT.md:30` (100+ métodos COM).
 - [x] Licença: **Apache-2.0** aceito.
-- [x] Nome: **GymFlow** v1 puro (sem GMS).
+- [x] Nome: **GymFlux** v1 puro (sem GMS).
 - [ ] Modelo catraca exato? (7x / 7x Plus / Biométrica — confirmar p/ Fase 3).
 - [x] Fase 4.1 aplicada (commit no dashboard + nome no log).
 - [x] Fase 4.4 (feedback dono 2026-09-12) ✅: aba Configurações + dashboard enxuto (ver §4).
@@ -158,7 +158,7 @@ src/gymflow/       # único
 - [x] Fase 4.6 original (feedback dono) ✅ concluída — ver linha acima; `test_pagamentos_situacao_rb01` saiu com o `PagamentosViewModel` (RB01 segue em `tests/core`).
 - [ ] Futuro (pós-MVP): minimizar p/ bandeja ao fechar (QSystemTrayIcon, Windows) sem perder a catraca; integração gateway pagamento (Pix recorrente — avaliar provedores).
 - [x] Fase 4.7 (feedback dono 2026-09-12) ✅: modo claro + alternância de tema sem restart (ver §4).
-- [ ] Renomeação GymFlux (dono 2026-09-12, após 4.6/4.7): marca `gymflux` em tudo (pacote, env, DB, UI, docs) p/ não confundir com outros "GymFlow".
+- [x] Renomeação GymFlux (dono 2026-09-12, após 4.6/4.7) ✅: `src/gymflow`→`src/gymflux` (git mv), imports, `GYMFLUX_*`, `data/gymflux.db`, marca UI/docs, alembic (revisions intactas), `uv lock` + `requirements*.txt` p/ sem-uv. Verificação 2026-09-12: 146 passed + 1 skipped, ruff/mypy limpos, `gymflux --help`/`db upgrade`/smoke UI offscreen ok. Nota histórica em `docs/DECISIONS.md` (único residual `gymflow` permitido).
 - [x] Fluxo senha-na-catraca (estilo SCA) — Fase 4.3 parcial (2026-09-12, sem driver): credencial no `Aluno` (`senha_hash` PBKDF2+salt + `cartao_id`, migração `3f9a2c1bd4e5`), `IdentificarAcessoService` (TECLADO|CARTAO → `LiberarAcessoService`), mock `simular_teclado`/fila, painel verificação `NOME — LIBERADO/NEGADO` + campos senha/cartão no dialog. Falta (commissioning VM): loop de identificação via `ColetaEventos` + parse real do `SRegistro`/`RespostaOn` (TODO em `identificar_acesso.py`, DLL_CONTRACT §3.4).
 - [ ] `CadastrarAlunoService` não verifica `cartao_id` duplicado (só CPF) — decidir se cartão deve ser único no cadastro (DB já tem índice único).
 - [ ] Importação SCA: **adiada pelo dono** (retomar quando enviar `.bak`/dump; só há `henry.fdb` demo Henry 2011 no repo).
@@ -177,10 +177,10 @@ src/gymflow/       # único
 ## 10. Notas de Cross-Platform
 
 - Em Linux, `hardware/henry7x/real.py` deve falhar graciosamente com `RuntimeError("Disponível apenas em Windows 32-bit")`.
-- Factory `get_henry_driver()` decide por `sys.platform` + env var `GYMFLOW_HENRY_MOCK=1`. Em prod usa `win32com.client.Dispatch("Henry.Kernel7x")`, não `ctypes`.
+- Factory `get_henry_driver()` decide por `sys.platform` + env var `GYMFLUX_HENRY_MOCK=1`. Em prod usa `win32com.client.Dispatch("Henry.Kernel7x")`, não `ctypes`.
 - Build Windows: usar GitHub Actions `windows-latest` com Python 3.11 32-bit (`architecture: x86`) ou VM local. Windows 64-bit roda app 32-bit via WOW64 sem problema.
 - `vendor/` e `docs/` em `.gitignore:74` — ambos ignorados p/ GitHub (interno).
 - Serial: `ListaPortasSeriais` → escolher `COM3` etc, `SComConfig` define baud/paridade; `AdicionaCard(SComConfig, int)` abre porta.
 
 ---
-*Última atualização: 2026-09-11 por gerente GymFlow (auditoria Fase 3 + limpeza). Mantenha este arquivo enxuto e factual.*
+*Última atualização: 2026-09-12 por subordinado (renomeação GymFlow → GymFlux, commit chore). Mantenha este arquivo enxuto e factual.*

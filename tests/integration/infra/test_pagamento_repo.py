@@ -7,10 +7,10 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from gymflow.core.aluno import Aluno
-from gymflow.core.pagamento import Pagamento
-from gymflow.infra.repositories.aluno import AlunoRepositorySQLAlchemy
-from gymflow.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
+from gymflux.core.aluno import Aluno
+from gymflux.core.pagamento import Pagamento
+from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+from gymflux.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
 
 
 def test_pagamento_crud(session: Session):

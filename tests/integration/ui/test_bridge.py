@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QWidget
 
-from gymflow.hardware.henry7x.interface import Direcao
-from gymflow.hardware.henry7x.mock import MockHenry7x
-from gymflow.ui.catraca_bridge import CatracaBridge
+from gymflux.hardware.henry7x.interface import Direcao
+from gymflux.hardware.henry7x.mock import MockHenry7x
+from gymflux.ui.catraca_bridge import CatracaBridge
 
 
 def test_bridge_giro_chega_como_signal(qtbot):

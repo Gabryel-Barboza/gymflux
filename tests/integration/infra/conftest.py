@@ -16,8 +16,8 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-import gymflow.infra.models  # noqa: F401 — registra os models no metadata
-from gymflow.infra.db import Base
+import gymflux.infra.models  # noqa: F401 — registra os models no metadata
+from gymflux.infra.db import Base
 
 
 @pytest.fixture(scope="session")

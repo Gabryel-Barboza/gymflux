@@ -1,0 +1,23 @@
+# GymFlux — produção + UI (PySide6) p/ ambientes SEM uv (gerado via `uv export --extra ui`).
+# Uso: pip install -r requirements-ui.txt
+-e .
+alembic==1.20.0
+annotated-types==0.8.0
+colorama==0.4.6 ; sys_platform == 'win32'
+greenlet==3.5.5 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
+loguru==0.7.3
+mako==1.4.1
+markupsafe==3.0.3
+pefile==2024.8.26
+pydantic==2.13.5
+pydantic-core==2.46.5
+pydantic-settings==2.15.0
+pyside6==6.11.2
+pyside6-addons==6.11.2
+pyside6-essentials==6.11.2
+python-dotenv==1.2.3
+shiboken6==6.11.2
+sqlalchemy==2.0.52
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+win32-setctime==1.2.0 ; sys_platform == 'win32'

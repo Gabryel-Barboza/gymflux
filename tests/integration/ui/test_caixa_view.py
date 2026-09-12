@@ -7,8 +7,8 @@ from decimal import Decimal
 
 from PySide6.QtWidgets import QMessageBox
 
-from gymflow.ui.app import AppContext
-from gymflow.ui.views.caixa import CaixaView
+from gymflux.ui.app import AppContext
+from gymflux.ui.views.caixa import CaixaView
 
 
 def test_caixa_renderiza_fecha_e_selo(qtbot, ctx: AppContext, mocker):

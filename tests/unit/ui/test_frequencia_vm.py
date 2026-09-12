@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
-from gymflow.core.aluno import Aluno
-from gymflow.core.funcionario import Funcionario
-from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
-from gymflow.infra.repositories.aluno import AlunoRepositoryMemoria
-from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
-from gymflow.ui.viewmodels.frequencia import FrequenciaViewModel
+from gymflux.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
+from gymflux.core.aluno import Aluno
+from gymflux.core.funcionario import Funcionario
+from gymflux.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+from gymflux.infra.repositories.aluno import AlunoRepositoryMemoria
+from gymflux.infra.repositories.funcionario import FuncionarioRepositoryMemoria
+from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 
 HOJE = date(2026, 9, 12)
 ONTEM = HOJE - timedelta(days=1)

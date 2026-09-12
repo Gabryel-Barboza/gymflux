@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from gymflow.core.plano import TipoPlano
-from gymflow.ui.app import AppContext, build_window
-from gymflow.ui.views.dashboard import DashboardView
+from gymflux.core.plano import TipoPlano
+from gymflux.ui.app import AppContext, build_window
+from gymflux.ui.views.dashboard import DashboardView
 
 
 def _valor_status(view: DashboardView, campo: str) -> str:
@@ -128,7 +128,7 @@ def test_painel_senha_curta_e_direcao_bloqueada(dash: DashboardView, ctx: AppCon
 
 
 def test_resultado_liberado_verde_negado_vermelho(dash: DashboardView, ctx: AppContext):
-    from gymflow.ui.theme import LIMA, VERMELHO
+    from gymflux.ui.theme import LIMA, VERMELHO
 
     aluno = ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735")
     dash.edt_aluno.setText(aluno.id)
@@ -149,7 +149,7 @@ def test_resultado_liberado_verde_negado_vermelho(dash: DashboardView, ctx: AppC
 def test_click_no_registro_abre_perfil(qtbot, ctx: AppContext, mocker):
     from PySide6.QtWidgets import QDialog
 
-    from gymflow.ui.views.alunos import PerfilAlunoDialog
+    from gymflux.ui.views.alunos import PerfilAlunoDialog
 
     win = build_window(ctx)
     qtbot.addWidget(win)
@@ -173,7 +173,7 @@ def test_click_no_registro_abre_perfil(qtbot, ctx: AppContext, mocker):
 
 
 def test_click_em_registro_funcionario_nao_abre_perfil(dash: DashboardView, ctx: AppContext):
-    from gymflow.services.identificar_acesso import Identificacao
+    from gymflux.services.identificar_acesso import Identificacao
 
     ctx.funcionarios_vm.cadastrar(nome="Zé Porteira", senha="1234")
     decisao, _ = ctx.dashboard_vm.identificar.identificar(Identificacao.por_teclado("1234"))

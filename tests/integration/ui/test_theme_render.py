@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QWidget
 
-from gymflow.ui.theme import AZUL, ModoTema, stylesheet
+from gymflux.ui.theme import AZUL, ModoTema, stylesheet
 
 
 def test_modos_renderizam_offscreen(qapp, qtbot):

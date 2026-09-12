@@ -1,7 +1,7 @@
 [project]
-name = "gymflow"
+name = "gymflux"
 version = "0.1.0"
-description = "GymFlow - Sistema de gerenciamento para academias com integração Henry 7x"
+description = "GymFlux - Sistema de gerenciamento para academias com integração Henry 7x"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [
@@ -38,7 +38,7 @@ windows = [
 # Hardware real depende de Windows 32-bit + DLL
 
 [project.scripts]
-gymflow = "gymflow.__main__:main"
+gymflux = "gymflux.__main__:main"
 
 [dependency-groups]
 dev = [
@@ -79,7 +79,7 @@ no_implicit_optional = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 # Rápido no dia a dia: sem --cov. CI/cobertura explícita:
-#   uv run pytest --cov=gymflow --cov-report=term-missing
+#   uv run pytest --cov=gymflux --cov-report=term-missing
 # xdist avaliado 2026-09-12 e REJEITADO como default (7,5s vs 2,5s serial no
 # não-Qt: spawn de workers domina numa suite deste tamanho). Opt-in p/
 # máquinas maiores, SEMPRE fora da UI (Qt roda serial):
@@ -93,7 +93,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["gymflow"]
+source = ["gymflux"]
 branch = true
 
 [tool.uv]

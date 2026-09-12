@@ -6,25 +6,25 @@ from decimal import Decimal
 
 import pytest
 
-from gymflow.core.plano import TipoPlano
-from gymflow.hardware.henry7x.mock import MockHenry7x
-from gymflow.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
-from gymflow.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
-from gymflow.infra.repositories.matricula import MatriculaRepositoryMemoria
-from gymflow.infra.repositories.plano import PlanoRepositoryMemoria
-from gymflow.services.cadastrar_aluno import (
+from gymflux.core.plano import TipoPlano
+from gymflux.hardware.henry7x.mock import MockHenry7x
+from gymflux.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+from gymflux.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
+from gymflux.infra.repositories.matricula import MatriculaRepositoryMemoria
+from gymflux.infra.repositories.plano import PlanoRepositoryMemoria
+from gymflux.services.cadastrar_aluno import (
     CadastrarAlunoService,
     RepositorioAlunosMemoria,
 )
-from gymflow.services.liberar_acesso import LiberarAcessoService
-from gymflow.services.registrar_pagamento import (
+from gymflux.services.liberar_acesso import LiberarAcessoService
+from gymflux.services.registrar_pagamento import (
     RegistrarPagamentoService,
     RepositorioPagamentosMemoria,
 )
-from gymflow.ui.viewmodels.alunos import AlunosViewModel
-from gymflow.ui.viewmodels.caixa import CaixaViewModel
-from gymflow.ui.viewmodels.dashboard import DashboardViewModel
-from gymflow.ui.viewmodels.planos import PlanosViewModel
+from gymflux.ui.viewmodels.alunos import AlunosViewModel
+from gymflux.ui.viewmodels.caixa import CaixaViewModel
+from gymflux.ui.viewmodels.dashboard import DashboardViewModel
+from gymflux.ui.viewmodels.planos import PlanosViewModel
 
 
 def _wired(auto_giro: bool = False) -> dict:

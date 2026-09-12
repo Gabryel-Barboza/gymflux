@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gymflow.core.aluno import Aluno
+from gymflux.core.aluno import Aluno
 
 
 def test_aluno_definir_e_verificar_senha():

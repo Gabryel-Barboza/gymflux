@@ -1,5 +1,5 @@
-from gymflow.hardware.henry7x.factory import get_henry_driver
-from gymflow.hardware.henry7x.interface import Direcao
+from gymflux.hardware.henry7x.factory import get_henry_driver
+from gymflux.hardware.henry7x.interface import Direcao
 
 
 def test_mock_henry_fluxo_basico():
@@ -16,13 +16,13 @@ def test_mock_henry_fluxo_basico():
 
 
 def test_factory_linux_forca_mock(monkeypatch):
-    monkeypatch.setenv("GYMFLOW_HENRY_MOCK", "1")
+    monkeypatch.setenv("GYMFLUX_HENRY_MOCK", "1")
     d = get_henry_driver()
     assert d.is_mock
 
 
 def test_mock_henry_teclado_fila_fifo():
-    from gymflow.hardware.henry7x.mock import MockHenry7x
+    from gymflux.hardware.henry7x.mock import MockHenry7x
 
     driver = MockHenry7x(auto_giro=False)
     assert driver.conectar("MOCK:1")

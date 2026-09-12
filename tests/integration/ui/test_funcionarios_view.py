@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from gymflow.ui.app import AppContext
-from gymflow.ui.views.funcionarios import FuncionariosView, NovoFuncionarioDialog
+from gymflux.ui.app import AppContext
+from gymflux.ui.views.funcionarios import FuncionariosView, NovoFuncionarioDialog
 
 
 def test_funcionarios_aba_e_dialog(qtbot, ctx: AppContext):

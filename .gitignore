@@ -6,6 +6,14 @@ dist/
 wheels/
 *.egg-info
 
+# Testes / lint caches
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+
 # Virtual environments
 .venv
 .venv32

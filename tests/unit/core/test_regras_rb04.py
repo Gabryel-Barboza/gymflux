@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from gymflow.core.acesso import MotivoNegado, ResultadoAcesso
-from gymflow.core.regras import RegraAcesso, RegraAcessoConfig
+from gymflux.core.acesso import MotivoNegado, ResultadoAcesso
+from gymflux.core.regras import RegraAcesso, RegraAcessoConfig
 
 
 def test_rb04_timeout_nao_expirou():

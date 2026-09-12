@@ -1,7 +1,7 @@
 """Migrations: metadata cria tabelas + alembic upgrade head isolado em tmp.
 
-O teste de upgrade NÃO toca mais ``data/gymflow.db``: aponta
-``GYMFLOW_DB_URL`` p/ um arquivo em ``tmp_path`` (com ``cache_clear`` no
+O teste de upgrade NÃO toca mais ``data/gymflux.db``: aponta
+``GYMFLUX_DB_URL`` p/ um arquivo em ``tmp_path`` (com ``cache_clear`` no
 ``get_settings`` e restauração em ``finally``). Marcado ``slow`` p/ opt-out:
 ``uv run pytest -m "not slow"``.
 """
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import create_engine, text
 
-import gymflow.infra.models  # noqa: F401 — registra os models no metadata
-from gymflow.infra.db import Base
+import gymflux.infra.models  # noqa: F401 — registra os models no metadata
+from gymflux.infra.db import Base
 
 
 def test_migrations_criam_tabelas():
@@ -37,10 +37,10 @@ def test_alembic_upgrade_head_isolado_tmp(tmp_path: Path, monkeypatch: pytest.Mo
     from alembic import command
     from alembic.config import Config
 
-    from gymflow.config.settings import get_settings
+    from gymflux.config.settings import get_settings
 
     db = tmp_path / "isolado.db"
-    monkeypatch.setenv("GYMFLOW_DB_URL", f"sqlite:///{db}")
+    monkeypatch.setenv("GYMFLUX_DB_URL", f"sqlite:///{db}")
     get_settings.cache_clear()
     try:
         ini = Path("alembic.ini")

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gymflow.core.aluno import validar_senha_numerica
+from gymflux.core.aluno import validar_senha_numerica
 
 
 def test_senha_valida_4_a_8_digitos():

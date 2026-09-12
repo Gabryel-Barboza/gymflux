@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from gymflow.core.acesso import MotivoNegado
-from gymflow.core.aluno import Aluno, StatusAluno
-from gymflow.core.pagamento import Pagamento
-from gymflow.core.plano import Matricula, Plano, Vigencia
-from gymflow.core.regras import RegraAcesso
+from gymflux.core.acesso import MotivoNegado
+from gymflux.core.aluno import Aluno, StatusAluno
+from gymflux.core.pagamento import Pagamento
+from gymflux.core.plano import Matricula, Plano, Vigencia
+from gymflux.core.regras import RegraAcesso
 
 HOJE = date(2026, 9, 11)
 VIG_INICIO = date(2026, 8, 11)

@@ -7,18 +7,18 @@ from decimal import Decimal
 
 import pytest
 
-from gymflow.core.aluno import Aluno
-from gymflow.core.caixa import validar_mes
-from gymflow.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
-from gymflow.services.cadastrar_aluno import (
+from gymflux.core.aluno import Aluno
+from gymflux.core.caixa import validar_mes
+from gymflux.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
+from gymflux.services.cadastrar_aluno import (
     CadastrarAlunoService,
     RepositorioAlunosMemoria,
 )
-from gymflow.services.registrar_pagamento import (
+from gymflux.services.registrar_pagamento import (
     RegistrarPagamentoService,
     RepositorioPagamentosMemoria,
 )
-from gymflow.ui.viewmodels.caixa import CaixaViewModel
+from gymflux.ui.viewmodels.caixa import CaixaViewModel
 
 
 def _caixa() -> CaixaViewModel:

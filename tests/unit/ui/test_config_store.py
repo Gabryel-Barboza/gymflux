@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from gymflow.ui.config_store import ConfigStore, UiConfig
-from gymflow.ui.viewmodels.config import ConfigViewModel
+from gymflux.ui.config_store import ConfigStore, UiConfig
+from gymflux.ui.viewmodels.config import ConfigViewModel
 
 
 def test_defaults_sensatos():
@@ -80,7 +80,7 @@ def test_viewmodel_salvar_persiste_e_aplica(tmp_path):
 
 
 def test_tema_default_e_roundtrip(tmp_path):
-    from gymflow.ui.theme import ModoTema
+    from gymflux.ui.theme import ModoTema
 
     assert UiConfig().tema == ModoTema.ESCURO
     store = ConfigStore(tmp_path / "cfg.json")

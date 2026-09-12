@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from gymflow.ui.theme import (
+from gymflux.ui.theme import (
     AZUL,
     BORDA,
     BORDA_CLARA,
@@ -121,7 +121,7 @@ def test_contraste_minimo_texto_fundo():
     assert contraste(TEXTO_SUAVE, BORDA) >= 4.5
     assert contraste(SUAVE_CLARO, BORDA_CLARA) >= 3.0
     # selo FECHADO: texto com borda no escuro, preenchido no claro
-    from gymflow.ui.theme import estilo_selo
+    from gymflux.ui.theme import estilo_selo
 
     assert VERMELHO in estilo_selo()
     assert VERMELHO in estilo_selo(ModoTema.CLARO)

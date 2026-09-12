@@ -8,9 +8,9 @@ from decimal import Decimal
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
-from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
-from gymflow.ui.app import AppContext
-from gymflow.ui.views.alunos import AlunosView, NovoAlunoDialog, PerfilAlunoDialog
+from gymflux.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
+from gymflux.ui.app import AppContext
+from gymflux.ui.views.alunos import AlunosView, NovoAlunoDialog, PerfilAlunoDialog
 
 
 def test_alunos_view_busca_filtra(qtbot, ctx: AppContext):

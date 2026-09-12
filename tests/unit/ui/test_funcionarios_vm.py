@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from gymflow.infra.repositories.funcionario import FuncionarioRepositoryMemoria
-from gymflow.ui.viewmodels.funcionarios import FuncionariosViewModel
+from gymflux.infra.repositories.funcionario import FuncionarioRepositoryMemoria
+from gymflux.ui.viewmodels.funcionarios import FuncionariosViewModel
 
 
 def test_funcionarios_crud_e_ativar():

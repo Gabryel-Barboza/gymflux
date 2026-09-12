@@ -6,12 +6,12 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from gymflow.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
-from gymflow.core.aluno import Aluno
-from gymflow.core.funcionario import Funcionario
-from gymflow.infra.repositories.acesso_log import AcessoLogRepositorySQLAlchemy
-from gymflow.infra.repositories.aluno import AlunoRepositorySQLAlchemy
-from gymflow.infra.repositories.funcionario import FuncionarioRepositorySQLAlchemy
+from gymflux.core.acesso import DirecaoAcesso, ResultadoAcesso, TentativaAcesso
+from gymflux.core.aluno import Aluno
+from gymflux.core.funcionario import Funcionario
+from gymflux.infra.repositories.acesso_log import AcessoLogRepositorySQLAlchemy
+from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+from gymflux.infra.repositories.funcionario import FuncionarioRepositorySQLAlchemy
 
 
 def test_acesso_log(session: Session):
