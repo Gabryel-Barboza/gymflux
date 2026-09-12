@@ -132,4 +132,19 @@ QCheckBox {{
 QDialog {{
     background-color: {FUNDO};
 }}
+QFrame#PlanoCard {{
+    background-color: {FUNDO_PAINEL};
+    border: 1px solid {BORDA};
+    border-radius: 8px;
+}}
+QFrame#PlanoCard QLabel#PlanoNome {{
+    color: {AZUL};
+    font-size: 15px;
+    font-weight: bold;
+}}
+QFrame#PlanoCard QLabel#PlanoValor {{
+    color: {LIMA};
+    font-size: 14px;
+    font-weight: bold;
+}}
 """

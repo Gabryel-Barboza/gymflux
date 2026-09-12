@@ -321,3 +321,37 @@ def test_caixa_renderiza_fecha_e_selo(qtbot, ctx, mocker):
     view._fechar()
     assert view.lbl_fechado.isHidden() is False
     assert ctx.caixa_vm.mes_fechado("2026-09") is True
+
+
+def test_planos_cards_renderizam_editar_excluir(qtbot, ctx, mocker):
+    from PySide6.QtWidgets import QMessageBox
+
+    from gymflow.ui.views.planos import NovoPlanoDialog, PlanosView
+
+    plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
+    view = PlanosView(ctx.planos_vm)
+    qtbot.addWidget(view)
+    assert len(view.cards) == 1
+
+    dlg = NovoPlanoDialog()
+    qtbot.addWidget(dlg)
+    dlg.preencher(plano)
+    assert dlg.edt_nome.text() == "Mensal"
+    assert dlg.spn_tol.value() == plano.tolerancia_dias
+
+    editado = ctx.planos_vm.salvar(
+        nome="Mensal Plus",
+        tipo=TipoPlano.MENSAL,
+        valor=Decimal("119.90"),
+        tolerancia_dias=5,
+        duracao_dias=30,
+        plano_id=plano.id,
+    )
+    assert editado.nome == "Mensal Plus"
+    view.recarregar()
+    assert len(view.cards) == 1
+
+    mocker.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes)
+    view._excluir(plano.id, plano.nome)
+    assert len(view.cards) == 0
+    assert ctx.planos_vm.listar() == []

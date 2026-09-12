@@ -1,4 +1,4 @@
-"""Tela de planos — tabela + dialog (tipo, valor, tolerância)."""
+"""Tela de planos — cards modernos + dialog de cadastro/edição."""
 
 from __future__ import annotations
 
@@ -11,25 +11,26 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from gymflow.core.plano import TipoPlano
+from gymflow.core.plano import Plano, TipoPlano
 from gymflow.ui.viewmodels.planos import DURACAO_POR_TIPO, PlanosViewModel
 
 
 class NovoPlanoDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, titulo: str = "Novo plano") -> None:
         super().__init__(parent)
-        self.setWindowTitle("Novo plano")
+        self.setWindowTitle(titulo)
         form = QFormLayout(self)
         self.edt_nome = QLineEdit()
         self.cmb_tipo = QComboBox()
@@ -64,84 +65,133 @@ class NovoPlanoDialog(QDialog):
         if isinstance(tipo, TipoPlano) and tipo in DURACAO_POR_TIPO:
             self.spn_dur.setValue(DURACAO_POR_TIPO[tipo])
 
+    def preencher(self, plano: Plano) -> None:
+        """Preenche p/ edição (mesmos campos do cadastro)."""
+        self.edt_nome.setText(plano.nome)
+        idx = self.cmb_tipo.findData(plano.tipo)
+        if idx >= 0:
+            self.cmb_tipo.setCurrentIndex(idx)
+        self.spn_valor.setValue(float(plano.valor))
+        self.spn_tol.setValue(plano.tolerancia_dias)
+        self.spn_dur.setValue(plano.duracao_dias)
+
 
 class PlanosView(QWidget):
-    COLUNAS = ("ID", "Nome", "Tipo", "Duração (dias)", "Valor (R$)", "Tolerância (dias)")
+    """1 card por plano (nome, tipo, duração, valor, tolerância) + Editar/Excluir."""
 
     def __init__(self, vm: PlanosViewModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.vm = vm
         layout = QVBoxLayout(self)
 
-        self.tbl = QTableWidget(0, len(self.COLUNAS))
-        self.tbl.setHorizontalHeaderLabels(list(self.COLUNAS))
-        self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl.setColumnHidden(0, True)
-        self.tbl.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.tbl, 1)
-
         hbtn = QHBoxLayout()
         self.btn_novo = QPushButton("Novo plano")
-        self.btn_remover = QPushButton("Remover")
         hbtn.addWidget(self.btn_novo)
-        hbtn.addWidget(self.btn_remover)
         hbtn.addStretch(1)
         layout.addLayout(hbtn)
 
+        self.area = QScrollArea()
+        self.area.setWidgetResizable(True)
+        self.cards_host = QWidget()
+        self.cards_layout = QVBoxLayout(self.cards_host)
+        self.cards_layout.addStretch(1)
+        self.area.setWidget(self.cards_host)
+        layout.addWidget(self.area, 1)
+
         self.btn_novo.clicked.connect(self._novo)
-        self.btn_remover.clicked.connect(self._remover)
         self.recarregar()
 
-    def recarregar(self) -> None:
-        planos = self.vm.listar()
-        self.tbl.setRowCount(len(planos))
-        for row, p in enumerate(planos):
-            vals = (
-                p.id,
-                p.nome,
-                str(p.tipo),
-                str(p.duracao_dias),
-                f"{Decimal(str(p.valor)):.2f}",
-                str(p.tolerancia_dias),
-            )
-            for col, v in enumerate(vals):
-                self.tbl.setItem(row, col, QTableWidgetItem(v))
+    def _limpar_cards(self) -> None:
+        while self.cards_layout.count() > 1:  # mantém o stretch final
+            item = self.cards_layout.takeAt(0)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
 
-    def _novo(self) -> None:
-        dlg = NovoPlanoDialog(self)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
+    def recarregar(self) -> None:
+        self._limpar_cards()
+        planos = self.vm.listar()
+        self.cards: list[tuple[str, QFrame]] = []
+        for plano in planos:
+            card = self._montar_card(plano)
+            self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
+            self.cards.append((plano.id, card))
+        if not planos:
+            vazio = QLabel("Nenhum plano cadastrado.")
+            self.cards_layout.insertWidget(self.cards_layout.count() - 1, vazio)
+
+    def _montar_card(self, plano: Plano) -> QFrame:
+        card = QFrame()
+        card.setObjectName("PlanoCard")
+        lay = QVBoxLayout(card)
+        nome = QLabel(plano.nome)
+        nome.setObjectName("PlanoNome")
+        lay.addWidget(nome)
+        valor = QLabel(f"R$ {Decimal(str(plano.valor)):.2f}")
+        valor.setObjectName("PlanoValor")
+        lay.addWidget(valor)
+        lay.addWidget(QLabel(f"Tipo: {plano.tipo}"))
+        lay.addWidget(QLabel(f"Duração: {plano.duracao_dias} dias"))
+        lay.addWidget(QLabel(f"Tolerância: {plano.tolerancia_dias} dias"))
+        hb = QHBoxLayout()
+        btn_editar = QPushButton("Editar")
+        btn_excluir = QPushButton("Excluir")
+        btn_editar.clicked.connect(lambda _c=False, pid=plano.id: self._editar(pid))
+        btn_excluir.clicked.connect(
+            lambda _c=False, pid=plano.id, n=plano.nome: self._excluir(pid, n)
+        )
+        hb.addWidget(btn_editar)
+        hb.addWidget(btn_excluir)
+        hb.addStretch(1)
+        lay.addLayout(hb)
+        return card
+
+    def _coletar(self, dlg: NovoPlanoDialog, plano_id: str | None = None) -> Plano | None:
         if not dlg.edt_nome.text().strip():
             QMessageBox.warning(self, "Planos", "Nome é obrigatório.")
-            return
+            return None
         try:
-            plano = self.vm.salvar(
+            return self.vm.salvar(
                 nome=dlg.edt_nome.text(),
                 tipo=dlg.cmb_tipo.currentData(),
                 valor=Decimal(str(dlg.spn_valor.value())),
                 tolerancia_dias=dlg.spn_tol.value(),
                 duracao_dias=dlg.spn_dur.value(),
+                plano_id=plano_id,
             )
         except ValueError as e:
             QMessageBox.warning(self, "Planos", str(e))
+            return None
+
+    def _novo(self) -> None:
+        dlg = NovoPlanoDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        plano = self._coletar(dlg)
+        if plano is None:
             return
         logger.info(f"[UI] plano salvo id={plano.id}")
         self.recarregar()
 
-    def _remover(self) -> None:
-        row = self.tbl.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "Planos", "Selecione um plano na tabela.")
+    def _editar(self, plano_id: str) -> None:
+        plano = self.vm.repo.buscar_por_id(plano_id)
+        if plano is None:
+            QMessageBox.warning(self, "Planos", "Plano não encontrado.")
             return
-        item = self.tbl.item(row, 0)
-        nome_item = self.tbl.item(row, 1)
-        if item is None:
+        dlg = NovoPlanoDialog(self, titulo=f"Editar plano — {plano.nome}")
+        dlg.preencher(plano)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
             return
-        nome = nome_item.text() if nome_item else item.text()
+        if self._coletar(dlg, plano_id=plano_id) is None:
+            return
+        logger.info(f"[UI] plano editado id={plano_id}")
+        self.recarregar()
+
+    def _excluir(self, plano_id: str, nome: str) -> None:
         confirma = QMessageBox.question(
             self, "Planos", f"Remover o plano '{nome}'?", QMessageBox.StandardButton.Yes
         )
         if confirma != QMessageBox.StandardButton.Yes:
             return
-        self.vm.remover(item.text())
+        self.vm.remover(plano_id)
         self.recarregar()
