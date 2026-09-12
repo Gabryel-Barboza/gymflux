@@ -15,7 +15,13 @@ import argparse
 import re
 import subprocess
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
+
+_DEFAULT_PATTERN = (
+    r"conectar|libera|bloquea|henry|catraca|biometr|porta|baud|"
+    r"inicial|desconect|callback|evento|leitor|template|versao|status"
+)
 
 
 def inspect_pefile(dll: Path) -> None:
@@ -27,7 +33,14 @@ def inspect_pefile(dll: Path) -> None:
 
     pe = pefile.PE(str(dll))
     print(f"== PE: {dll} ==")
-    print(f"Machine: {hex(pe.FILE_HEADER.Machine)} ({'I386/32-bit' if pe.FILE_HEADER.Machine==0x14c else 'x64/AMD64' if pe.FILE_HEADER.Machine==0x8664 else 'outro'})")
+    machine = pe.FILE_HEADER.Machine
+    if machine == 0x14C:
+        arch = "I386/32-bit"
+    elif machine == 0x8664:
+        arch = "x64/AMD64"
+    else:
+        arch = "outro"
+    print(f"Machine: {hex(machine)} ({arch})")
     print(f"NumberOfSections: {pe.FILE_HEADER.NumberOfSections}")
     print(f"TimeDateStamp: {pe.FILE_HEADER.TimeDateStamp}")
     print(f"Characteristics: {hex(pe.FILE_HEADER.Characteristics)}")
@@ -54,7 +67,7 @@ def inspect_pefile(dll: Path) -> None:
                 n = imp.name.decode(errors="ignore") if imp.name else f"ordinal {imp.ordinal}"
                 print(f"    - {n}")
             if len(entry.imports) > 20:
-                print(f"    ... +{len(entry.imports)-20} more")
+                print(f"    ... +{len(entry.imports) - 20} more")
 
     # Version info
     try:
@@ -74,14 +87,25 @@ def dump_strings(dll: Path, pattern: str | None = None) -> None:
         # fallback python puro: extrai sequências ASCII >=4
         data = dll.read_bytes()
         lines = re.findall(rb"[ -~]{4,}", data)
-        lines = [l.decode(errors="ignore") for l in lines]
+        lines = [line.decode(errors="ignore") for line in lines]
 
     pat = re.compile(pattern, re.IGNORECASE) if pattern else None
-    filtered = [l for l in lines if pat.search(l)] if pat else lines
-    for l in filtered[:500]:
-        print(l)
+    filtered = [line for line in lines if pat.search(line)] if pat else lines
+    for line in filtered[:500]:
+        print(line)
     if len(filtered) > 500:
-        print(f"... +{len(filtered)-500} linhas omitidas (use --output)")
+        print(f"... +{len(filtered) - 500} linhas omitidas (use --output)")
+
+
+def _run(args: argparse.Namespace) -> None:
+    if args.strings:
+        dump_strings(args.dll, args.pattern)
+        return
+    inspect_pefile(args.dll)
+    if args.dump:
+        dump_strings(args.dll, args.pattern or _DEFAULT_PATTERN)
+    # dica dumpbin
+    print("-- Dica Windows: `dumpbin /exports kernel7x.dll` p/ confirmar --")
 
 
 def main() -> None:
@@ -89,7 +113,12 @@ def main() -> None:
     p.add_argument("dll", type=Path, help="caminho para kernel7x.dll")
     p.add_argument("--dump", action="store_true", help="dump completo (pefile + strings)")
     p.add_argument("--strings", action="store_true", help="só strings")
-    p.add_argument("--pattern", type=str, default=None, help="regex para filtrar strings (ex: conectar|libera)")
+    p.add_argument(
+        "--pattern",
+        type=str,
+        default=None,
+        help="regex para filtrar strings (ex: conectar|libera)",
+    )
     p.add_argument("--output", type=Path, default=None, help="salva output em arquivo")
     args = p.parse_args()
 
@@ -100,23 +129,11 @@ def main() -> None:
     # redireciona stdout se --output
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        orig_stdout = sys.stdout
-        sys.stdout = open(args.output, "w", encoding="utf-8")
-
-    try:
-        if args.strings:
-            dump_strings(args.dll, args.pattern)
-        else:
-            inspect_pefile(args.dll)
-            if args.dump:
-                dump_strings(args.dll, args.pattern or r"conectar|libera|bloquea|henry|catraca|biometr|porta|baud|inicial|desconect|callback|evento|leitor|template|versao|status")
-            # dica dumpbin
-            print("\n-- Dica Windows: rode também `dumpbin /exports kernel7x.dll` para confirmar --")
-    finally:
-        if args.output:
-            sys.stdout.close()  # type: ignore[attr-defined]
-            sys.stdout = orig_stdout  # type: ignore[assignment]
-            print(f"Dump salvo em {args.output}")
+        with args.output.open("w", encoding="utf-8") as fh, redirect_stdout(fh):
+            _run(args)
+        print(f"Dump salvo em {args.output}")
+        return
+    _run(args)
 
 
 if __name__ == "__main__":
