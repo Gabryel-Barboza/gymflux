@@ -18,6 +18,7 @@ from gymflow.services.cadastrar_aluno import CadastrarAlunoService
 from gymflow.services.liberar_acesso import LiberarAcessoService
 from gymflow.services.registrar_pagamento import RegistrarPagamentoService
 from gymflow.ui.catraca_bridge import CatracaBridge
+from gymflow.ui.theme import stylesheet
 from gymflow.ui.viewmodels.alunos import AlunosViewModel
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 from gymflow.ui.viewmodels.pagamentos import PagamentosViewModel
@@ -192,6 +193,7 @@ def run(argv: list[str] | None = None) -> int:
     """Abre o app desktop (bloqueia até fechar)."""
     existing = QApplication.instance()
     app = existing if isinstance(existing, QApplication) else QApplication(argv or [])
+    app.setStyleSheet(stylesheet())
     ctx = create_context()
     try:
         ok = ctx.bridge.conectar()

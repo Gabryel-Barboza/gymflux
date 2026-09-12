@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflow.ui.catraca_bridge import CatracaBridge
+from gymflow.ui.theme import estilo_resultado
 from gymflow.ui.viewmodels.dashboard import DashboardViewModel
 
 
@@ -112,10 +113,12 @@ class DashboardView(QWidget):
         texto = self.edt_aluno.text().strip()
         if not texto:
             self.lbl_resultado.setText("Informe o ID ou CPF do aluno.")
+            self.lbl_resultado.setStyleSheet(estilo_resultado(None))
             return None
         aluno = self.vm.resolver_aluno(texto)
         if aluno is None:
             self.lbl_resultado.setText(f"Aluno '{texto}' não encontrado.")
+            self.lbl_resultado.setStyleSheet(estilo_resultado(None))
             return None
         return aluno.id
 
@@ -129,12 +132,14 @@ class DashboardView(QWidget):
             else self.vm.liberar_saida(aluno_id)
         )
         self.lbl_resultado.setText(self.vm.resume_decisao(decisao))
+        self.lbl_resultado.setStyleSheet(estilo_resultado(decisao.liberado))
         self._refresh_status()
         self._refresh_log()
 
     def _bloquear(self) -> None:
         self.bridge.bloquear()
         self.lbl_resultado.setText("Catraca bloqueada.")
+        self.lbl_resultado.setStyleSheet(estilo_resultado(None))
         self._refresh_status()
 
     def _on_giro(self, direcao_nome: str, ts: float) -> None:
@@ -154,6 +159,7 @@ class DashboardView(QWidget):
         online = bool(st.get("online"))
         bloqueada = bool(st.get("bloqueada", True))
         self.lbl_online.setText("SIM" if online else "NÃO")
+        self.lbl_online.setStyleSheet(estilo_resultado(online))
         self.lbl_bloqueada.setText("SIM" if bloqueada else "NÃO")
         self.lbl_contador.setText(str(st.get("contador_giros", "—")))
         self.lbl_firmware.setText(str(st.get("firmware", "—")))

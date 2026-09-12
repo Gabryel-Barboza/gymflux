@@ -18,18 +18,9 @@ from PySide6.QtWidgets import QWidget
 from gymflow.core.plano import TipoPlano
 from gymflow.hardware.henry7x.interface import Direcao
 from gymflow.hardware.henry7x.mock import MockHenry7x
-from gymflow.ui.app import build_window, create_context
+from gymflow.ui.app import build_window
 from gymflow.ui.catraca_bridge import CatracaBridge
 from gymflow.ui.views.dashboard import DashboardView
-
-
-@pytest.fixture
-def ctx():
-    context = create_context(use_db=False)
-    context.bridge.driver.conectar("MOCK:1")
-    yield context
-    context.bridge.driver.desconectar()
-    context.close()
 
 
 def test_janela_principal_tem_4_abas(qtbot, ctx):
