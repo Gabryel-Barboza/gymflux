@@ -521,8 +521,7 @@ class PerfilAlunoDialog(QDialog):
         confirma = QMessageBox.question(
             self,
             "Excluir pagamento",
-            f"Excluir pagamento de R$ {pag.valor:.2f} vencimento "
-            f"{pag.data_vencimento}? Isso resolve o débito.",
+            f"Excluir pagamento de R$ {pag.valor:.2f} vencimento {pag.data_vencimento}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirma != QMessageBox.StandardButton.Yes:
