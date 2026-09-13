@@ -34,7 +34,7 @@ from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
 LINHAS_VISIVEIS = 3
 LINHAS_MAX_TABELA = 8
-WALLPAPER_SCALE = 0.68  # zoom out — afastar da tela
+WALLPAPER_SCALE = 0.60  # zoom out — afastar da tela
 
 
 class DetalhesDialog(QDialog):
@@ -168,7 +168,8 @@ class DashboardView(QWidget):
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
         self.edt_unico.setMinimumHeight(32)
-        self.edt_unico.setMaximumWidth(410)
+        self.edt_unico.setMinimumWidth(380)
+        self.edt_unico.setMaximumWidth(520)
         self.edt_unico.setStyleSheet("font-size: 14px; padding: 6px;")
         self.btn_liberar = QPushButton("Liberar catraca")
         # ícone contrastando com fundo AZUL #5AC8FA
@@ -303,8 +304,8 @@ class DashboardView(QWidget):
         self._wallpaper_path: str | None = None
         self._wallpaper_labels: dict[QFrame, QLabel] = {}
         # CatracaCentro fica com fundo transparente e mostra wallpaper do dashboard
-        # header não tem wallpaper — só fundo original
-        self._wallpaper_frames: list[QFrame] = [frame_log, frame_giros]
+        # header e Acessos de hoje sem wallpaper — só giros mantém
+        self._wallpaper_frames: list[QFrame] = [frame_giros]
         for frm in self._wallpaper_frames:
             bg = QLabel(frm)
             bg.setObjectName(f"WallpaperBg_{frm.objectName()}")
@@ -397,14 +398,28 @@ class DashboardView(QWidget):
         painel = paleta.painel
         for frm in [self.header, self.centro, self.frame_log, self.frame_giros]:
             base = frm.objectName()
-            # header nunca tem wallpaper — sempre fundo sólido original
+            # header: transparente com overlay quando wallpaper, senão sólido
             if base == "CatracaHeader":
                 ov = self._overlay_labels.get(frm)
-                if ov is not None:
-                    ov.hide()
-                frm.setStyleSheet(
-                    f"QFrame#CatracaHeader {{ border: 1px solid #C8D0D8; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
-                )
+                if wallpaper_ativo:
+                    if ov is not None:
+                        ov.setGeometry(frm.rect())
+                        ov.show()
+                        ov.lower()
+                        for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
+                            if not isinstance(child, (QLabel, QPushButton)):
+                                continue
+                            with contextlib.suppress(Exception):
+                                child.raise_()
+                    frm.setStyleSheet(
+                        "QFrame#CatracaHeader { border: 1px solid #C8D0D8; border-radius: 8px; background: transparent; padding: 4px; }"  # noqa: E501
+                    )
+                else:
+                    if ov is not None:
+                        ov.hide()
+                    frm.setStyleSheet(
+                        f"QFrame#CatracaHeader {{ border: 1px solid #C8D0D8; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
+                    )
                 continue
             # centro: wallpaper mode sem fundo do pai (transparente total)
             if base == "CatracaCentro":
@@ -420,40 +435,38 @@ class DashboardView(QWidget):
                         f"QFrame#CatracaCentro {{ border: none; border-radius: 8px; background-color: {painel}; }}"  # noqa: E501
                     )
                 continue
-            # log/giros: um nível abaixo do wallpaper
-            if wallpaper_ativo:
-                ov = self._overlay_labels.get(frm)
-                if ov is not None:
-                    ov.setGeometry(frm.rect())
-                    ov.show()
-                    ov.lower()
-                    for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
-                        if not isinstance(
-                            child, (QLabel, QLineEdit, QPushButton, QTableWidget, QListWidget)
-                        ):
-                            continue
-                        with contextlib.suppress(Exception):
-                            child.raise_()
-                    wp = self._wallpaper_labels.get(frm)
-                    if wp is not None:
-                        wp.lower()
-                if base == "CatracaFrameLog":
-                    frm.setStyleSheet(
-                        "QFrame#CatracaFrameLog { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
-                    )
-                elif base == "CatracaFrameGiros":
-                    frm.setStyleSheet(
-                        "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
-                    )
-            else:
+            # Acessos de hoje: sem wallpaper — sempre sólido
+            if base == "CatracaFrameLog":
                 ov = self._overlay_labels.get(frm)
                 if ov is not None:
                     ov.hide()
-                if base == "CatracaFrameLog":
+                frm.setStyleSheet(
+                    f"QFrame#CatracaFrameLog {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
+                )
+                continue
+            # Giros: mantém wallpaper
+            if base == "CatracaFrameGiros":
+                if wallpaper_ativo:
+                    ov = self._overlay_labels.get(frm)
+                    if ov is not None:
+                        ov.setGeometry(frm.rect())
+                        ov.show()
+                        ov.lower()
+                        for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
+                            if not isinstance(child, (QLabel, QListWidget)):
+                                continue
+                            with contextlib.suppress(Exception):
+                                child.raise_()
+                        wp = self._wallpaper_labels.get(frm)
+                        if wp is not None:
+                            wp.lower()
                     frm.setStyleSheet(
-                        f"QFrame#CatracaFrameLog {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
+                        "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
                     )
-                elif base == "CatracaFrameGiros":
+                else:
+                    ov = self._overlay_labels.get(frm)
+                    if ov is not None:
+                        ov.hide()
                     frm.setStyleSheet(
                         f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
                     )

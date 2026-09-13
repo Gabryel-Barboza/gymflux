@@ -205,6 +205,12 @@ QLabel {{
 QGroupBox QLabel {{
     background-color: transparent;
 }}
+QCheckBox {{
+    background-color: transparent;
+}}
+QGroupBox QCheckBox {{
+    background-color: transparent;
+}}
 QTabWidget::pane {{
     border: 1px solid {borda};
     border-radius: 8px;
