@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from datetime import date
 from decimal import Decimal
 from typing import Protocol
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -40,7 +42,7 @@ from gymflux.ui.views.caixa import NovoPagamentoDialog
 
 
 class PagamentosProto(Protocol):
-    """Subconjunto usado pelo perfil: lista + registra (Pagamentos ou Caixa VM)."""
+    """Subconjunto usado pelo perfil: lista + registra + remover (Pagamentos ou Caixa VM)."""
 
     def do_aluno(self, aluno_id: str) -> list[Pagamento]: ...
     def registrar(
@@ -54,6 +56,7 @@ class PagamentosProto(Protocol):
         data_pagamento: date | None = None,
         competencia: str | None = None,
     ) -> Pagamento: ...
+    def remover_pagamento(self, pagamento_id: str) -> None: ...  # opcional em testes
 
 
 class _AlunoForm(QWidget):
@@ -185,6 +188,8 @@ class PerfilAlunoDialog(QDialog):
         self._aluno_id = aluno_id
         self._frequencia = frequencia_vm
         self._dashboard_vm = dashboard_vm
+        self._pagamentos_cache: list[Pagamento] = []
+        self._matriculas_cache: list[tuple[str, object]] = []  # (id, Matricula)
         self.setWindowTitle(f"Perfil — {aluno.nome}")
         self.resize(640, 520)
         self.setMaximumWidth(700)
@@ -207,10 +212,19 @@ class PerfilAlunoDialog(QDialog):
         self.tbl_mat = QTableWidget(0, 2)
         self.tbl_mat.setHorizontalHeaderLabels(["Plano", "Vigência"])
         self.tbl_mat.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_mat.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tbl_mat.horizontalHeader().setStretchLastSection(True)
         lay_plano.addWidget(self.tbl_mat, 1)
+        hmat = QHBoxLayout()
         self.btn_matricular = QPushButton("Matricular...")
-        lay_plano.addWidget(self.btn_matricular)
+        self.btn_excluir_mat = QPushButton()
+        self.btn_excluir_mat.setToolTip("Excluir matrícula selecionada")
+        self.btn_excluir_mat.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_mat.setMaximumWidth(32)
+        hmat.addWidget(self.btn_matricular)
+        hmat.addWidget(self.btn_excluir_mat)
+        hmat.addStretch(1)
+        lay_plano.addLayout(hmat)
         tabs.addTab(tab_plano, "Plano/Matrícula")
 
         # aba 3: Frequência
@@ -228,12 +242,21 @@ class PerfilAlunoDialog(QDialog):
         lay_pag = QVBoxLayout(tab_pag)
         self.tbl_pag = QTableWidget(0, len(self.COLUNAS_PAG))
         self.tbl_pag.setHorizontalHeaderLabels(list(self.COLUNAS_PAG))
-        self.tbl_pag.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        # vencimento editável no perfil (col 0), demais não
+        self.tbl_pag.setEditTriggers(
+            QTableWidget.EditTrigger.DoubleClicked | QTableWidget.EditTrigger.EditKeyPressed
+        )
+        self.tbl_pag.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tbl_pag.horizontalHeader().setStretchLastSection(True)
         lay_pag.addWidget(self.tbl_pag, 1)
         hb = QHBoxLayout()
         self.btn_novo_pag = QPushButton("Novo pagamento")
+        self.btn_excluir_pag = QPushButton()
+        self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
+        self.btn_excluir_pag.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_pag.setMaximumWidth(32)
         hb.addWidget(self.btn_novo_pag)
+        hb.addWidget(self.btn_excluir_pag)
         hb.addStretch(1)
         lay_pag.addLayout(hb)
         tabs.addTab(tab_pag, "Pagamentos")
@@ -262,17 +285,39 @@ class PerfilAlunoDialog(QDialog):
         self.btn_novo_pag.clicked.connect(self._novo_pagamento)
         self.btn_matricular.clicked.connect(self._matricular)
         self.btn_liberar.clicked.connect(self._liberar)
+        self.btn_excluir_mat.clicked.connect(self._excluir_matricula)
+        self.btn_excluir_pag.clicked.connect(self._excluir_pagamento)
+        self.tbl_mat.customContextMenuRequested.connect(self._menu_mat)
+        self.tbl_pag.customContextMenuRequested.connect(self._menu_pag)
+        self.tbl_pag.cellChanged.connect(self._vencimento_editado)
         self._recarregar_pagamentos()
         self._recarregar_frequencia()
         self._recarregar_matriculas()
 
     def _recarregar_matriculas(self) -> None:
-        mats = self._vm.matriculas_do_aluno(self._aluno_id)
-        self.tbl_mat.setRowCount(len(mats))
-        for row, m in enumerate(mats):
-            vig = f"{m.vigencia.inicio.isoformat()} → {m.vigencia.fim.isoformat()}"
-            self.tbl_mat.setItem(row, 0, QTableWidgetItem(m.plano.nome))
-            self.tbl_mat.setItem(row, 1, QTableWidgetItem(vig))
+        # usa cache com ids para exclusão
+        if hasattr(self._vm, "matriculas_com_id"):
+            try:
+                mats_com_id = self._vm.matriculas_com_id(self._aluno_id)  # type: ignore[attr-defined]
+            except Exception:
+                mats_com_id = [
+                    (f"idx-{i}", m)
+                    for i, m in enumerate(self._vm.matriculas_do_aluno(self._aluno_id))
+                ]
+        else:
+            mats_com_id = [
+                (f"idx-{i}", m) for i, m in enumerate(self._vm.matriculas_do_aluno(self._aluno_id))
+            ]
+        self._matriculas_cache = mats_com_id  # type: ignore[assignment]
+        self.tbl_mat.blockSignals(True)
+        try:
+            self.tbl_mat.setRowCount(len(mats_com_id))
+            for row, (_mid, m) in enumerate(mats_com_id):
+                vig = f"{m.vigencia.inicio.isoformat()} → {m.vigencia.fim.isoformat()}"  # type: ignore[attr-defined]
+                self.tbl_mat.setItem(row, 0, QTableWidgetItem(m.plano.nome))  # type: ignore[attr-defined]
+                self.tbl_mat.setItem(row, 1, QTableWidgetItem(vig))
+        finally:
+            self.tbl_mat.blockSignals(False)
 
     def _matricular(self) -> None:
         planos = [(p.id, f"{p.nome} ({p.duracao_dias}d)") for p in self._vm.planos_disponiveis()]
@@ -291,6 +336,42 @@ class PerfilAlunoDialog(QDialog):
             QMessageBox.warning(self, "Perfil", str(e))
             return
         self._recarregar_matriculas()
+
+    def _excluir_matricula(self) -> None:
+        row = self.tbl_mat.currentRow()
+        if row < 0 or row >= len(self._matriculas_cache):
+            QMessageBox.information(self, "Perfil", "Selecione uma matrícula para excluir.")
+            return
+        mat_id, mat = self._matriculas_cache[row]  # type: ignore[assignment]
+        nome_plano = getattr(getattr(mat, "plano", None), "nome", str(mat))
+        confirma = QMessageBox.question(
+            self,
+            "Excluir matrícula",
+            f"Remover vínculo com o plano '{nome_plano}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirma != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self._vm.remover_matricula(mat_id)  # type: ignore[attr-defined]
+        except Exception as e:
+            QMessageBox.warning(self, "Perfil", str(e))
+            return
+        logger.info(f"[UI] matrícula removida id={mat_id} aluno={self._aluno_id}")
+        self._recarregar_matriculas()
+
+    def _menu_mat(self, pos: QPoint) -> None:
+        item = self.tbl_mat.itemAt(pos)
+        if item is None:
+            return
+        self.tbl_mat.selectRow(item.row())
+        menu = QMenu(self)
+        a_exc = menu.addAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
+        )
+        acao = menu.exec(self.tbl_mat.viewport().mapToGlobal(pos))
+        if acao == a_exc:
+            self._excluir_matricula()
 
     def _liberar(self) -> None:
         # tenta via dashboard_vm se disponível, senão via alunos_vm + mensagem
@@ -324,16 +405,143 @@ class PerfilAlunoDialog(QDialog):
             key=lambda p: p.data_vencimento,
             reverse=True,
         )
-        self.tbl_pag.setRowCount(len(pags))
-        for row, p in enumerate(pags):
-            vals = (
-                p.data_vencimento.isoformat(),
-                f"{Decimal(str(p.valor)):.2f}",
-                p.data_pagamento.isoformat() if p.data_pagamento else "—",
-                str(p.forma) if p.forma else "—",
-            )
-            for col, v in enumerate(vals):
-                self.tbl_pag.setItem(row, col, QTableWidgetItem(v))
+        self._pagamentos_cache = pags
+        self.tbl_pag.blockSignals(True)
+        try:
+            self.tbl_pag.setRowCount(len(pags))
+            for row, p in enumerate(pags):
+                vals = (
+                    p.data_vencimento.isoformat(),
+                    f"{Decimal(str(p.valor)):.2f}",
+                    p.data_pagamento.isoformat() if p.data_pagamento else "—",
+                    str(p.forma) if p.forma else "—",
+                )
+                for col, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    # só vencimento editável no perfil
+                    if col == 0:
+                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+                    else:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    self.tbl_pag.setItem(row, col, item)
+        finally:
+            self.tbl_pag.blockSignals(False)
+
+    def _vencimento_editado(self, row: int, col: int) -> None:
+        if col != 0:
+            return
+        if row < 0 or row >= len(self._pagamentos_cache):
+            return
+        pag = self._pagamentos_cache[row]
+        item = self.tbl_pag.item(row, col)
+        if item is None:
+            return
+        texto = item.text().strip()
+        try:
+            novo = date.fromisoformat(texto)
+        except ValueError:
+            QMessageBox.warning(self, "Perfil", "Vencimento inválido (use AAAA-MM-DD).")
+            self._recarregar_pagamentos()
+            return
+        # atualiza via repo diretamente (mantém id/valor/pago)
+        try:
+            # tenta via pagamentos_vm que pode ser CaixaViewModel ou service
+            if hasattr(self._pagamentos, "pagamentos"):
+                # CaixaViewModel -> pagamentos é RegistrarPagamentoService
+                svc = self._pagamentos.pagamentos  # type: ignore[attr-defined]
+                repo = getattr(svc, "repo", None)
+                if repo is not None and hasattr(repo, "buscar_por_id"):
+                    orig = repo.buscar_por_id(pag.id)  # type: ignore[attr-defined]
+                    if orig is not None:
+                        from dataclasses import replace
+
+                        novo_pag = replace(orig, data_vencimento=novo)  # type: ignore[arg-type]
+                        # Pagamento é frozen, usa replace
+                        # mas repo espera salvar novo
+                        if hasattr(repo, "salvar"):
+                            repo.salvar(novo_pag)  # type: ignore[attr-defined]
+                            # commit se houver
+                            commit = getattr(self._pagamentos, "commit", None) or getattr(
+                                self._vm, "commit", None
+                            )
+                            if callable(commit):
+                                with contextlib.suppress(Exception):
+                                    commit()  # type: ignore[misc]
+            elif hasattr(self._pagamentos, "repo"):
+                repo = self._pagamentos.repo  # type: ignore[attr-defined]
+                if hasattr(repo, "buscar_por_id"):
+                    orig = repo.buscar_por_id(pag.id)  # type: ignore[attr-defined]
+                    if orig is not None:
+                        from dataclasses import replace
+
+                        novo_pag = replace(orig, data_vencimento=novo)
+                        repo.salvar(novo_pag)  # type: ignore[attr-defined]
+                        commit = getattr(self._vm, "commit", None)
+                        if callable(commit):
+                            with contextlib.suppress(Exception):
+                                commit()  # type: ignore[misc]
+            # fallback: se pagamentos é RepositorioPagamentosMemoria direto
+            elif hasattr(self._pagamentos, "buscar_por_id"):
+                orig = self._pagamentos.buscar_por_id(pag.id)  # type: ignore[attr-defined]
+                if orig is not None:
+                    from dataclasses import replace
+
+                    novo_pag = replace(orig, data_vencimento=novo)
+                    self._pagamentos.salvar(novo_pag)  # type: ignore[attr-defined]
+        except Exception as e:
+            QMessageBox.warning(self, "Perfil", f"Erro ao atualizar vencimento: {e}")
+            self._recarregar_pagamentos()
+            return
+        logger.info(f"[UI] vencimento atualizado pag={pag.id} -> {novo}")
+        self._recarregar_pagamentos()
+
+    def _excluir_pagamento(self) -> None:
+        row = self.tbl_pag.currentRow()
+        if row < 0 or row >= len(self._pagamentos_cache):
+            QMessageBox.information(self, "Perfil", "Selecione um pagamento para excluir.")
+            return
+        pag = self._pagamentos_cache[row]
+        confirma = QMessageBox.question(
+            self,
+            "Excluir pagamento",
+            f"Excluir pagamento de R$ {pag.valor:.2f} vencimento "
+            f"{pag.data_vencimento}? Isso resolve o débito.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirma != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            if hasattr(self._pagamentos, "remover_pagamento"):
+                self._pagamentos.remover_pagamento(pag.id)  # type: ignore[attr-defined]
+            elif hasattr(self._pagamentos, "remover"):
+                self._pagamentos.remover(pag.id)  # type: ignore[attr-defined]
+            elif hasattr(self._pagamentos, "pagamentos") and hasattr(
+                self._pagamentos.pagamentos, "remover"
+            ):
+                self._pagamentos.pagamentos.remover(pag.id)  # type: ignore[attr-defined]
+                commit = getattr(self._pagamentos, "commit", None)
+                if callable(commit):
+                    commit()  # type: ignore[misc]
+            else:
+                raise RuntimeError("Repositório de pagamentos sem remover()")
+        except Exception as e:
+            QMessageBox.warning(self, "Perfil", str(e))
+            return
+        logger.info(f"[UI] pagamento removido id={pag.id}")
+        self._recarregar_pagamentos()
+
+    def _menu_pag(self, pos: QPoint) -> None:
+        item = self.tbl_pag.itemAt(pos)
+        if item is None:
+            return
+        self.tbl_pag.selectRow(item.row())
+        menu = QMenu(self)
+        a_exc = menu.addAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
+        )
+        acao = menu.exec(self.tbl_pag.viewport().mapToGlobal(pos))
+        if acao == a_exc:
+            self._excluir_pagamento()
 
     def _novo_pagamento(self) -> None:
         aluno = self._vm.alunos.buscar(self._aluno_id)

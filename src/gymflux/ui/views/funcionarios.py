@@ -1,15 +1,18 @@
-"""Tela de funcionários — tabela simples + Novo/Editar/Ativar-Inativar."""
+"""Tela de funcionários — tabela + duplo-clique + edição completa (replica alunos)."""
 
 from __future__ import annotations
 
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -26,7 +29,8 @@ class NovoFuncionarioDialog(QDialog):
         form = QFormLayout(self)
         self.edt_nome = QLineEdit()
         self.edt_senha = QLineEdit()
-        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Password)
+        # senha visível (texto claro) como no perfil aluno — estilo catraca
+        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("4 a 8 dígitos")
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica*:", self.edt_senha)
@@ -43,6 +47,52 @@ class NovoFuncionarioDialog(QDialog):
         self.edt_senha.setPlaceholderText("em branco = manter atual")
 
 
+class PerfilFuncionarioDialog(QDialog):
+    """Perfil simples (replica alunos): dados + senha visível."""
+
+    def __init__(
+        self, vm: FuncionariosViewModel, funcionario_id: str, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+        func = vm.buscar(funcionario_id)
+        if func is None:
+            raise ValueError(f"Funcionário id={funcionario_id} não encontrado")
+        self._vm = vm
+        self._func_id = funcionario_id
+        self.setWindowTitle(f"Perfil — {func.nome}")
+        self.resize(420, 200)
+        form = QFormLayout(self)
+        self.edt_nome = QLineEdit()
+        self.edt_nome.setText(func.nome)
+        self.edt_senha = QLineEdit()
+        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
+        self.edt_senha.setPlaceholderText("em branco = manter atual (4-8 dígitos)")
+        form.addRow("Nome*:", self.edt_nome)
+        form.addRow("Senha numérica:", self.edt_senha)
+        botoes = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
+        if btn_save is not None:
+            btn_save.setText("Salvar")
+        botoes.accepted.connect(self._salvar)
+        botoes.rejected.connect(self.reject)
+        form.addRow(botoes)
+
+    def _salvar(self) -> None:
+        if not self.edt_nome.text().strip():
+            QMessageBox.warning(self, "Funcionário", "Nome é obrigatório.")
+            return
+        try:
+            self._vm.atualizar(
+                self._func_id, nome=self.edt_nome.text(), senha=self.edt_senha.text()
+            )
+        except ValueError as e:
+            QMessageBox.warning(self, "Funcionário", str(e))
+            return
+        self.accept()
+
+
 class FuncionariosView(QWidget):
     COLUNAS = ("ID", "Nome", "Ativo")
 
@@ -56,6 +106,7 @@ class FuncionariosView(QWidget):
         self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl.setColumnHidden(0, True)
         self.tbl.horizontalHeader().setStretchLastSection(True)
+        self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.tbl, 1)
 
         hbtn = QHBoxLayout()
@@ -71,6 +122,8 @@ class FuncionariosView(QWidget):
         self.btn_novo.clicked.connect(self._novo)
         self.btn_editar.clicked.connect(self._editar)
         self.btn_ativar.clicked.connect(self._alternar_ativo)
+        self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._abrir_perfil())
+        self.tbl.customContextMenuRequested.connect(self._menu_contexto)
         self.recarregar()
 
     def recarregar(self) -> None:
@@ -132,3 +185,42 @@ class FuncionariosView(QWidget):
             return
         self.vm.definir_ativo(func_id, not func.ativo)
         self.recarregar()
+
+    def _abrir_perfil(self) -> None:
+        func_id = self._selecionado()
+        if func_id is None:
+            return
+        self.abrir_perfil_por_id(func_id)
+
+    def abrir_perfil_por_id(self, funcionario_id: str) -> None:
+        try:
+            dlg = PerfilFuncionarioDialog(self.vm, funcionario_id, self)
+        except ValueError as e:
+            QMessageBox.warning(self, "Funcionários", str(e))
+            return
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.recarregar()
+
+    def _menu_contexto(self, pos: QPoint) -> None:
+        item = self.tbl.itemAt(pos)
+        if item is None:
+            return
+        self.tbl.selectRow(item.row())
+        menu = QMenu(self)
+        a_perfil = menu.addAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
+            "Abrir perfil...",
+        )
+        a_editar = menu.addAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            "Editar...",
+        )
+        a_ativar = menu.addAction("Ativar/Inativar")
+        acao = menu.exec(self.tbl.viewport().mapToGlobal(pos))
+        if acao == a_perfil:
+            self._abrir_perfil()
+        elif acao == a_editar:
+            self._editar()
+        elif acao == a_ativar:
+            self._alternar_ativo()

@@ -128,10 +128,22 @@ class CaixaViewModel:
             raise ValueError(f"Caixa de {mes} está FECHADO — registro bloqueado")
         if self.alunos.buscar(aluno_id) is None:
             raise ValueError(f"Aluno id={aluno_id} não encontrado")
+        # valida valor >0 e forma obrigatória (default PIX) — bloqueia antes de Decimal
+        texto_valor = str(valor).strip()
+        if not texto_valor or texto_valor == "-":
+            raise ValueError("Valor é obrigatório e deve ser > 0")
+        try:
+            dec = Decimal(texto_valor)
+        except Exception as exc:
+            raise ValueError("Valor inválido") from exc
+        if dec <= Decimal("0"):
+            raise ValueError("Valor deve ser > 0")
+        if forma is None or (isinstance(forma, str) and not forma.strip()) or forma == "—":
+            raise ValueError("Forma de pagamento é obrigatória")
         result = self.pagamentos.registrar_rapido(
             id=f"pag-{uuid.uuid4().hex[:8]}",
             aluno_id=aluno_id,
-            valor=Decimal(str(valor)),
+            valor=dec,
             data_vencimento=data_vencimento,
             data_pagamento=date.today() if pago else data_pagamento,
             forma=forma,
@@ -139,3 +151,15 @@ class CaixaViewModel:
         )
         self._commit()
         return result
+
+    def remover_pagamento(self, pagamento_id: str) -> None:
+        """Remove pagamento (resolve débito) + commit."""
+        # tenta via service.repo.remover (memória) ou via pagamento_repo SQL
+        repo = getattr(self.pagamentos, "repo", None)
+        if repo is not None and hasattr(repo, "remover"):
+            repo.remover(pagamento_id)  # type: ignore[attr-defined]
+        elif hasattr(self.pagamentos, "remover"):
+            self.pagamentos.remover(pagamento_id)  # type: ignore[attr-defined]
+        else:  # fallback: chama pagamento repo direto se existir
+            raise RuntimeError("Repositório de pagamentos sem remover()")
+        self._commit()

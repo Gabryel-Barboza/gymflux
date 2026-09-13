@@ -16,6 +16,7 @@ from gymflux.services.cadastrar_aluno import CadastrarAlunoService
 class MatriculaRepoProto(Protocol):
     def salvar(self, matricula: Matricula, matricula_id: str | None = None) -> Matricula: ...
     def listar_por_aluno(self, aluno_id: str) -> list[Matricula]: ...
+    def remover(self, matricula_id: str) -> None: ...
 
 
 class PlanoRepoProto(Protocol):
@@ -165,3 +166,60 @@ class AlunosViewModel:
         self.matricula_repo.salvar(matricula, matricula_id=f"mat-{uuid.uuid4().hex[:8]}")
         self._commit()
         return matricula
+
+    def matriculas_com_id(self, aluno_id: str) -> list[tuple[str, Matricula]]:
+        """Retorna (id, Matricula) p/ exibir e excluir; funciona com SQL e memória."""
+        if self.matricula_repo is None:
+            return []
+        # memória: inspect _matriculas dict
+        if hasattr(self.matricula_repo, "_matriculas"):
+            try:
+                dic = self.matricula_repo._matriculas  # type: ignore[attr-defined]
+                return [(mid, m) for mid, m in dic.items() if m.aluno_id == aluno_id]  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # SQLAlchemy: query via session se disponível
+        if hasattr(self.matricula_repo, "session"):
+            try:
+                from sqlalchemy import select
+
+                from gymflux.infra.models.matricula import MatriculaModel
+
+                sess = self.matricula_repo.session  # type: ignore[attr-defined]
+                stmt = select(MatriculaModel).where(MatriculaModel.aluno_id == aluno_id)
+                modelos = sess.execute(stmt).scalars().all()  # type: ignore[attr-defined]
+                out: list[tuple[str, Matricula]] = []
+                for mm in modelos:
+                    plano = None
+                    # resolve plano via repo helper if exists
+                    if hasattr(self.matricula_repo, "_get_plano_domain"):
+                        plano = self.matricula_repo._get_plano_domain(mm.plano_id)  # type: ignore[attr-defined]
+                    if plano is not None:
+                        from gymflux.core.plano import Vigencia as Vig
+
+                        out.append(
+                            (
+                                mm.id,
+                                Matricula(
+                                    aluno_id=mm.aluno_id,
+                                    plano=plano,
+                                    vigencia=Vig(inicio=mm.inicio, fim=mm.fim),
+                                    ativa=bool(mm.ativa),
+                                ),
+                            )
+                        )
+                if out:
+                    return out
+            except Exception:
+                pass
+        # fallback: listar sem id (gera ids sintéticos não removíveis — último recurso)
+        return [(f"idx-{i}", m) for i, m in enumerate(self.matriculas_do_aluno(aluno_id))]
+
+    def remover_matricula(self, matricula_id: str) -> None:
+        if self.matricula_repo is None:
+            raise RuntimeError("Repositório de matrícula não injetado")
+        # ignora ids sintéticos idx-*
+        if matricula_id.startswith("idx-"):
+            raise ValueError("Matrícula sem ID persistido não pode ser removida")
+        self.matricula_repo.remover(matricula_id)
+        self._commit()

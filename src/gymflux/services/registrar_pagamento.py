@@ -87,3 +87,10 @@ class RegistrarPagamentoService:
         if hasattr(self.repo, "listar"):
             return self.repo.listar()  # type: ignore[no-any-return]
         return self.pagamentos_do_aluno("")  # fallback
+
+    def remover(self, pagamento_id: str) -> None:
+        if hasattr(self.repo, "remover"):
+            self.repo.remover(pagamento_id)  # type: ignore[attr-defined]
+            logger.info(f"[RegistrarPagamento] remover id={pagamento_id}")
+        else:
+            raise RuntimeError("Repositório sem remover()")

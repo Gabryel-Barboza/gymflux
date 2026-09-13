@@ -34,9 +34,9 @@ from gymflux.ui.viewmodels.caixa import CaixaViewModel
 
 
 class NovoPagamentoDialog(QDialog):
-    """Modal sem vencimento (vencimento edita-se no perfil)."""
+    """Modal sem vencimento (vencimento edita-se no perfil). Valor>0 e forma obrigatória."""
 
-    FORMAS: ClassVar[list[str]] = ["—", *[f.value for f in FormaPagamento]]
+    FORMAS: ClassVar[list[str]] = [f.value for f in FormaPagamento]
 
     def __init__(self, aluno_nome: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -49,27 +49,66 @@ class NovoPagamentoDialog(QDialog):
         self.spn_valor.setValue(99.90)
         self.cmb_forma = QComboBox()
         self.cmb_forma.addItems(self.FORMAS)
+        # default PIX (forma obrigatória, sem vazio)
+        idx_pix = self.cmb_forma.findText(FormaPagamento.PIX.value)
+        if idx_pix >= 0:
+            self.cmb_forma.setCurrentIndex(idx_pix)
         self.chk_pago = QCheckBox("Pago hoje")
         self.chk_pago.setChecked(True)
         self.edt_comp = QLineEdit()
         self.edt_comp.setPlaceholderText("AAAA-MM (opcional)")
         form.addRow("Valor (R$)*:", self.spn_valor)
-        form.addRow("Forma:", self.cmb_forma)
+        form.addRow("Forma*:", self.cmb_forma)
         form.addRow(self.chk_pago)
         form.addRow("Competência:", self.edt_comp)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        botoes.accepted.connect(self.accept)
+        self._btn_ok = botoes.button(QDialogButtonBox.StandardButton.Ok)
+        botoes.accepted.connect(self._on_accept)
         botoes.rejected.connect(self.reject)
         form.addRow(botoes)
         # compat: mantém dat_venc para código legado que chama .vencimento()
         # mas não exibe; vencimento será hoje ou derivado da competência
         self._vencimento_default = date.today()
+        # validação reativa (bloqueia Ok)
+        self.spn_valor.valueChanged.connect(lambda _v: self._atualizar_ok())
+        self.cmb_forma.currentTextChanged.connect(lambda _t: self._atualizar_ok())
+        self._atualizar_ok()
+
+    def _validar(self) -> tuple[bool, str]:
+        # valor >0 e não vazio/"-"
+        texto_valor = str(self.spn_valor.value()).strip()
+        if not texto_valor or texto_valor == "-":
+            return False, "Valor é obrigatório"
+        try:
+            dec = Decimal(texto_valor)
+        except Exception:
+            return False, "Valor inválido"
+        if dec <= Decimal("0"):
+            return False, "Valor deve ser > 0"
+        forma = self.cmb_forma.currentText().strip()
+        if not forma or forma == "—":
+            return False, "Forma é obrigatória"
+        return True, ""
+
+    def _atualizar_ok(self) -> None:
+        if self._btn_ok is not None:
+            ok, _msg = self._validar()
+            self._btn_ok.setEnabled(ok)
+
+    def _on_accept(self) -> None:
+        ok, msg = self._validar()
+        if not ok:
+            QMessageBox.warning(self, "Pagamento", msg)
+            return
+        self.accept()
 
     def forma(self) -> str | None:
-        v = self.cmb_forma.currentText()
-        return None if v == "—" else v
+        v = self.cmb_forma.currentText().strip()
+        if not v or v == "—":
+            return None
+        return v
 
     def vencimento(self) -> date:
         # sem campo: usa hoje; se competência informada, usa 1º dia do mês

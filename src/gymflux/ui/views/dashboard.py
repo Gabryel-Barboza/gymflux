@@ -29,7 +29,7 @@ from gymflux.ui.catraca_bridge import CatracaBridge
 from gymflux.ui.theme import VERMELHO, cores_indicador, estilo_resultado
 from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
-LINHAS_VISIVEIS = 5
+LINHAS_VISIVEIS = 3
 
 
 class DetalhesDialog(QDialog):
@@ -125,23 +125,25 @@ class DashboardView(QWidget):
         self.tbl_status.setVisible(False)
         layout.addWidget(self.tbl_status)
 
-        # -- centro: campo CPF/senha + Liberar único (moderno, centralizado) ---
+        # -- centro: campo CPF/senha + Liberar único (moderno, à direita) ---
         centro = QFrame(self)
         centro.setObjectName("CatracaCentro")
         huni = QHBoxLayout(centro)
         huni.setContentsMargins(12, 12, 12, 12)
         huni.setSpacing(12)
+        huni.addStretch(1)
         self.edt_unico = QLineEdit()
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
-        self.edt_unico.setMinimumHeight(40)
-        self.edt_unico.setStyleSheet("font-size: 15px; padding: 8px;")
+        self.edt_unico.setMinimumHeight(32)
+        self.edt_unico.setMaximumWidth(280)
+        self.edt_unico.setStyleSheet("font-size: 14px; padding: 6px;")
         self.btn_liberar = QPushButton("Liberar catraca")
         self.btn_liberar.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
-        self.btn_liberar.setMinimumHeight(40)
-        self.btn_liberar.setMinimumWidth(160)
-        self.btn_liberar.setStyleSheet("font-size: 15px; font-weight: bold; padding: 8px 24px;")
-        huni.addWidget(self.edt_unico, 2)
+        self.btn_liberar.setMinimumHeight(32)
+        self.btn_liberar.setMinimumWidth(140)
+        self.btn_liberar.setStyleSheet("font-size: 14px; font-weight: bold; padding: 6px 20px;")
+        huni.addWidget(self.edt_unico)
         huni.addWidget(self.btn_liberar)
         layout.addWidget(centro)
 
