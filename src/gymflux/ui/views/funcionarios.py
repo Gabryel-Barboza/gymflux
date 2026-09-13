@@ -212,29 +212,8 @@ class FuncionariosView(QWidget):
         self.recarregar()
 
     def _editar(self) -> None:
-        func_id = self._selecionado()
-        if func_id is None:
-            return
-        func = self.vm.buscar(func_id)
-        if func is None:
-            QMessageBox.warning(self, "Funcionários", "Funcionário não encontrado.")
-            return
-        dlg = NovoFuncionarioDialog(self, titulo=f"Editar funcionário — {func.nome}")
-        dlg.preencher(func.nome, func.horarios, func.dias)
-        if dlg.exec() != QDialog.DialogCode.Accepted:
-            return
-        try:
-            self.vm.atualizar(
-                func_id,
-                nome=dlg.edt_nome.text(),
-                senha=dlg.edt_senha.text(),
-                horarios=dlg.edt_horarios.text(),
-                dias=dlg.edt_dias.text(),
-            )
-        except ValueError as e:
-            QMessageBox.warning(self, "Funcionários", str(e))
-            return
-        self.recarregar()
+        # Editar via perfil editável (distinto de Abrir perfil que é só visualização)
+        self._editar_via_perfil()
 
     def _alternar_ativo(self) -> None:
         func_id = self._selecionado()

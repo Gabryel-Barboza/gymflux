@@ -67,5 +67,24 @@ class PlanosViewModel:
         return plano
 
     def remover(self, plano_id: str) -> None:
-        self.repo.remover(plano_id)
-        self._commit()
+        try:
+            self.repo.remover(plano_id)
+        except Exception:
+            # garante que sessão volte a estado limpo antes de propagar
+            try:
+                sess = getattr(self.repo, "session", None)
+                if sess is not None:
+                    sess.rollback()
+            except Exception:
+                pass
+            raise
+        try:
+            self._commit()
+        except Exception:
+            try:
+                sess = getattr(self.repo, "session", None)
+                if sess is not None:
+                    sess.rollback()
+            except Exception:
+                pass
+            raise

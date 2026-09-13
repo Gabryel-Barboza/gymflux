@@ -1,5 +1,6 @@
 """FuncionarioRepository — Protocol + SQLAlchemy impl + Memória."""
 
+# ruff: noqa: SIM105
 from __future__ import annotations
 
 from typing import Protocol
@@ -45,40 +46,113 @@ class FuncionarioRepositorySQLAlchemy:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def _ensure_clean(self) -> None:
+        try:
+            if not self.session.is_active:
+                self.session.rollback()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+
     def salvar(self, funcionario: Funcionario) -> Funcionario:
-        existing = self.session.get(FuncionarioModel, funcionario.id)
-        if existing is None:
-            self.session.add(_domain_to_model(funcionario))
-        else:
-            existing.nome = funcionario.nome
-            existing.senha_hash = funcionario.senha_hash
-            existing.ativo = bool(funcionario.ativo)
-            existing.horarios = funcionario.horarios
-            existing.dias = funcionario.dias
-        self.session.flush()
+        self._ensure_clean()
+        try:
+            existing = self.session.get(FuncionarioModel, funcionario.id)
+            if existing is None:
+                self.session.add(_domain_to_model(funcionario))
+            else:
+                existing.nome = funcionario.nome
+                existing.senha_hash = funcionario.senha_hash
+                existing.ativo = bool(funcionario.ativo)
+                existing.horarios = funcionario.horarios
+                existing.dias = funcionario.dias
+            self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
         return funcionario
 
     def buscar_por_id(self, funcionario_id: str) -> Funcionario | None:
-        m = self.session.get(FuncionarioModel, funcionario_id)
-        return _model_to_domain(m) if m else None
+        self._ensure_clean()
+        try:
+            m = self.session.get(FuncionarioModel, funcionario_id)
+            return _model_to_domain(m) if m else None
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                m = self.session.get(FuncionarioModel, funcionario_id)
+                return _model_to_domain(m) if m else None
+            raise
 
     def listar(self) -> list[Funcionario]:
-        stmt = select(FuncionarioModel)
-        return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        self._ensure_clean()
+        try:
+            stmt = select(FuncionarioModel)
+            return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(FuncionarioModel)
+                return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+            raise
 
     def remover(self, funcionario_id: str) -> None:
-        m = self.session.get(FuncionarioModel, funcionario_id)
-        if m:
-            self.session.delete(m)
-            self.session.flush()
+        self._ensure_clean()
+        try:
+            m = self.session.get(FuncionarioModel, funcionario_id)
+            if m:
+                self.session.delete(m)
+                self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
 
     def total(self) -> int:
-        stmt = select(FuncionarioModel)
-        return len(self.session.execute(stmt).scalars().all())
+        self._ensure_clean()
+        try:
+            stmt = select(FuncionarioModel)
+            return len(self.session.execute(stmt).scalars().all())
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(FuncionarioModel)
+                return len(self.session.execute(stmt).scalars().all())
+            raise
 
     def limpar(self) -> None:
-        self.session.query(FuncionarioModel).delete()
-        self.session.flush()
+        self._ensure_clean()
+        try:
+            self.session.query(FuncionarioModel).delete()
+            self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
 
 
 class FuncionarioRepositoryMemoria:

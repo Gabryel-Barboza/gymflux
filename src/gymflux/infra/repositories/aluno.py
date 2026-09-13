@@ -1,5 +1,6 @@
 """AlunoRepository — Protocol + SQLAlchemy impl + Memória fallback."""
 
+# ruff: noqa: SIM105, E501
 from __future__ import annotations
 
 from typing import Protocol
@@ -63,68 +64,172 @@ class AlunoRepositorySQLAlchemy:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def _ensure_clean(self) -> None:
+        try:
+            if not self.session.is_active:
+                self.session.rollback()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+
     def salvar(self, aluno: Aluno) -> Aluno:
-        existing = self.session.get(AlunoModel, aluno.id)
-        if existing is None:
-            model = _domain_to_model(aluno)
-            self.session.add(model)
-        else:
-            existing.nome = aluno.nome
-            existing.cpf = aluno.cpf
-            existing.data_nasc = aluno.data_nasc
-            existing.telefone = aluno.telefone
-            existing.email = aluno.email
-            existing.status = (
-                aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status)
-            )
-            existing.observacoes = aluno.observacoes
-            existing.endereco = aluno.endereco
-            existing.bloqueado_manual = bool(aluno.bloqueado_manual)
-            existing.senha = aluno.senha
-        self.session.flush()
+        self._ensure_clean()
+        try:
+            existing = self.session.get(AlunoModel, aluno.id)
+            if existing is None:
+                model = _domain_to_model(aluno)
+                self.session.add(model)
+            else:
+                existing.nome = aluno.nome
+                existing.cpf = aluno.cpf
+                existing.data_nasc = aluno.data_nasc
+                existing.telefone = aluno.telefone
+                existing.email = aluno.email
+                existing.status = (
+                    aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status)
+                )
+                existing.observacoes = aluno.observacoes
+                existing.endereco = aluno.endereco
+                existing.bloqueado_manual = bool(aluno.bloqueado_manual)
+                existing.senha = aluno.senha
+            self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
         return aluno
 
     def buscar_por_id(self, aluno_id: str) -> Aluno | None:
-        m = self.session.get(AlunoModel, aluno_id)
-        return _model_to_domain(m) if m else None
+        self._ensure_clean()
+        try:
+            m = self.session.get(AlunoModel, aluno_id)
+            return _model_to_domain(m) if m else None
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                m = self.session.get(AlunoModel, aluno_id)
+                return _model_to_domain(m) if m else None
+            raise
 
     def buscar_por_cpf(self, cpf: str) -> Aluno | None:
-        digits = "".join(c for c in cpf if c.isdigit())
-        # busca normalizada: compara digits
-        # como DB armazena cpf como está, fazemos loop ou like
-        # para performance aceitável em <5k registros, busca via SQL + filtra
-        stmt = select(AlunoModel).where(AlunoModel.cpf.isnot(None))
-        for row in self.session.execute(stmt).scalars():
-            if row.cpf and "".join(c for c in row.cpf if c.isdigit()) == digits:
-                return _model_to_domain(row)
-        return None
+        self._ensure_clean()
+        try:
+            digits = "".join(c for c in cpf if c.isdigit())
+            stmt = select(AlunoModel).where(AlunoModel.cpf.isnot(None))
+            for row in self.session.execute(stmt).scalars():
+                if row.cpf and "".join(c for c in row.cpf if c.isdigit()) == digits:
+                    return _model_to_domain(row)
+            return None
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                digits = "".join(c for c in cpf if c.isdigit())
+                stmt = select(AlunoModel).where(AlunoModel.cpf.isnot(None))
+                for row in self.session.execute(stmt).scalars():
+                    if row.cpf and "".join(c for c in row.cpf if c.isdigit()) == digits:
+                        return _model_to_domain(row)
+                return None
+            raise
 
     def buscar_por_senha(self, senha: str) -> Aluno | None:
         """Lookup direto pelo PIN (texto) — Fase 4.8, sem varredura."""
-        codigo = senha.strip()
-        if not codigo:
-            return None
-        stmt = select(AlunoModel).where(AlunoModel.senha == codigo)
-        m = self.session.execute(stmt).scalars().first()
-        return _model_to_domain(m) if m else None
+        self._ensure_clean()
+        try:
+            codigo = senha.strip()
+            if not codigo:
+                return None
+            stmt = select(AlunoModel).where(AlunoModel.senha == codigo)
+            m = self.session.execute(stmt).scalars().first()
+            return _model_to_domain(m) if m else None
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                codigo = senha.strip()
+                if not codigo:
+                    return None
+                stmt = select(AlunoModel).where(AlunoModel.senha == codigo)
+                m = self.session.execute(stmt).scalars().first()
+                return _model_to_domain(m) if m else None
+            raise
 
     def listar(self) -> list[Aluno]:
-        stmt = select(AlunoModel)
-        return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        self._ensure_clean()
+        try:
+            stmt = select(AlunoModel)
+            return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(AlunoModel)
+                return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+            raise
 
     def remover(self, aluno_id: str) -> None:
-        m = self.session.get(AlunoModel, aluno_id)
-        if m:
-            self.session.delete(m)
-            self.session.flush()
+        self._ensure_clean()
+        try:
+            m = self.session.get(AlunoModel, aluno_id)
+            if m:
+                self.session.delete(m)
+                self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
 
     def total(self) -> int:
-        stmt = select(AlunoModel)
-        return len(self.session.execute(stmt).scalars().all())
+        self._ensure_clean()
+        try:
+            stmt = select(AlunoModel)
+            return len(self.session.execute(stmt).scalars().all())
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(AlunoModel)
+                return len(self.session.execute(stmt).scalars().all())
+            raise
 
     def limpar(self) -> None:
-        self.session.query(AlunoModel).delete()
-        self.session.flush()
+        self._ensure_clean()
+        try:
+            self.session.query(AlunoModel).delete()
+            self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
 
 
 # Mantido para fallback testes — re-exporta memória da Fase 1 se necessário

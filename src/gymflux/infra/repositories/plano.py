@@ -1,5 +1,6 @@
 """PlanoRepository — Protocol + SQLAlchemy."""
 
+# ruff: noqa: SIM105, E501
 from __future__ import annotations
 
 from decimal import Decimal
@@ -47,35 +48,119 @@ class PlanoRepositorySQLAlchemy:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def _ensure_clean(self) -> None:
+        # se transação anterior falhou, limpa para próxima operação
+        try:
+            if not self.session.is_active:
+                self.session.rollback()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+
     def salvar(self, plano: Plano) -> Plano:
-        existing = self.session.get(PlanoModel, plano.id)
-        if existing is None:
-            model = _domain_to_model(plano)
-            self.session.add(model)
-        else:
-            existing.nome = plano.nome
-            existing.duracao_dias = plano.duracao_dias
-            existing.valor = Decimal(str(plano.valor))
-            existing.tolerancia_dias = plano.tolerancia_dias
-            existing.tipo = (
-                plano.tipo.value if isinstance(plano.tipo, TipoPlano) else str(plano.tipo)
-            )
-        self.session.flush()
+        self._ensure_clean()
+        try:
+            existing = self.session.get(PlanoModel, plano.id)
+            if existing is None:
+                model = _domain_to_model(plano)
+                self.session.add(model)
+            else:
+                existing.nome = plano.nome
+                existing.duracao_dias = plano.duracao_dias
+                existing.valor = Decimal(str(plano.valor))
+                existing.tolerancia_dias = plano.tolerancia_dias
+                existing.tipo = (
+                    plano.tipo.value if isinstance(plano.tipo, TipoPlano) else str(plano.tipo)
+                )
+            self.session.flush()
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
         return plano
 
     def buscar_por_id(self, plano_id: str) -> Plano | None:
-        m = self.session.get(PlanoModel, plano_id)
-        return _model_to_domain(m) if m else None
+        self._ensure_clean()
+        try:
+            m = self.session.get(PlanoModel, plano_id)
+            return _model_to_domain(m) if m else None
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                m = self.session.get(PlanoModel, plano_id)
+                return _model_to_domain(m) if m else None
+            raise
 
     def listar(self) -> list[Plano]:
-        stmt = select(PlanoModel)
-        return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        self._ensure_clean()
+        try:
+            stmt = select(PlanoModel)
+            return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(PlanoModel)
+                return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+            raise
 
     def remover(self, plano_id: str) -> None:
-        m = self.session.get(PlanoModel, plano_id)
-        if m:
-            self.session.delete(m)
-            self.session.flush()
+        from sqlalchemy.exc import IntegrityError, PendingRollbackError
+
+        self._ensure_clean()
+        # verificação prévia: plano em uso por matrículas?
+        try:
+            from sqlalchemy import select as sa_select
+
+            from gymflux.infra.models.matricula import MatriculaModel
+
+            stmt = sa_select(MatriculaModel.id).where(MatriculaModel.plano_id == plano_id).limit(1)
+            if self.session.execute(stmt).first() is not None:
+                raise ValueError("Plano em uso por alunos — remova as matrículas primeiro")
+        except ValueError:
+            raise
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            self._ensure_clean()
+        try:
+            m = self.session.get(PlanoModel, plano_id)
+            if m:
+                self.session.delete(m)
+                self.session.flush()
+        except IntegrityError as e:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise ValueError("Plano em uso — não pode ser removido enquanto houver matrículas") from e
+        except PendingRollbackError as e:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise ValueError("Sessão em estado inválido — tente novamente") from e
+        except Exception:
+            try:
+                self.session.rollback()
+            except Exception:
+                pass
+            raise
 
     def total(self) -> int:
         stmt = select(PlanoModel)

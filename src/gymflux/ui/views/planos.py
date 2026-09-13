@@ -252,9 +252,36 @@ class PlanosView(QWidget):
 
     def _excluir(self, plano_id: str, nome: str) -> None:
         confirma = QMessageBox.question(
-            self, "Planos", f"Remover o plano '{nome}'?", QMessageBox.StandardButton.Yes
+            self,
+            "Planos",
+            f"Remover o plano '{nome}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirma != QMessageBox.StandardButton.Yes:
             return
-        self.vm.remover(plano_id)
+        try:
+            self.vm.remover(plano_id)
+        except ValueError as e:
+            # tenta garantir rollback extra se viewmodel não limpou
+            try:
+                sess = getattr(self.vm.repo, "session", None)
+                if sess is not None:
+                    sess.rollback()
+            except Exception:
+                pass
+            QMessageBox.warning(self, "Planos", str(e))
+            return
+        except Exception as e:
+            try:
+                sess = getattr(self.vm.repo, "session", None)
+                if sess is not None:
+                    sess.rollback()
+            except Exception:
+                pass
+            # PendingRollbackError ou IntegrityError já traduzidos, mas garante mensagem
+            msg = str(e)
+            if "FOREIGN KEY" in msg or "constraint" in msg.lower():
+                msg = "Plano em uso — remova as matrículas primeiro"
+            QMessageBox.warning(self, "Planos", msg)
+            return
         self.recarregar()
