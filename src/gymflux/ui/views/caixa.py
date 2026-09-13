@@ -166,10 +166,22 @@ class CaixaView(QWidget):
 
         # -- área principal ----------------------------------------------------
         principal = QVBoxLayout()
+        # filtragem similar alunos: busca por aluno + ordenação por header
+        hbusca = QHBoxLayout()
+        self.edt_busca = QLineEdit()
+        self.edt_busca.setPlaceholderText("Buscar por aluno...")
+        hbusca.addWidget(self.edt_busca, 3)
+        hbusca.addStretch(1)
+        principal.addLayout(hbusca)
         self.tbl = QTableWidget(0, len(self.COLUNAS))
         self.tbl.setHorizontalHeaderLabels(list(self.COLUNAS))
         self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl.horizontalHeader().setStretchLastSection(True)
+        self.tbl.horizontalHeader().setSectionsClickable(True)
+        self.tbl.setSortingEnabled(True)
+        self.tbl.horizontalHeader().setSortIndicatorShown(True)
+        self._sort_col = -1
+        self._sort_asc = True
         principal.addWidget(self.tbl, 1)
 
         hbtn = QHBoxLayout()
@@ -197,6 +209,8 @@ class CaixaView(QWidget):
         # compat: mantém table de combo recarga etc
         self.cmb_mes.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
+        self.edt_busca.textChanged.connect(lambda _t: self.recarregar())
+        self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)
         self.btn_novo.clicked.connect(self._novo)
         self.btn_fechar.clicked.connect(self._fechar)
         self.btn_reabrir.clicked.connect(self._reabrir)
@@ -270,6 +284,13 @@ class CaixaView(QWidget):
         self.btn_fechar.setVisible(not fechado)
 
         linhas = self.vm.por_mes(mes)
+        # filtro similar alunos: busca por nome/aluno
+        termo = self.edt_busca.text().strip().lower()
+        if termo:
+            linhas = [(p, n) for (p, n) in linhas if termo in n.lower()]
+        # ordenação desativa durante preenchimento
+        sorting = self.tbl.isSortingEnabled()
+        self.tbl.setSortingEnabled(False)
         self.tbl.setRowCount(len(linhas))
         for row, (p, nome) in enumerate(linhas):
             if p.pago:
@@ -291,6 +312,19 @@ class CaixaView(QWidget):
                 if not p.pago and p.dias_atraso(hoje) > 0:
                     item.setBackground(QColor("#ffe0e0"))
                 self.tbl.setItem(row, col, item)
+        self.tbl.setSortingEnabled(sorting)
+        if self._sort_col >= 0:
+            order = Qt.SortOrder.AscendingOrder if self._sort_asc else Qt.SortOrder.DescendingOrder
+            self.tbl.sortByColumn(self._sort_col, order)
+
+    def _ordenar_coluna(self, col: int) -> None:
+        if self._sort_col == col:
+            self._sort_asc = not self._sort_asc
+        else:
+            self._sort_col = col
+            self._sort_asc = True
+        order = Qt.SortOrder.AscendingOrder if self._sort_asc else Qt.SortOrder.DescendingOrder
+        self.tbl.sortByColumn(col, order)
 
     # -- ações -------------------------------------------------------------------
     def _novo(self) -> None:

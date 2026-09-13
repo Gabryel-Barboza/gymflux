@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QPushButton,
+    QSizePolicy,
     QStyle,
     QTableWidget,
     QTableWidgetItem,
@@ -187,18 +188,23 @@ class DashboardView(QWidget):
         self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- logs / giros lado a lado — QFrame com header (borda unica, sem pane esticado) --
+        # -- logs / giros lado a lado — QFrame hugging tabela (borda cola no conteudo) --
+        # empurra containers para baixo, sem centro vertical
+        layout.addStretch(1)
         hmid = QHBoxLayout()
         hmid.setSpacing(12)
+        hmid.setAlignment(Qt.AlignmentFlag.AlignBottom)
         frame_log = QFrame()
         frame_log.setObjectName("CatracaFrameLog")
         frame_log.setStyleSheet(
             "QFrame#CatracaFrameLog { border: 1px solid #2A3138; "
             "border-radius: 8px; padding: 6px; }"
         )
+        frame_log.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         lay_log = QVBoxLayout(frame_log)
         lay_log.setContentsMargins(6, 6, 6, 6)
         lay_log.setSpacing(6)
+        lay_log.setAlignment(Qt.AlignmentFlag.AlignTop)
         lbl_log = QLabel("Acessos de hoje")
         lbl_log.setStyleSheet("font-weight: bold; border: none;")
         lay_log.addWidget(lbl_log)
@@ -211,8 +217,12 @@ class DashboardView(QWidget):
         self.tbl_log.horizontalHeader().setHighlightSections(False)
         self.tbl_log.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         # borda cola no conteudo: maxHeight = cabecalho + 8 linhas apenas
-        self.tbl_log.setMaximumHeight(self._altura_tabela(self.tbl_log, LINHAS_MAX_TABELA))
+        tbl_h = self._altura_tabela(self.tbl_log, LINHAS_MAX_TABELA)
+        self.tbl_log.setMaximumHeight(tbl_h)
+        self.tbl_log.setMinimumHeight(tbl_h)
         lay_log.addWidget(self.tbl_log)
+        # frame hugging: header + tabela + margins
+        frame_log.setMaximumHeight(tbl_h + 30 + 12)
         hmid.addWidget(frame_log, 3)
 
         frame_giros = QFrame()
@@ -221,15 +231,20 @@ class DashboardView(QWidget):
             "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; "
             "border-radius: 8px; padding: 6px; }"
         )
+        frame_giros.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         lay_giros = QVBoxLayout(frame_giros)
         lay_giros.setContentsMargins(6, 6, 6, 6)
         lay_giros.setSpacing(6)
+        lay_giros.setAlignment(Qt.AlignmentFlag.AlignTop)
         lbl_giros = QLabel("Giros")
         lbl_giros.setStyleSheet("font-weight: bold; border: none;")
         lay_giros.addWidget(lbl_giros)
         self.lst_giros = QListWidget()
-        self.lst_giros.setMaximumHeight(self._altura_lista(LINHAS_MAX_TABELA))
+        lst_h = self._altura_lista(LINHAS_MAX_TABELA)
+        self.lst_giros.setMaximumHeight(lst_h)
+        self.lst_giros.setMinimumHeight(lst_h)
         lay_giros.addWidget(self.lst_giros)
+        frame_giros.setMaximumHeight(lst_h + 30 + 12)
         hmid.addWidget(frame_giros, 1)
         layout.addLayout(hmid)
 
