@@ -116,7 +116,9 @@ class CaixaView(QWidget):
         sidebar.addWidget(self.lbl_total)
         sidebar.addWidget(self.lbl_totais)
         self.btn_fechar = QPushButton("Fechar caixa do mês")
+        self.btn_reabrir = QPushButton("Reabrir caixa")
         sidebar.addWidget(self.btn_fechar)
+        sidebar.addWidget(self.btn_reabrir)
         sidebar.addStretch(1)
         side_widget = QWidget()
         side_widget.setLayout(sidebar)
@@ -158,6 +160,7 @@ class CaixaView(QWidget):
         self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
         self.btn_novo.clicked.connect(self._novo)
         self.btn_fechar.clicked.connect(self._fechar)
+        self.btn_reabrir.clicked.connect(self._reabrir)
         self.recarregar()
 
     def _filtrar_alunos(self, texto: str) -> None:
@@ -224,6 +227,8 @@ class CaixaView(QWidget):
         fechado = mes is not None and self.vm.mes_fechado(mes)
         self.lbl_fechado.setStyleSheet(estilo_selo(self.vm.ui_config.tema))
         self.lbl_fechado.setVisible(fechado)
+        self.btn_reabrir.setVisible(fechado)
+        self.btn_fechar.setVisible(not fechado)
 
         linhas = self.vm.por_mes(mes)
         self.tbl.setRowCount(len(linhas))
@@ -301,4 +306,29 @@ class CaixaView(QWidget):
         QMessageBox.information(
             self, "Caixa", f"Caixa de {mes} fechado (R$ {fechamento.total:.2f})."
         )
+        self.recarregar()
+
+    def _reabrir(self) -> None:
+        mes = self._mes_atual()
+        if mes is None:
+            QMessageBox.information(self, "Caixa", "Selecione um mês para reabrir.")
+            return
+        if not self.vm.mes_fechado(mes):
+            QMessageBox.information(self, "Caixa", f"Caixa de {mes} já está aberto.")
+            return
+        confirma = QMessageBox.question(
+            self,
+            "Caixa",
+            f"Reabrir o caixa de {mes}? Registros voltarão a ser permitidos.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirma != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.vm.reabrir_mes(mes)
+        except ValueError as e:
+            QMessageBox.warning(self, "Caixa", str(e))
+            return
+        logger.info(f"[UI] caixa {mes} reaberto")
+        QMessageBox.information(self, "Caixa", f"Caixa de {mes} reaberto.")
         self.recarregar()

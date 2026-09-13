@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from datetime import date
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, QStringListModel, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QCompleter,
     QDateEdit,
     QHBoxLayout,
     QLabel,
+    QListView,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -31,6 +33,18 @@ class FrequenciaView(QWidget):
         filtros = QHBoxLayout()
         filtros.addWidget(QLabel("Aluno:"))
         self.cmb_aluno = QComboBox()
+        self.cmb_aluno.setEditable(True)
+        self.cmb_aluno.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.cmb_aluno.setMaxVisibleItems(12)
+        # QCompleter + QListView + paginação 50 para 500+
+        self._completer = QCompleter(self)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._completer_model = QStringListModel(self)
+        self._completer.setModel(self._completer_model)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.cmb_aluno.setCompleter(self._completer)
+        self.cmb_aluno.setView(QListView())
         filtros.addWidget(self.cmb_aluno, 2)
         filtros.addWidget(QLabel("Mês:"))
         self.cmb_mes = QComboBox()
@@ -55,10 +69,31 @@ class FrequenciaView(QWidget):
         layout.addWidget(self.tbl, 1)
 
         self.cmb_aluno.currentIndexChanged.connect(lambda _i: self.recarregar())
+        self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
         self.cmb_mes.currentIndexChanged.connect(lambda _i: self.recarregar())
-        self.chk_dia.toggled.connect(lambda _c: self.recarregar())
+        self.chk_dia.toggled.connect(self._on_chk_dia)
         self.dat_dia.dateChanged.connect(lambda _d: self.recarregar())
         self.recarregar()
+
+    def _on_chk_dia(self, checked: bool) -> None:
+        self.dat_dia.setEnabled(checked)
+        self.recarregar()
+
+    def _filtrar_alunos(self, texto: str) -> None:
+        # paginação: mostra até 50 que contêm texto
+        if not hasattr(self, "_todos_alunos_cache"):
+            return
+        txt = texto.strip().lower()
+        filtrados = (
+            [a.nome for a in self._todos_alunos_cache if txt in a.nome.lower()]
+            if txt
+            else [a.nome for a in self._todos_alunos_cache]
+        )
+        exib = filtrados[:50]
+        self._completer_model.setStringList(exib)
+        # mantém popup se filtrado
+        if txt and exib:
+            self._completer.complete()
 
     # -- helpers ---------------------------------------------------------------
     @staticmethod
@@ -67,16 +102,29 @@ class FrequenciaView(QWidget):
 
     def _recarregar_combos(self) -> None:
         aluno_atual = self.cmb_aluno.currentData()
+        texto_atual = self.cmb_aluno.currentText()
+        self._todos_alunos_cache = self.vm.listar_alunos()
         self.cmb_aluno.blockSignals(True)
         try:
             self.cmb_aluno.clear()
             self.cmb_aluno.addItem("Todos", None)
-            for a in self.vm.listar_alunos():
+            # paginação 50
+            for a in self._todos_alunos_cache[:50]:
                 self.cmb_aluno.addItem(a.nome, a.id)
+            self._completer_model.setStringList([a.nome for a in self._todos_alunos_cache[:50]])
             if aluno_atual is not None:
                 idx = self.cmb_aluno.findData(aluno_atual)
                 if idx >= 0:
                     self.cmb_aluno.setCurrentIndex(idx)
+                else:
+                    # aluno não na primeira página, adiciona
+                    for a in self._todos_alunos_cache:
+                        if a.id == aluno_atual:
+                            self.cmb_aluno.addItem(a.nome, a.id)
+                            self.cmb_aluno.setCurrentIndex(self.cmb_aluno.findData(aluno_atual))
+                            break
+            elif texto_atual and texto_atual != "Todos":
+                self.cmb_aluno.setEditText(texto_atual)
         finally:
             self.cmb_aluno.blockSignals(False)
 

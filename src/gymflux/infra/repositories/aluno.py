@@ -35,6 +35,7 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
         email=m.email,
         status=status,
         observacoes=m.observacoes,
+        endereco=m.endereco,
         bloqueado_manual=bool(m.bloqueado_manual),
         senha=m.senha,
     )
@@ -50,6 +51,7 @@ def _domain_to_model(aluno: Aluno) -> AlunoModel:
         email=aluno.email,
         status=aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status),
         observacoes=aluno.observacoes,
+        endereco=aluno.endereco,
         bloqueado_manual=bool(aluno.bloqueado_manual),
         senha=aluno.senha,
     )
@@ -76,6 +78,7 @@ class AlunoRepositorySQLAlchemy:
                 aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status)
             )
             existing.observacoes = aluno.observacoes
+            existing.endereco = aluno.endereco
             existing.bloqueado_manual = bool(aluno.bloqueado_manual)
             existing.senha = aluno.senha
         self.session.flush()

@@ -21,6 +21,7 @@ class FechamentoRepoProto(Protocol):
     def salvar(self, fechamento: FechamentoCaixa) -> FechamentoCaixa: ...
     def buscar_por_mes(self, mes: str) -> FechamentoCaixa | None: ...
     def listar(self) -> list[FechamentoCaixa]: ...
+    def remover(self, fechamento_id: str) -> None: ...
 
 
 @dataclass
@@ -97,6 +98,15 @@ class CaixaViewModel:
         self.fechamentos.salvar(fechamento)
         self._commit()
         return fechamento
+
+    def reabrir_mes(self, mes: str) -> None:
+        """Remove fechamento do mês, liberando novos registros."""
+        mes_ok = validar_mes(mes)
+        fech = self.fechamentos.buscar_por_mes(mes_ok)
+        if fech is None:
+            raise ValueError(f"Caixa de {mes_ok} não está fechado")
+        self.fechamentos.remover(fech.id)
+        self._commit()
 
     # -- registro (bloqueia mês fechado) -------------------------------------------
     def registrar(

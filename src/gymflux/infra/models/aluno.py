@@ -21,6 +21,7 @@ class AlunoModel(Base):
     email: Mapped[str | None] = mapped_column(String(120), nullable=True, default=None)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ATIVO")
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    endereco: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     bloqueado_manual: Mapped[bool] = mapped_column(nullable=False, default=False)
     # PIN de catraca em TEXTO (Fase 4.8, decisão do dono — risco aceito).
     senha: Mapped[str | None] = mapped_column(String(8), nullable=True, default=None)

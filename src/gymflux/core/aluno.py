@@ -99,6 +99,7 @@ class Aluno:
     email: str | None = None
     status: StatusAluno = StatusAluno.ATIVO
     observacoes: str | None = None
+    endereco: str | None = None
     bloqueado_manual: bool = False
     senha: str | None = None
 

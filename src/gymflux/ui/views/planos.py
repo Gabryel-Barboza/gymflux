@@ -57,7 +57,8 @@ class NovoPlanoDialog(QDialog):
         grid.addWidget(self.spn_valor, 1, 1)
         grid.addWidget(QLabel("Tolerância (dias):"), 1, 2)
         grid.addWidget(self.spn_tol, 1, 3)
-        grid.addWidget(QLabel("Duração (dias):"), 2, 0)
+        self.lbl_dur = QLabel("Duração (dias):")
+        grid.addWidget(self.lbl_dur, 2, 0)
         grid.addWidget(self.spn_dur, 2, 1)
         layout.addLayout(grid)
         botoes = QDialogButtonBox(
@@ -71,7 +72,10 @@ class NovoPlanoDialog(QDialog):
 
     def _tipo_mudou(self, _i: int) -> None:
         tipo = self.cmb_tipo.currentData()
-        if isinstance(tipo, TipoPlano) and tipo in DURACAO_POR_TIPO:
+        is_personalizado = tipo == TipoPlano.PERSONALIZADO
+        self.lbl_dur.setVisible(is_personalizado)
+        self.spn_dur.setVisible(is_personalizado)
+        if not is_personalizado and isinstance(tipo, TipoPlano) and tipo in DURACAO_POR_TIPO:
             self.spn_dur.setValue(DURACAO_POR_TIPO[tipo])
 
     def preencher(self, plano: Plano) -> None:
@@ -101,7 +105,9 @@ class PlanosView(QWidget):
         self.area = QScrollArea()
         self.area.setWidgetResizable(True)
         self.cards_host = QWidget()
-        self.cards_layout = QGridLayout(self.cards_host)
+        self.cards_layout = QVBoxLayout(self.cards_host)
+        self.cards_layout.setSpacing(8)
+        self.cards_layout.addStretch(1)
         self.area.setWidget(self.cards_host)
         layout.addWidget(self.area, 1)
 
@@ -109,7 +115,7 @@ class PlanosView(QWidget):
         self.recarregar()
 
     def _limpar_cards(self) -> None:
-        while self.cards_layout.count():
+        while self.cards_layout.count() > 1:
             item = self.cards_layout.takeAt(0)
             w = item.widget() if item is not None else None
             if w is not None:
@@ -119,15 +125,15 @@ class PlanosView(QWidget):
         self._limpar_cards()
         planos = self.vm.listar()
         self.cards: list[tuple[str, QFrame]] = []
-        cols = 2
-        for idx, plano in enumerate(planos):
+        for plano in planos:
             card = self._montar_card(plano)
-            r, c = divmod(idx, cols)
-            self.cards_layout.addWidget(card, r, c)
+            # QVBoxLayout 1 coluna, altura mínima compacta
+            card.setMinimumHeight(90)
+            self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
             self.cards.append((plano.id, card))
         if not planos:
             vazio = QLabel("Nenhum plano cadastrado.")
-            self.cards_layout.addWidget(vazio, 0, 0)
+            self.cards_layout.insertWidget(self.cards_layout.count() - 1, vazio)
 
     def _montar_card(self, plano: Plano) -> QFrame:
         card = QFrame()

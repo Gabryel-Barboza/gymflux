@@ -61,6 +61,7 @@ class AlunosViewModel:
         telefone: str | None = None,
         email: str | None = None,
         observacoes: str | None = None,
+        endereco: str | None = None,
         senha: str | None = None,
     ) -> Aluno:
         aluno = Aluno(
@@ -71,6 +72,7 @@ class AlunosViewModel:
             telefone=(telefone.strip() or None) if telefone else None,
             email=(email.strip() or None) if email else None,
             observacoes=(observacoes.strip() or None) if observacoes else None,
+            endereco=(endereco.strip() or None) if endereco else None,
         )
         if senha and senha.strip():
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
@@ -88,6 +90,7 @@ class AlunosViewModel:
         telefone: str | None = None,
         email: str | None = None,
         observacoes: str | None = None,
+        endereco: str | None = None,
         senha: str | None = None,
         status: StatusAluno | None = None,
     ) -> Aluno:
@@ -103,6 +106,7 @@ class AlunosViewModel:
         aluno.telefone = (telefone.strip() or None) if telefone else None
         aluno.email = (email.strip() or None) if email else None
         aluno.observacoes = (observacoes.strip() or None) if observacoes else None
+        aluno.endereco = (endereco.strip() or None) if endereco else None
         if senha and senha.strip():
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
         if status is not None:

@@ -19,12 +19,15 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMenu,
     QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -68,7 +71,11 @@ class _AlunoForm(QWidget):
         self.edt_nasc.setPlaceholderText("AAAA-MM-DD (opcional)")
         self.edt_tel = QLineEdit()
         self.edt_email = QLineEdit()
-        self.edt_obs = QLineEdit()
+        self.edt_endereco = QLineEdit()
+        self.edt_endereco.setPlaceholderText("Rua, número, bairro (opcional)")
+        self.edt_obs = QTextEdit()
+        self.edt_obs.setPlaceholderText("Observações (opcional)")
+        self.edt_obs.setMinimumHeight(80)
         self.edt_senha = QLineEdit()
         self.edt_senha.setPlaceholderText("4 a 8 dígitos (opcional)")
         self.cmb_status = QComboBox()
@@ -84,16 +91,19 @@ class _AlunoForm(QWidget):
         grid.addWidget(self.edt_nasc, 1, 1)
         grid.addWidget(QLabel("Telefone:"), 1, 2)
         grid.addWidget(self.edt_tel, 1, 3)
-        # linha 2: E-mail | Observações
+        # linha 2: E-mail | Endereço
         grid.addWidget(QLabel("E-mail:"), 2, 0)
         grid.addWidget(self.edt_email, 2, 1)
-        grid.addWidget(QLabel("Observações:"), 2, 2)
-        grid.addWidget(self.edt_obs, 2, 3)
+        grid.addWidget(QLabel("Endereço:"), 2, 2)
+        grid.addWidget(self.edt_endereco, 2, 3)
         # linha 3: Senha | Status
         grid.addWidget(QLabel("Senha numérica:"), 3, 0)
         grid.addWidget(self.edt_senha, 3, 1)
         grid.addWidget(QLabel("Status:"), 3, 2)
         grid.addWidget(self.cmb_status, 3, 3)
+        # linha 4: Observações (separado, span)
+        grid.addWidget(QLabel("Observações:"), 4, 0)
+        grid.addWidget(self.edt_obs, 4, 1, 1, 3)
 
     def preencher(self, aluno: Aluno) -> None:
         self.edt_nome.setText(aluno.nome)
@@ -101,7 +111,8 @@ class _AlunoForm(QWidget):
         self.edt_nasc.setText(aluno.data_nasc.isoformat() if aluno.data_nasc else "")
         self.edt_tel.setText(aluno.telefone or "")
         self.edt_email.setText(aluno.email or "")
-        self.edt_obs.setText(aluno.observacoes or "")
+        self.edt_endereco.setText(aluno.endereco or "")
+        self.edt_obs.setPlainText(aluno.observacoes or "")
         self.edt_senha.setText(aluno.senha or "")
         self.edt_senha.setPlaceholderText("em branco = manter atual")
         idx = self.cmb_status.findData(aluno.status)
@@ -116,7 +127,8 @@ class _AlunoForm(QWidget):
             "data_nasc": self.edt_nasc.text().strip(),
             "telefone": self.edt_tel.text(),
             "email": self.edt_email.text(),
-            "observacoes": self.edt_obs.text(),
+            "observacoes": self.edt_obs.toPlainText(),
+            "endereco": self.edt_endereco.text(),
             "senha": self.edt_senha.text(),
             "status": str(status) if status is not None else StatusAluno.ATIVO.value,
         }
@@ -135,6 +147,7 @@ class NovoAlunoDialog(QDialog):
         self.edt_tel = self.form.edt_tel
         self.edt_email = self.form.edt_email
         self.edt_obs = self.form.edt_obs
+        self.edt_endereco = self.form.edt_endereco
         self.edt_senha = self.form.edt_senha
         layout.addWidget(self.form)
         botoes = QDialogButtonBox(
@@ -238,6 +251,10 @@ class PerfilAlunoDialog(QDialog):
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
+        # traduz Save -> Salvar
+        btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
+        if btn_save is not None:
+            btn_save.setText("Salvar")
         botoes.accepted.connect(self._salvar)
         botoes.rejected.connect(self.reject)
         layout.addWidget(botoes)
@@ -367,6 +384,7 @@ class PerfilAlunoDialog(QDialog):
                 telefone=d["telefone"],
                 email=d["email"],
                 observacoes=d["observacoes"],
+                endereco=d["endereco"],
                 senha=d["senha"],
                 status=status,
             )
@@ -518,20 +536,80 @@ class AlunosView(QWidget):
                 self.tbl.setItem(row, col, item)
 
     def _header_clicado(self, col: int) -> None:
-        """Clique no header filtra pela valor da coluna na linha selecionada ou primeira."""
-        row = self.tbl.currentRow()
-        if row < 0 and self.tbl.rowCount() > 0:
-            row = 0
-        if row < 0:
+        """Menu tipo Excel: lista valores únicos da coluna + busca, aplica filtro."""
+        header = self.tbl.horizontalHeader()
+        # coleta valores únicos da coluna
+        valores: set[str] = set()
+        for aluno in self.vm.alunos.listar():
+            if col == 1:
+                valores.add(aluno.nome)
+            elif col == 2:
+                valores.add(aluno.cpf or "—")
+            elif col == 3:
+                valores.add(aluno.telefone or "—")
+            elif col == 4:
+                valores.add(str(aluno.status))
+            elif col == 5:
+                valores.add("SIM" if aluno.esta_bloqueado else "não")
+            elif col == 0:
+                valores.add(aluno.id)
+        if not valores:
             return
-        item = self.tbl.item(row, col)
-        if item is None:
+        menu = QMenu(self)
+        # busca
+        edt = QLineEdit(menu)
+        edt.setPlaceholderText("Buscar...")
+        # placeholder
+        container = QWidget(menu)
+        lay = QHBoxLayout(container)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.addWidget(edt)
+        # cria QListWidget para valores filtráveis
+        lst = QListWidget(menu)
+        lst.setMaximumHeight(180)
+        for v in sorted(valores):
+            it = QListWidgetItem(v)
+            lst.addItem(it)
+        # layout menu custom: adiciona widgets via layout do menu é tricky; usa QWidgetAction
+        from PySide6.QtWidgets import QWidgetAction
+
+        wa_search = QWidgetAction(menu)
+        wa_search.setDefaultWidget(container)
+        menu.addAction(wa_search)
+        wa_list = QWidgetAction(menu)
+        wa_list.setDefaultWidget(lst)
+        menu.addAction(wa_list)
+        menu.addSeparator()
+        act_limpar = menu.addAction("Limpar filtro")
+        act_todos = menu.addAction("Todos")
+
+        def _filtrar_lista(txt: str) -> None:
+            txt_l = txt.lower()
+            for i in range(lst.count()):
+                it = lst.item(i)
+                assert it is not None
+                it.setHidden(txt_l not in it.text().lower())
+
+        edt.textChanged.connect(_filtrar_lista)
+        lst.itemClicked.connect(
+            lambda it: self._aplicar_filtro_coluna(col, it.text())  # type: ignore[arg-type]
+        )
+        act_limpar.triggered.connect(lambda: self._aplicar_filtro_coluna(col, ""))
+        act_todos.triggered.connect(lambda: self._aplicar_filtro_coluna(col, ""))
+
+        # posiciona abaixo do header
+        x = header.sectionViewportPosition(col)
+        y = header.height()
+        global_pos = header.mapToGlobal(QPoint(x, y))
+        menu.exec(global_pos)
+
+    def _aplicar_filtro_coluna(self, col: int, texto: str) -> None:
+        if not texto or texto == "—":
+            self.edt_busca.clear()
+            self.cmb_status.setCurrentIndex(0)
+            self.recarregar()
             return
-        texto = item.text().strip()
-        if texto in ("—", ""):
-            return
-        # col 1 Nome, col 2 CPF, col 4 Status
-        if col == 4:  # Status
+        if col == 4:
             try:
                 st = StatusAluno(texto)
                 idx = self.cmb_status.findData(st)
@@ -631,6 +709,7 @@ class AlunosView(QWidget):
                 telefone=d["telefone"],
                 email=d["email"],
                 observacoes=d["observacoes"],
+                endereco=d["endereco"],
                 senha=d["senha"],
             )
         except ValueError as e:
