@@ -34,6 +34,7 @@ from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
 LINHAS_VISIVEIS = 3
 LINHAS_MAX_TABELA = 8
+WALLPAPER_SCALE = 0.82  # zoom out — afastar da tela
 
 
 class DetalhesDialog(QDialog):
@@ -112,12 +113,23 @@ class DashboardView(QWidget):
         hstatus.setContentsMargins(8, 6, 8, 6)
         self.lbl_compacto = QLabel("—")
         self.lbl_compacto.setTextFormat(Qt.TextFormat.PlainText)
+        # pill envolve só o texto com padding e radius
+        self.status_pill = QFrame()
+        self.status_pill.setObjectName("StatusPill")
+        self.status_pill.setStyleSheet(
+            "QFrame#StatusPill { border: none; border-radius: 12px; background: transparent; }"
+        )
+        pill_lay = QHBoxLayout(self.status_pill)
+        pill_lay.setContentsMargins(0, 0, 0, 0)
+        pill_lay.setSpacing(0)
+        pill_lay.addWidget(self.lbl_compacto)
         self.btn_detalhes = QPushButton("Detalhes")
         self.btn_detalhes.setIcon(
             estilo.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
         )
         self.btn_detalhes.setMinimumHeight(28)
-        hstatus.addWidget(self.lbl_compacto, 1)
+        hstatus.addWidget(self.status_pill, 0)
+        hstatus.addStretch(1)
         hstatus.addWidget(self.btn_detalhes)
         layout.addWidget(header)
         self.header = header
@@ -144,9 +156,9 @@ class DashboardView(QWidget):
         # -- centro: campo CPF/senha + Liberar único (moderno, à direita) ---
         centro = QFrame(self)
         centro.setObjectName("CatracaCentro")
-        # sem fundo sólido quando wallpaper ativo (wallpaper fica atrás)
+        # borda removida — ocupa largura toda sem contorno
         centro.setStyleSheet(
-            "QFrame#CatracaCentro { border: 1px solid #C8D0D8; border-radius: 8px; }"
+            "QFrame#CatracaCentro { border: none; border-radius: 8px; background: transparent; }"
         )
         huni = QHBoxLayout(centro)
         huni.setContentsMargins(12, 12, 12, 12)
@@ -310,6 +322,23 @@ class DashboardView(QWidget):
         self._wallpaper_bg_dashboard.hide()
         # CatracaCentro transparente para mostrar fundo do dashboard
         self.centro.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        # overlay semi-transparente preto (sombra p/ leitura) — um nível abaixo do wallpaper
+        self._overlay_labels: dict[QFrame, QLabel] = {}
+        for frm in [header, centro, frame_log, frame_giros]:
+            ov = QLabel(frm)
+            ov.setObjectName(f"Overlay_{frm.objectName()}")
+            ov.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            ov.setStyleSheet("background-color: rgba(0, 0, 0, 90); border-radius: 8px;")
+            ov.hide()
+            self._overlay_labels[frm] = ov
+        # garante ordem: wallpaper no fundo, overlay no meio, conteúdo no topo
+        for frm in self._wallpaper_frames:
+            with contextlib.suppress(Exception):
+                self._overlay_labels[frm].lower()
+                self._wallpaper_labels[frm].lower()
+        with contextlib.suppress(Exception):
+            self._overlay_labels[centro].lower()
+            self._wallpaper_bg_dashboard.lower()
 
         # -- sinais ------------------------------------------------------------
         self.btn_entrada.clicked.connect(lambda: self._liberar("ENTRADA"))
@@ -350,13 +379,112 @@ class DashboardView(QWidget):
 
     # -- wallpaper por container -------------------------------------------------
     def eventFilter(self, obj, event) -> bool:  # type: ignore[override]
-        if obj in getattr(self, "_wallpaper_frames", []) and event.type() == QEvent.Type.Resize:
-            self._atualizar_wallpaper_frame(obj)  # type: ignore[arg-type]
+        if event.type() == QEvent.Type.Resize:
+            if obj in getattr(self, "_wallpaper_frames", []):
+                self._atualizar_wallpaper_frame(obj)  # type: ignore[arg-type]
+            if obj in getattr(self, "_overlay_labels", {}):
+                self._atualizar_overlay(obj)  # type: ignore[arg-type]
         return super().eventFilter(obj, event)
+
+    def _aplicar_fundo_containers(self, wallpaper_ativo: bool) -> None:
+        """Container um nível abaixo do wallpaper: semi-transp. preto ou painel do tema."""
+        from gymflux.ui.theme import paleta_do_modo
+
+        paleta = paleta_do_modo(self.vm.ui_config.tema)
+        painel = paleta.painel
+        for frm in [self.header, self.centro, self.frame_log, self.frame_giros]:
+            if wallpaper_ativo:
+                # fundo preto pouca opacidade p/ sombra/leitura — atrás do conteúdo, acima do wallpaper  # noqa: E501
+                ov = self._overlay_labels.get(frm)
+                if ov is not None:
+                    ov.setGeometry(frm.rect())
+                    ov.show()
+                    ov.lower()
+                    # garante conteúdo acima do overlay
+                    for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
+                        if not isinstance(
+                            child, (QLabel, QLineEdit, QPushButton, QTableWidget, QListWidget)
+                        ):
+                            continue
+                        with contextlib.suppress(Exception):
+                            child.raise_()
+                    # wallpaper atrás do overlay
+                    wp = self._wallpaper_labels.get(frm)
+                    if wp is not None:
+                        wp.lower()
+                    if frm is self.centro:
+                        with contextlib.suppress(Exception):
+                            self._wallpaper_bg_dashboard.lower()
+                            ov.lower()
+                            wp.lower() if wp else None  # type: ignore[attr-defined]
+                # frame transparente para wallpaper aparecer
+                base = frm.objectName()
+                if base == "CatracaCentro":
+                    frm.setStyleSheet(
+                        "QFrame#CatracaCentro { border: none; border-radius: 8px; background: transparent; }"  # noqa: E501
+                    )
+                elif base == "CatracaHeader":
+                    frm.setStyleSheet(
+                        "QFrame#CatracaHeader { border: 1px solid #C8D0D8; border-radius: 8px; background: transparent; padding: 4px; }"  # noqa: E501
+                    )
+                elif base == "CatracaFrameLog":
+                    frm.setStyleSheet(
+                        "QFrame#CatracaFrameLog { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
+                    )
+                elif base == "CatracaFrameGiros":
+                    frm.setStyleSheet(
+                        "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
+                    )
+            else:
+                ov = self._overlay_labels.get(frm)
+                if ov is not None:
+                    ov.hide()
+                # fundo sólido do tema — sem transparência
+                base = frm.objectName()
+                if base == "CatracaCentro":
+                    frm.setStyleSheet(
+                        f"QFrame#CatracaCentro {{ border: none; border-radius: 8px; background-color: {painel}; }}"  # noqa: E501
+                    )
+                elif base == "CatracaHeader":
+                    frm.setStyleSheet(
+                        f"QFrame#CatracaHeader {{ border: 1px solid #C8D0D8; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
+                    )
+                elif base == "CatracaFrameLog":
+                    frm.setStyleSheet(
+                        f"QFrame#CatracaFrameLog {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
+                    )
+                elif base == "CatracaFrameGiros":
+                    frm.setStyleSheet(
+                        f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
+                    )
+        # botões nunca transparentes — garante opaco via QSS do tema (não altera)
+
+    def sync_tema(self) -> None:
+        """Reaplica fundo dos containers após troca de tema."""
+        wallpaper_ativo = (
+            self._wallpaper_pixmap is not None
+            and not self._wallpaper_pixmap.isNull()
+            and self._wallpaper_path is not None
+        )
+        self._aplicar_fundo_containers(bool(wallpaper_ativo))
+
+    def _atualizar_overlay(self, frame: QFrame) -> None:
+        ov = self._overlay_labels.get(frame)
+        if ov is None:
+            return
+        ov.setGeometry(frame.rect())
+        ov.lower()
+        # wallpaper atrás do overlay
+        wp = self._wallpaper_labels.get(frame)
+        if wp is not None and wp.isVisible():
+            wp.lower()
+            ov.lower()
+            # mas wallpaper deve ficar atrás do overlay
+            wp.lower()
 
     def aplicar_wallpaper(self, path: str | None) -> None:
         """Aplica wallpaper: dashboard (um nível acima do centro) + 3 containers."""
-        # esconde se sem path
+        # esconde se sem path — fundo sólido
         if not path:
             self._wallpaper_pixmap = None
             self._wallpaper_path = None
@@ -364,6 +492,7 @@ class DashboardView(QWidget):
                 lbl.hide()
             with contextlib.suppress(Exception):
                 self._wallpaper_bg_dashboard.hide()
+            self._aplicar_fundo_containers(False)
             return
         p = Path(path)
         if not p.exists():
@@ -374,6 +503,7 @@ class DashboardView(QWidget):
                 lbl.hide()
             with contextlib.suppress(Exception):
                 self._wallpaper_bg_dashboard.hide()
+            self._aplicar_fundo_containers(False)
             return
         pix = QPixmap(str(p))
         if pix.isNull():
@@ -384,18 +514,36 @@ class DashboardView(QWidget):
                 lbl.hide()
             with contextlib.suppress(Exception):
                 self._wallpaper_bg_dashboard.hide()
+            self._aplicar_fundo_containers(False)
             return
         self._wallpaper_pixmap = pix
         self._wallpaper_path = str(p)
         self._atualizar_todos_wallpapers()
         for lbl in self._wallpaper_labels.values():
             lbl.show()
-            lbl.lower()
         # mostra fundo do dashboard (atrás do centro)
         with contextlib.suppress(Exception):
             self._wallpaper_bg_dashboard.show()
+        self._aplicar_fundo_containers(True)
+        # ordem correta: wallpaper fundo, overlay meio, conteúdo topo
+        with contextlib.suppress(Exception):
             self._wallpaper_bg_dashboard.lower()
-            # garante que toast fique acima
+            for frm in self._wallpaper_frames:
+                wp = self._wallpaper_labels.get(frm)
+                ov = self._overlay_labels.get(frm)
+                if wp is not None:
+                    wp.lower()
+                if ov is not None:
+                    ov.lower()
+                    if wp is not None:
+                        wp.lower()
+            # centro: dashboard wallpaper atrás, overlay no meio
+            ov_centro = self._overlay_labels.get(self.centro)
+            if ov_centro is not None:
+                ov_centro.lower()
+                self._wallpaper_bg_dashboard.lower()
+                # mas overlay deve ficar acima do dashboard
+                ov_centro.raise_()
             self.toast.raise_()
 
     def _atualizar_wallpaper_frame(self, frame: QFrame) -> None:
@@ -404,18 +552,26 @@ class DashboardView(QWidget):
         lbl = self._wallpaper_labels.get(frame)
         if lbl is None:
             return
-        # cobre todo o frame (dentro da borda)
+        # zoom out — afasta da tela
+        target = QSize(
+            max(1, int(frame.width() * WALLPAPER_SCALE)),
+            max(1, int(frame.height() * WALLPAPER_SCALE)),
+        )
         lbl.setGeometry(frame.rect())
-        # escala cobrindo o frame, cortando excesso
         scaled = self._wallpaper_pixmap.scaled(
-            frame.size(),
+            target,
             Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.SmoothTransformation,
         )
-        # centraliza corte: QPixmap.scaled já expande, Label com AlignCenter corta
         lbl.setPixmap(scaled)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.lower()
+        # overlay acima do wallpaper
+        ov = self._overlay_labels.get(frame)
+        if ov is not None and ov.isVisible():
+            ov.setGeometry(frame.rect())
+            lbl.lower()
+            ov.lower()
+            lbl.lower()
 
     def _atualizar_wallpaper_dashboard(self) -> None:
         if self._wallpaper_pixmap is None or self._wallpaper_pixmap.isNull():
@@ -424,22 +580,36 @@ class DashboardView(QWidget):
         if lbl is None:
             return
         lbl.setGeometry(self.rect())
+        target = QSize(
+            max(1, int(self.width() * WALLPAPER_SCALE)),
+            max(1, int(self.height() * WALLPAPER_SCALE)),
+        )
         scaled = self._wallpaper_pixmap.scaled(
-            self.size(),
+            target,
             Qt.AspectRatioMode.KeepAspectRatioByExpanding,
             Qt.TransformationMode.SmoothTransformation,
         )
         lbl.setPixmap(scaled)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.lower()
-        # toast sempre acima
         with contextlib.suppress(Exception):
             self.toast.raise_()
+        # overlay do centro acima do dashboard wallpaper
+        ov = self._overlay_labels.get(self.centro)
+        if ov is not None and ov.isVisible():
+            ov.setGeometry(self.centro.rect())
+            ov.lower()
+            lbl.lower()
+            ov.raise_()
 
     def _atualizar_todos_wallpapers(self) -> None:
         for frm in getattr(self, "_wallpaper_frames", []):
             self._atualizar_wallpaper_frame(frm)
         self._atualizar_wallpaper_dashboard()
+        # overlays um nível abaixo
+        for frm, ov in getattr(self, "_overlay_labels", {}).items():
+            if ov.isVisible():
+                ov.setGeometry(frm.rect())
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
@@ -629,9 +799,16 @@ class DashboardView(QWidget):
         )
         self.lbl_compacto.setText(compacto)
         fg, bg = cores_indicador(online, self.vm.ui_config.tema)
-        self.lbl_compacto.setStyleSheet(
-            f"color: {fg};" + (f" background-color: {bg};" if bg else "")
-        )
+        # pill só no texto com padding e radius
+        self.lbl_compacto.setStyleSheet(f"color: {fg}; background: transparent;")
+        if bg:
+            self.status_pill.setStyleSheet(
+                f"QFrame#StatusPill {{ background-color: {bg}; border-radius: 12px; padding: 2px 8px; }}"  # noqa: E501
+            )
+        else:
+            self.status_pill.setStyleSheet(
+                "QFrame#StatusPill { background: transparent; border: none; }"
+            )
         for campo, valor in valores.items():
             item = self._itens_status[campo]
             item.setText(valor)

@@ -267,6 +267,10 @@ def _wire(
                             w.aplicar_wallpaper(nova.wallpaper)  # type: ignore[attr-defined]
                         else:
                             w.aplicar_wallpaper(None)  # type: ignore[attr-defined]
+                # sync tema dos containers após troca
+                if hasattr(w, "dashboard_view"):
+                    with contextlib.suppress(Exception):
+                        w.dashboard_view.sync_tema()  # type: ignore[attr-defined]
         logger.info("[UI] configurações aplicadas na sessão")
 
     config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)

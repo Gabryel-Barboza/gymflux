@@ -199,6 +199,12 @@ QGroupBox::title {{
     padding: 0 4px;
     color: {titulo};
 }}
+QLabel {{
+    background-color: transparent;
+}}
+QGroupBox QLabel {{
+    background-color: transparent;
+}}
 QTabWidget::pane {{
     border: 1px solid {borda};
     border-radius: 8px;
