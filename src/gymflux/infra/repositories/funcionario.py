@@ -25,6 +25,8 @@ def _model_to_domain(m: FuncionarioModel) -> Funcionario:
         nome=m.nome,
         senha_hash=m.senha_hash,
         ativo=bool(m.ativo),
+        horarios=m.horarios,
+        dias=m.dias,
     )
 
 
@@ -34,6 +36,8 @@ def _domain_to_model(f: Funcionario) -> FuncionarioModel:
         nome=f.nome,
         senha_hash=f.senha_hash,
         ativo=bool(f.ativo),
+        horarios=f.horarios,
+        dias=f.dias,
     )
 
 
@@ -49,6 +53,8 @@ class FuncionarioRepositorySQLAlchemy:
             existing.nome = funcionario.nome
             existing.senha_hash = funcionario.senha_hash
             existing.ativo = bool(funcionario.ativo)
+            existing.horarios = funcionario.horarios
+            existing.dias = funcionario.dias
         self.session.flush()
         return funcionario
 

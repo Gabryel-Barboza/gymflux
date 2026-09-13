@@ -32,14 +32,29 @@ class FuncionariosViewModel:
     def buscar(self, funcionario_id: str) -> Funcionario | None:
         return self.repo.buscar_por_id(funcionario_id)
 
-    def cadastrar(self, *, nome: str, senha: str) -> Funcionario:
-        func = Funcionario(id=f"func-{uuid.uuid4().hex[:8]}", nome=nome.strip())
+    def cadastrar(
+        self, *, nome: str, senha: str, horarios: str | None = None, dias: str | None = None
+    ) -> Funcionario:
+        func = Funcionario(
+            id=f"func-{uuid.uuid4().hex[:8]}",
+            nome=nome.strip(),
+            horarios=(horarios.strip() or None) if horarios else None,
+            dias=(dias.strip() or None) if dias else None,
+        )
         func.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
         self.repo.salvar(func)
         self._commit()
         return func
 
-    def atualizar(self, funcionario_id: str, *, nome: str, senha: str | None = None) -> Funcionario:
+    def atualizar(
+        self,
+        funcionario_id: str,
+        *,
+        nome: str,
+        senha: str | None = None,
+        horarios: str | None = None,
+        dias: str | None = None,
+    ) -> Funcionario:
         func = self.repo.buscar_por_id(funcionario_id)
         if func is None:
             raise ValueError(f"Funcionário id={funcionario_id} não encontrado")
@@ -48,6 +63,10 @@ class FuncionariosViewModel:
         func.nome = nome.strip()
         if senha and senha.strip():
             func.definir_senha(senha)  # vazia mantém o hash atual
+        if horarios is not None:
+            func.horarios = horarios.strip() or None
+        if dias is not None:
+            func.dias = dias.strip() or None
         self.repo.salvar(func)
         self._commit()
         return func

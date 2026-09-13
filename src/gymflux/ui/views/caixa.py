@@ -132,7 +132,7 @@ class CaixaView(QWidget):
 
         # -- sidebar esquerda --------------------------------------------------
         sidebar = QVBoxLayout()
-        sidebar.setContentsMargins(0, 0, 0, 0)
+        sidebar.setContentsMargins(8, 8, 18, 8)
         self.cmb_mes = QComboBox()
         self.lbl_fechado = QLabel("FECHADO")
         self.lbl_fechado.setStyleSheet(estilo_selo(self.vm.ui_config.tema))

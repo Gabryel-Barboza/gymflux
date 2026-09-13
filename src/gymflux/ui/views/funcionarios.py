@@ -32,8 +32,14 @@ class NovoFuncionarioDialog(QDialog):
         # senha visível (texto claro) como no perfil aluno — estilo catraca
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("4 a 8 dígitos")
+        self.edt_horarios = QLineEdit()
+        self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")
+        self.edt_dias = QLineEdit()
+        self.edt_dias.setPlaceholderText("Ex.: Seg-Sex (opcional)")
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica*:", self.edt_senha)
+        form.addRow("Horários:", self.edt_horarios)
+        form.addRow("Dias:", self.edt_dias)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -41,14 +47,18 @@ class NovoFuncionarioDialog(QDialog):
         botoes.rejected.connect(self.reject)
         form.addRow(botoes)
 
-    def preencher(self, nome: str) -> None:
+    def preencher(
+        self, nome: str, horarios: str | None = None, dias: str | None = None
+    ) -> None:
         self.edt_nome.setText(nome)
         self.edt_senha.clear()
         self.edt_senha.setPlaceholderText("em branco = manter atual")
+        self.edt_horarios.setText(horarios or "")
+        self.edt_dias.setText(dias or "")
 
 
 class PerfilFuncionarioDialog(QDialog):
-    """Perfil simples (replica alunos): dados + senha visível."""
+    """Perfil simples (replica alunos): dados + senha visível + horarios/dias."""
 
     def __init__(
         self, vm: FuncionariosViewModel, funcionario_id: str, parent: QWidget | None = None
@@ -60,15 +70,23 @@ class PerfilFuncionarioDialog(QDialog):
         self._vm = vm
         self._func_id = funcionario_id
         self.setWindowTitle(f"Perfil — {func.nome}")
-        self.resize(420, 200)
+        self.resize(420, 260)
         form = QFormLayout(self)
         self.edt_nome = QLineEdit()
         self.edt_nome.setText(func.nome)
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("em branco = manter atual (4-8 dígitos)")
+        self.edt_horarios = QLineEdit()
+        self.edt_horarios.setText(func.horarios or "")
+        self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")
+        self.edt_dias = QLineEdit()
+        self.edt_dias.setText(func.dias or "")
+        self.edt_dias.setPlaceholderText("Ex.: Seg-Sex (opcional)")
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica:", self.edt_senha)
+        form.addRow("Horários:", self.edt_horarios)
+        form.addRow("Dias:", self.edt_dias)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -85,7 +103,11 @@ class PerfilFuncionarioDialog(QDialog):
             return
         try:
             self._vm.atualizar(
-                self._func_id, nome=self.edt_nome.text(), senha=self.edt_senha.text()
+                self._func_id,
+                nome=self.edt_nome.text(),
+                senha=self.edt_senha.text(),
+                horarios=self.edt_horarios.text(),
+                dias=self.edt_dias.text(),
             )
         except ValueError as e:
             QMessageBox.warning(self, "Funcionário", str(e))
@@ -94,7 +116,7 @@ class PerfilFuncionarioDialog(QDialog):
 
 
 class FuncionariosView(QWidget):
-    COLUNAS = ("ID", "Nome", "Ativo")
+    COLUNAS = ("ID", "Nome", "Ativo", "Horários", "Dias")
 
     def __init__(self, vm: FuncionariosViewModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -108,7 +130,8 @@ class FuncionariosView(QWidget):
         self.tbl.horizontalHeader().setStretchLastSection(True)
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.tbl, 1)
-
+        # empurra botões para baixo
+        layout.addStretch(1)
         hbtn = QHBoxLayout()
         self.btn_novo = QPushButton("Novo funcionário")
         self.btn_editar = QPushButton("Editar")
@@ -130,7 +153,13 @@ class FuncionariosView(QWidget):
         funcs = self.vm.listar()
         self.tbl.setRowCount(len(funcs))
         for row, f in enumerate(funcs):
-            vals = (f.id, f.nome, "SIM" if f.ativo else "não")
+            vals = (
+                f.id,
+                f.nome,
+                "SIM" if f.ativo else "não",
+                f.horarios or "—",
+                f.dias or "—",
+            )
             for col, v in enumerate(vals):
                 self.tbl.setItem(row, col, QTableWidgetItem(v))
 
@@ -150,7 +179,12 @@ class FuncionariosView(QWidget):
             QMessageBox.warning(self, "Funcionários", "Nome é obrigatório.")
             return
         try:
-            self.vm.cadastrar(nome=dlg.edt_nome.text(), senha=dlg.edt_senha.text())
+            self.vm.cadastrar(
+                nome=dlg.edt_nome.text(),
+                senha=dlg.edt_senha.text(),
+                horarios=dlg.edt_horarios.text(),
+                dias=dlg.edt_dias.text(),
+            )
         except ValueError as e:
             QMessageBox.warning(self, "Funcionários", str(e))
             return
@@ -165,11 +199,17 @@ class FuncionariosView(QWidget):
             QMessageBox.warning(self, "Funcionários", "Funcionário não encontrado.")
             return
         dlg = NovoFuncionarioDialog(self, titulo=f"Editar funcionário — {func.nome}")
-        dlg.preencher(func.nome)
+        dlg.preencher(func.nome, func.horarios, func.dias)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:
-            self.vm.atualizar(func_id, nome=dlg.edt_nome.text(), senha=dlg.edt_senha.text())
+            self.vm.atualizar(
+                func_id,
+                nome=dlg.edt_nome.text(),
+                senha=dlg.edt_senha.text(),
+                horarios=dlg.edt_horarios.text(),
+                dias=dlg.edt_dias.text(),
+            )
         except ValueError as e:
             QMessageBox.warning(self, "Funcionários", str(e))
             return

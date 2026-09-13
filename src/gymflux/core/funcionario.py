@@ -19,6 +19,8 @@ class Funcionario:
     nome: str
     senha_hash: str | None = None
     ativo: bool = True
+    horarios: str | None = None
+    dias: str | None = None
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():

@@ -670,6 +670,10 @@ class AlunosView(QWidget):
         self.tbl.horizontalHeader().setStretchLastSection(True)
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tbl.horizontalHeader().setSectionsClickable(True)
+        self.tbl.setSortingEnabled(True)
+        self.tbl.horizontalHeader().setSortIndicatorShown(True)
+        self._sort_col = -1
+        self._sort_asc = True
         layout.addWidget(self.tbl, 1)
 
         hbtn = QHBoxLayout()
@@ -700,7 +704,7 @@ class AlunosView(QWidget):
         self.edt_busca.textChanged.connect(lambda _t: self.recarregar())
         self.cmb_status.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._abrir_perfil())
-        self.tbl.horizontalHeader().sectionClicked.connect(self._header_clicado)
+        self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)
         self.tbl.customContextMenuRequested.connect(self._menu_contexto)
         self.btn_novo.clicked.connect(self._novo)
         self.btn_bloq_toggle.clicked.connect(self._toggle_bloqueio)
@@ -727,6 +731,9 @@ class AlunosView(QWidget):
     def recarregar(self) -> None:
         status = self.cmb_status.currentData()
         alunos = self.vm.listar(busca=self.edt_busca.text(), status=status)
+        # desativa ordenação durante preenchimento para não interferir
+        sorting = self.tbl.isSortingEnabled()
+        self.tbl.setSortingEnabled(False)
         self.tbl.setRowCount(len(alunos))
         for row, a in enumerate(alunos):
             vals = (
@@ -742,6 +749,21 @@ class AlunosView(QWidget):
                 if a.esta_bloqueado:
                     item.setForeground(QBrush(QColor("#E57373")))
                 self.tbl.setItem(row, col, item)
+        self.tbl.setSortingEnabled(sorting)
+        # reaplica ordenação se já houver coluna selecionada
+        if self._sort_col >= 0:
+            order = Qt.SortOrder.AscendingOrder if self._sort_asc else Qt.SortOrder.DescendingOrder
+            self.tbl.sortByColumn(self._sort_col, order)
+
+    def _ordenar_coluna(self, col: int) -> None:
+        """SORT no header: toggle asc/desc na mesma coluna."""
+        if self._sort_col == col:
+            self._sort_asc = not self._sort_asc
+        else:
+            self._sort_col = col
+            self._sort_asc = True
+        order = Qt.SortOrder.AscendingOrder if self._sort_asc else Qt.SortOrder.DescendingOrder
+        self.tbl.sortByColumn(col, order)
 
     def _header_clicado(self, col: int) -> None:
         """Menu tipo Excel: lista valores únicos da coluna + busca, aplica filtro."""

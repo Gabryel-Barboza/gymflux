@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFrame,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -187,12 +186,20 @@ class DashboardView(QWidget):
         self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- logs / giros lado a lado com headers fixos -----------------------
+        # -- logs / giros lado a lado — QFrame com header (borda única, sem margin-top) --
         hmid = QHBoxLayout()
         hmid.setSpacing(12)
-        grp_log = QGroupBox("Acessos de hoje")
-        lay_log = QVBoxLayout(grp_log)
-        lay_log.setContentsMargins(6, 12, 6, 6)
+        frame_log = QFrame()
+        frame_log.setObjectName("CatracaFrameLog")
+        frame_log.setStyleSheet(
+            "QFrame#CatracaFrameLog { border: 1px solid #C8D0D8; border-radius: 8px; }"
+        )
+        lay_log = QVBoxLayout(frame_log)
+        lay_log.setContentsMargins(8, 8, 8, 8)
+        lay_log.setSpacing(6)
+        lbl_log = QLabel("Acessos de hoje")
+        lbl_log.setStyleSheet("font-weight: bold; border: none;")
+        lay_log.addWidget(lbl_log)
         self.tbl_log = QTableWidget(0, len(self.COLUNAS_LOG))
         self.tbl_log.setHorizontalHeaderLabels(list(self.COLUNAS_LOG))
         self.tbl_log.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -204,17 +211,25 @@ class DashboardView(QWidget):
         self.tbl_log.setMaximumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
         self.tbl_log.setMinimumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
         lay_log.addWidget(self.tbl_log)
-        hmid.addWidget(grp_log, 3)
+        hmid.addWidget(frame_log, 3)
 
-        grp_giros = QGroupBox("Giros")
-        lay_giros = QVBoxLayout(grp_giros)
-        lay_giros.setContentsMargins(6, 12, 6, 6)
+        frame_giros = QFrame()
+        frame_giros.setObjectName("CatracaFrameGiros")
+        frame_giros.setStyleSheet(
+            "QFrame#CatracaFrameGiros { border: 1px solid #C8D0D8; border-radius: 8px; }"
+        )
+        lay_giros = QVBoxLayout(frame_giros)
+        lay_giros.setContentsMargins(8, 8, 8, 8)
+        lay_giros.setSpacing(6)
+        lbl_giros = QLabel("Giros")
+        lbl_giros.setStyleSheet("font-weight: bold; border: none;")
+        lay_giros.addWidget(lbl_giros)
         self.lst_giros = QListWidget()
         self.lst_giros.setMaximumHeight(self._altura_lista(LINHAS_VISIVEIS))
         self.lst_giros.setMinimumHeight(self._altura_lista(LINHAS_VISIVEIS))
         lay_giros.addWidget(self.lst_giros)
-        hmid.addWidget(grp_giros, 1)
-        layout.addLayout(hmid, 1)
+        hmid.addWidget(frame_giros, 1)
+        layout.addLayout(hmid)
 
         # -- sinais ------------------------------------------------------------
         self.btn_entrada.clicked.connect(lambda: self._liberar("ENTRADA"))

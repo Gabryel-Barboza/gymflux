@@ -22,7 +22,7 @@ from gymflux.services.liberar_acesso import LiberarAcessoService
 from gymflux.services.registrar_pagamento import RegistrarPagamentoService
 from gymflux.ui.catraca_bridge import CatracaBridge
 from gymflux.ui.config_store import ConfigStore, UiConfig
-from gymflux.ui.theme import AZUL, ModoTema, stylesheet
+from gymflux.ui.theme import AZUL, TEXTO, ModoTema, stylesheet
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.caixa import CaixaViewModel
 from gymflux.ui.viewmodels.config import ConfigViewModel
@@ -334,7 +334,11 @@ class GymFluxMainWindow(QMainWindow):
     def _aplicar_tema_icones(self, tema) -> None:  # type: ignore[no-untyped-def]
         is_claro = tema == ModoTema.CLARO or str(tema).upper() == "CLARO"
         for i, base in enumerate(self._base_icons):
-            icon = _tint_icon(base, AZUL) if is_claro and i == self.tabs.currentIndex() else base
+            if i == self.tabs.currentIndex():
+                color = AZUL if is_claro else TEXTO  # escuro: branco #F2F5F7, não apagado
+                icon = _tint_icon(base, color)
+            else:
+                icon = base
             self.tabs.setTabIcon(i, icon)
 
     def _on_tab_changed(self, idx: int) -> None:  # type: ignore[no-untyped-def]

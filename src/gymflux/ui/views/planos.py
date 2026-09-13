@@ -105,9 +105,9 @@ class PlanosView(QWidget):
         self.area = QScrollArea()
         self.area.setWidgetResizable(True)
         self.cards_host = QWidget()
-        self.cards_layout = QVBoxLayout(self.cards_host)
+        self.cards_layout = QGridLayout(self.cards_host)
         self.cards_layout.setSpacing(8)
-        self.cards_layout.addStretch(1)
+        # sem stretch aqui; grid ocupa espaço
         self.area.setWidget(self.cards_host)
         layout.addWidget(self.area, 1)
 
@@ -115,7 +115,7 @@ class PlanosView(QWidget):
         self.recarregar()
 
     def _limpar_cards(self) -> None:
-        while self.cards_layout.count() > 1:
+        while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)
             w = item.widget() if item is not None else None
             if w is not None:
@@ -125,15 +125,17 @@ class PlanosView(QWidget):
         self._limpar_cards()
         planos = self.vm.listar()
         self.cards: list[tuple[str, QFrame]] = []
-        for plano in planos:
+        for idx, plano in enumerate(planos):
             card = self._montar_card(plano)
-            # QVBoxLayout 1 coluna, altura mínima compacta
             card.setMinimumHeight(90)
-            self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
+            card.setMaximumWidth(340)
+            # 2 colunas compactas
+            row, col = divmod(idx, 2)
+            self.cards_layout.addWidget(card, row, col)
             self.cards.append((plano.id, card))
         if not planos:
             vazio = QLabel("Nenhum plano cadastrado.")
-            self.cards_layout.insertWidget(self.cards_layout.count() - 1, vazio)
+            self.cards_layout.addWidget(vazio, 0, 0, 1, 2)
 
     def _montar_card(self, plano: Plano) -> QFrame:
         card = QFrame()

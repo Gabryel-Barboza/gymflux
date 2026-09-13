@@ -17,6 +17,8 @@ class FuncionarioModel(Base):
     nome: Mapped[str] = mapped_column(String(120), nullable=False)
     senha_hash: Mapped[str | None] = mapped_column(String(160), nullable=True, default=None)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    horarios: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    dias: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

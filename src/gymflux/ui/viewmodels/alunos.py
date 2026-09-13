@@ -41,8 +41,12 @@ class AlunosViewModel:
         digits = "".join(c for c in busca if c.isdigit())
         result: list[Aluno] = []
         for aluno in self.alunos.listar():
-            if status is not None and aluno.status != status:
-                continue
+            if status is not None:
+                if status == StatusAluno.BLOQUEADO:
+                    if not aluno.esta_bloqueado:
+                        continue
+                elif aluno.status != status:
+                    continue
             if termo:
                 nome_ok = termo in aluno.nome.lower()
                 cpf_digits = "".join(c for c in (aluno.cpf or "") if c.isdigit())
