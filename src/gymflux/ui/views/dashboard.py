@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -78,12 +78,23 @@ class DashboardView(QWidget):
         layout.setSpacing(12)
         estilo = self.style()
 
-        # -- toast overlay (não ocupa layout) ----------------------------------
+        # -- toast overlay centralizado e destacado (modal) -----------------------
         self.toast = QLabel("", self)
         self.toast.setVisible(False)
         self.toast.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.toast.setStyleSheet("padding: 10px 16px; border-radius: 8px;")
+        self.toast.setWordWrap(True)
         self.toast.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        # sombra para destacar sobre o fundo
+        try:
+            from PySide6.QtWidgets import QGraphicsDropShadowEffect
+
+            _shadow = QGraphicsDropShadowEffect(self.toast)
+            _shadow.setBlurRadius(18)
+            _shadow.setOffset(0, 4)
+            _shadow.setColor(QColor(0, 0, 0, 110))
+            self.toast.setGraphicsEffect(_shadow)
+        except Exception:
+            pass
         self._toast_timer = QTimer(self)
         self._toast_timer.setSingleShot(True)
         self._toast_timer.timeout.connect(lambda: self.toast.setVisible(False))
@@ -287,21 +298,49 @@ class DashboardView(QWidget):
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        # centraliza toast no topo
+        # centraliza toast no meio da tela
         if self.toast.isVisible():
             self.toast.adjustSize()
+            # largura proporcional, max 70% da largura
+            max_w = int(self.width() * 0.7)
+            if self.toast.width() > max_w:
+                self.toast.setMaximumWidth(max_w)
+                self.toast.adjustSize()
             x = (self.width() - self.toast.width()) // 2
-            self.toast.move(x, 12)
+            y = (self.height() - self.toast.height()) // 2
+            self.toast.move(max(8, x), max(8, y))
 
     def _mostrar_toast(self, texto: str, liberado: bool | None) -> None:
         self.toast.setText(texto)
-        extra = " padding: 10px 16px; border-radius: 8px;"
-        self.toast.setStyleSheet(self._estilo(liberado) + extra)
+        # modal destacado: padding grande, borda, fonte maior
+        extra = (
+            " padding: 18px 32px; border-radius: 12px; "
+            "border: 2px solid #2A3138; font-size: 16px; font-weight: bold; "
+            "min-width: 260px; max-width: 600px; "
+        )
+        base = self._estilo(liberado)
+        # garante contraste: adiciona borda e padding ao estilo base
+        self.toast.setStyleSheet(base + extra)
+        # fonte maior e bold
+        f = QFont(self.toast.font())
+        f.setPointSize(13)
+        f.setBold(True)
+        self.toast.setFont(f)
         self.toast.adjustSize()
+        # largura proporcional ao texto, max 70% da tela
+        max_w = int(self.width() * 0.7) if self.width() > 0 else 560
+        if self.toast.width() > max_w:
+            self.toast.setMaximumWidth(max_w)
+            self.toast.adjustSize()
+        else:
+            self.toast.setMaximumWidth(16777215)
         x = (self.width() - self.toast.width()) // 2
+        y = (self.height() - self.toast.height()) // 2
         if x < 0:
             x = 8
-        self.toast.move(x, 12)
+        if y < 0:
+            y = 8
+        self.toast.move(x, y)
         self.toast.setVisible(True)
         self.toast.raise_()
         self._toast_timer.start(4000)
