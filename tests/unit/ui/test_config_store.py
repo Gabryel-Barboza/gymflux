@@ -61,9 +61,16 @@ def test_store_arquivo_ausente_usa_fallback_porta(tmp_path):
 def test_store_corrompido_volta_aos_padroes(tmp_path):
     caminho = tmp_path / "cfg.json"
     caminho.write_text("{json quebrado", encoding="utf-8")
-    assert ConfigStore(caminho).load() == UiConfig()
+    loaded = ConfigStore(caminho).load()
+    # wallpaper default pode estar setado se assets existir
+    expected = UiConfig()
+    expected.wallpaper = ConfigStore(caminho)._default_wallpaper()
+    assert loaded == expected
     caminho.write_text(json.dumps(["lista", "nao", "dict"]), encoding="utf-8")
-    assert ConfigStore(caminho).load() == UiConfig()
+    loaded2 = ConfigStore(caminho).load()
+    expected2 = UiConfig()
+    expected2.wallpaper = ConfigStore(caminho)._default_wallpaper()
+    assert loaded2 == expected2
 
 
 def test_viewmodel_salvar_persiste_e_aplica(tmp_path):

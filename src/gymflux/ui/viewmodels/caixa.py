@@ -128,7 +128,7 @@ class CaixaViewModel:
             raise ValueError(f"Caixa de {mes} está FECHADO — registro bloqueado")
         if self.alunos.buscar(aluno_id) is None:
             raise ValueError(f"Aluno id={aluno_id} não encontrado")
-        # valida valor >0 e forma obrigatória (default PIX) — bloqueia antes de Decimal
+        # valida valor >0 e forma: None => PIX, só vazio/"-" é erro
         texto_valor = str(valor).strip()
         if not texto_valor or texto_valor == "-":
             raise ValueError("Valor é obrigatório e deve ser > 0")
@@ -138,7 +138,9 @@ class CaixaViewModel:
             raise ValueError("Valor inválido") from exc
         if dec <= Decimal("0"):
             raise ValueError("Valor deve ser > 0")
-        if forma is None or (isinstance(forma, str) and not forma.strip()) or forma == "—":
+        if forma is None:
+            forma = FormaPagamento.PIX
+        elif isinstance(forma, str) and (not forma.strip() or forma.strip() == "—"):
             raise ValueError("Forma de pagamento é obrigatória")
         result = self.pagamentos.registrar_rapido(
             id=f"pag-{uuid.uuid4().hex[:8]}",

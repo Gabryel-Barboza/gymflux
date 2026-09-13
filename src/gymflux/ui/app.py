@@ -350,11 +350,13 @@ class GymFluxMainWindow(QMainWindow):
         self._wallpaper_label.lower()
         try:
             eff = QGraphicsOpacityEffect(self._wallpaper_label)
-            eff.setOpacity(0.13)
+            eff.setOpacity(0.18)
             self._wallpaper_label.setGraphicsEffect(eff)
         except Exception:
             pass
         self._wallpaper_pixmap: QPixmap | None = None
+        self._scaled_wallpaper: QPixmap | None = None
+        self._cached_wallpaper_size: Any = None
         self.aplicar_wallpaper(ctx.config_vm.config.wallpaper)
         # garante que tabs fiquem acima do wallpaper
         self.tabs.raise_()
@@ -378,26 +380,34 @@ class GymFluxMainWindow(QMainWindow):
             if not path:
                 self._wallpaper_label.hide()
                 self._wallpaper_pixmap = None
+                self._scaled_wallpaper = None
+                self._cached_wallpaper_size = None
                 return
             p = Path(path)
             if not p.exists():
                 logger.warning(f"[UI] wallpaper não encontrado: {path}")
                 self._wallpaper_label.hide()
                 self._wallpaper_pixmap = None
+                self._scaled_wallpaper = None
+                self._cached_wallpaper_size = None
                 return
             pix = QPixmap(str(p))
             if pix.isNull():
                 self._wallpaper_label.hide()
+                self._scaled_wallpaper = None
+                self._cached_wallpaper_size = None
                 return
             self._wallpaper_pixmap = pix
             # ajusta label ao tamanho da janela
             self._wallpaper_label.setGeometry(self.rect())
-            # escala mantendo aspecto, centralizado
+            # escala mantendo aspecto, centralizado (cache)
             scaled = pix.scaled(
                 self.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
+            self._scaled_wallpaper = scaled
+            self._cached_wallpaper_size = self.size()
             self._wallpaper_label.setPixmap(scaled)
             self._wallpaper_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._wallpaper_label.show()
@@ -409,18 +419,30 @@ class GymFluxMainWindow(QMainWindow):
 
             with contextlib.suppress(Exception):
                 self._wallpaper_label.hide()
+            self._scaled_wallpaper = None
+            self._cached_wallpaper_size = None
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        # redimensiona wallpaper para cobrir janela
+        # redimensiona wallpaper para cobrir janela (com cache)
         try:
             if self._wallpaper_pixmap is not None and not self._wallpaper_pixmap.isNull():
                 self._wallpaper_label.setGeometry(self.rect())
-                scaled = self._wallpaper_pixmap.scaled(
-                    self.size(),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+                # usa cache se tamanho não mudou
+                if (
+                    self._cached_wallpaper_size is not None
+                    and self._cached_wallpaper_size == self.size()
+                    and self._scaled_wallpaper is not None
+                ):
+                    scaled = self._scaled_wallpaper
+                else:
+                    scaled = self._wallpaper_pixmap.scaled(
+                        self.size(),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    self._scaled_wallpaper = scaled
+                    self._cached_wallpaper_size = self.size()
                 self._wallpaper_label.setPixmap(scaled)
                 self._wallpaper_label.lower()
                 self.tabs.raise_()
