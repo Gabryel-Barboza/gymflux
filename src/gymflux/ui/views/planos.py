@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from loguru import logger
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -19,6 +20,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -89,7 +92,7 @@ class NovoPlanoDialog(QDialog):
 
 
 class PlanosView(QWidget):
-    """Cards em grade (2 colunas) + Editar/Excluir."""
+    """Cards verticais 1 coluna (compactos, 560px) + sidebar stats."""
 
     def __init__(self, vm: PlanosViewModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -102,14 +105,35 @@ class PlanosView(QWidget):
         hbtn.addStretch(1)
         layout.addLayout(hbtn)
 
+        main_h = QHBoxLayout()
+        # -- area cards 1 coluna centralizada 560px --
         self.area = QScrollArea()
         self.area.setWidgetResizable(True)
         self.cards_host = QWidget()
-        self.cards_layout = QGridLayout(self.cards_host)
+        self.cards_layout = QVBoxLayout(self.cards_host)
         self.cards_layout.setSpacing(8)
-        # sem stretch aqui; grid ocupa espaço
+        self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         self.area.setWidget(self.cards_host)
-        layout.addWidget(self.area, 1)
+        main_h.addWidget(self.area, 3)
+
+        # -- sidebar direita stats (para lateral não ficar vazia) --
+        self.stats_frame = QFrame()
+        self.stats_frame.setObjectName("StatsFrame")
+        self.stats_frame.setStyleSheet(
+            "QFrame#StatsFrame { border: 1px solid #2A3138; border-radius: 8px; padding: 8px; }"
+        )
+        self.stats_frame.setMaximumWidth(220)
+        stats_lay = QVBoxLayout(self.stats_frame)
+        stats_lay.setContentsMargins(8, 8, 8, 8)
+        self.lbl_stats_total = QLabel("Total: 0")
+        self.lbl_stats_media = QLabel("Média: R$ 0.00")
+        self.lbl_stats_top = QLabel("Mais usado: —")
+        for lbl in (self.lbl_stats_total, self.lbl_stats_media, self.lbl_stats_top):
+            lbl.setStyleSheet("font-weight: bold;")
+            stats_lay.addWidget(lbl)
+        stats_lay.addStretch(1)
+        main_h.addWidget(self.stats_frame, 1)
+        layout.addLayout(main_h, 1)
 
         self.btn_novo.clicked.connect(self._novo)
         self.recarregar()
@@ -125,17 +149,32 @@ class PlanosView(QWidget):
         self._limpar_cards()
         planos = self.vm.listar()
         self.cards: list[tuple[str, QFrame]] = []
-        for idx, plano in enumerate(planos):
+        for plano in planos:
             card = self._montar_card(plano)
             card.setMinimumHeight(90)
-            card.setMaximumWidth(340)
-            # 2 colunas compactas
-            row, col = divmod(idx, 2)
-            self.cards_layout.addWidget(card, row, col)
+            card.setMaximumWidth(560)
+            card.setMinimumWidth(340)
+            self.cards_layout.addWidget(card)
             self.cards.append((plano.id, card))
         if not planos:
             vazio = QLabel("Nenhum plano cadastrado.")
-            self.cards_layout.addWidget(vazio, 0, 0, 1, 2)
+            vazio.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.cards_layout.addWidget(vazio)
+        # atualiza stats
+        total = len(planos)
+        self.lbl_stats_total.setText(f"Total: {total}")
+        if total:
+            media = sum(float(p.valor) for p in planos) / total
+            self.lbl_stats_media.setText(f"Média: R$ {media:.2f}")
+            # mais usado = tipo mais frequente
+            from collections import Counter
+
+            tipos = Counter(str(p.tipo) for p in planos)
+            top, _cnt = tipos.most_common(1)[0]
+            self.lbl_stats_top.setText(f"Mais usado: {top}")
+        else:
+            self.lbl_stats_media.setText("Média: R$ 0.00")
+            self.lbl_stats_top.setText("Mais usado: —")
 
     def _montar_card(self, plano: Plano) -> QFrame:
         card = QFrame()
@@ -153,7 +192,13 @@ class PlanosView(QWidget):
         lay.addWidget(QLabel(f"Tolerância: {plano.tolerancia_dias} dias"))
         hb = QHBoxLayout()
         btn_editar = QPushButton("Editar")
-        btn_excluir = QPushButton("Excluir")
+        btn_excluir = QToolButton()
+        btn_excluir.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        btn_excluir.setToolTip("Excluir plano")
+        btn_excluir.setStyleSheet(
+            "QToolButton { color: #E57373; border: none; padding: 4px; }"
+            " QToolButton:hover { color: #FF8A8A; }"
+        )
         btn_editar.clicked.connect(lambda _c=False, pid=plano.id: self._editar(pid))
         btn_excluir.clicked.connect(
             lambda _c=False, pid=plano.id, n=plano.nome: self._excluir(pid, n)

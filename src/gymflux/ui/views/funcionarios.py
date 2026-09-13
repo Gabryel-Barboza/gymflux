@@ -61,7 +61,11 @@ class PerfilFuncionarioDialog(QDialog):
     """Perfil simples (replica alunos): dados + senha visível + horarios/dias."""
 
     def __init__(
-        self, vm: FuncionariosViewModel, funcionario_id: str, parent: QWidget | None = None
+        self,
+        vm: FuncionariosViewModel,
+        funcionario_id: str,
+        parent: QWidget | None = None,
+        read_only: bool = False,
     ) -> None:
         super().__init__(parent)
         func = vm.buscar(funcionario_id)
@@ -69,35 +73,52 @@ class PerfilFuncionarioDialog(QDialog):
             raise ValueError(f"Funcionário id={funcionario_id} não encontrado")
         self._vm = vm
         self._func_id = funcionario_id
-        self.setWindowTitle(f"Perfil — {func.nome}")
+        self._read_only = read_only
+        self.setWindowTitle(f"Perfil — {func.nome}" + (" (visualização)" if read_only else ""))
         self.resize(420, 260)
         form = QFormLayout(self)
         self.edt_nome = QLineEdit()
         self.edt_nome.setText(func.nome)
+        self.edt_nome.setReadOnly(read_only)
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("em branco = manter atual (4-8 dígitos)")
+        self.edt_senha.setText("")
+        self.edt_senha.setReadOnly(read_only)
+        if read_only:
+            self.edt_senha.setPlaceholderText("••••")
         self.edt_horarios = QLineEdit()
         self.edt_horarios.setText(func.horarios or "")
         self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")
+        self.edt_horarios.setReadOnly(read_only)
         self.edt_dias = QLineEdit()
         self.edt_dias.setText(func.dias or "")
         self.edt_dias.setPlaceholderText("Ex.: Seg-Sex (opcional)")
+        self.edt_dias.setReadOnly(read_only)
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica:", self.edt_senha)
         form.addRow("Horários:", self.edt_horarios)
         form.addRow("Dias:", self.edt_dias)
-        botoes = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-        )
-        btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
-        if btn_save is not None:
-            btn_save.setText("Salvar")
-        botoes.accepted.connect(self._salvar)
-        botoes.rejected.connect(self.reject)
+        if read_only:
+            botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            botoes.rejected.connect(self.reject)
+            # desabilita edição visualmente
+            self.edt_nome.setStyleSheet("QLineEdit { background: transparent; border: none; }")
+        else:
+            botoes = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+            )
+            btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
+            if btn_save is not None:
+                btn_save.setText("Salvar")
+            botoes.accepted.connect(self._salvar)
+            botoes.rejected.connect(self.reject)
         form.addRow(botoes)
 
     def _salvar(self) -> None:
+        if self._read_only:
+            self.reject()
+            return
         if not self.edt_nome.text().strip():
             QMessageBox.warning(self, "Funcionário", "Nome é obrigatório.")
             return
@@ -230,11 +251,26 @@ class FuncionariosView(QWidget):
         func_id = self._selecionado()
         if func_id is None:
             return
-        self.abrir_perfil_por_id(func_id)
+        self.abrir_perfil_por_id(func_id, read_only=True)
 
-    def abrir_perfil_por_id(self, funcionario_id: str) -> None:
+    def abrir_perfil_por_id(self, funcionario_id: str, read_only: bool = True) -> None:
         try:
-            dlg = PerfilFuncionarioDialog(self.vm, funcionario_id, self)
+            dlg = PerfilFuncionarioDialog(self.vm, funcionario_id, self, read_only=read_only)
+        except ValueError as e:
+            QMessageBox.warning(self, "Funcionários", str(e))
+            return
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        # só recarrega se houve edição
+        if not read_only:
+            self.recarregar()
+
+    def _editar_via_perfil(self) -> None:
+        func_id = self._selecionado()
+        if func_id is None:
+            return
+        try:
+            dlg = PerfilFuncionarioDialog(self.vm, func_id, self, read_only=False)
         except ValueError as e:
             QMessageBox.warning(self, "Funcionários", str(e))
             return
@@ -250,11 +286,11 @@ class FuncionariosView(QWidget):
         menu = QMenu(self)
         a_perfil = menu.addAction(
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
-            "Abrir perfil...",
+            "Abrir perfil",
         )
         a_editar = menu.addAction(
             self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
-            "Editar...",
+            "Editar",
         )
         a_ativar = menu.addAction("Ativar/Inativar")
         acao = menu.exec(self.tbl.viewport().mapToGlobal(pos))

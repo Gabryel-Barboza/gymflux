@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QTabWidget,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -79,7 +80,13 @@ class _AlunoForm(QWidget):
         self.edt_obs = QTextEdit()
         self.edt_obs.setPlaceholderText("Observações (opcional)")
         self.edt_obs.setMinimumHeight(80)
+        # borda destacada só no tema escuro (azul #5AC8FA, foco #3A9BC4)
+        self.edt_obs.setStyleSheet(
+            "QTextEdit { border: 1px solid #5AC8FA; border-radius: 6px; padding: 6px; }"
+            " QTextEdit:focus { border: 1px solid #3A9BC4; }"
+        )
         self.edt_senha = QLineEdit()
+        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("4 a 8 dígitos (opcional)")
         self.cmb_status = QComboBox()
         for st in StatusAluno:
@@ -116,8 +123,10 @@ class _AlunoForm(QWidget):
         self.edt_email.setText(aluno.email or "")
         self.edt_endereco.setText(aluno.endereco or "")
         self.edt_obs.setPlainText(aluno.observacoes or "")
+        # senha visivel texto claro, echo Normal, preenchido
+        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setText(aluno.senha or "")
-        self.edt_senha.setPlaceholderText("em branco = manter atual")
+        self.edt_senha.setPlaceholderText("em branco = manter")
         idx = self.cmb_status.findData(aluno.status)
         if idx >= 0:
             self.cmb_status.setCurrentIndex(idx)
@@ -217,9 +226,13 @@ class PerfilAlunoDialog(QDialog):
         lay_plano.addWidget(self.tbl_mat, 1)
         hmat = QHBoxLayout()
         self.btn_matricular = QPushButton("Matricular...")
-        self.btn_excluir_mat = QPushButton()
+        self.btn_excluir_mat = QToolButton()
         self.btn_excluir_mat.setToolTip("Excluir matrícula selecionada")
         self.btn_excluir_mat.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_mat.setStyleSheet(
+            "QToolButton { color: #E57373; border: none; padding: 4px; }"
+            " QToolButton:hover { color: #FF8A8A; }"
+        )
         self.btn_excluir_mat.setMaximumWidth(32)
         hmat.addWidget(self.btn_matricular)
         hmat.addWidget(self.btn_excluir_mat)
@@ -251,9 +264,13 @@ class PerfilAlunoDialog(QDialog):
         lay_pag.addWidget(self.tbl_pag, 1)
         hb = QHBoxLayout()
         self.btn_novo_pag = QPushButton("Novo pagamento")
-        self.btn_excluir_pag = QPushButton()
+        self.btn_excluir_pag = QToolButton()
         self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
         self.btn_excluir_pag.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_pag.setStyleSheet(
+            "QToolButton { color: #E57373; border: none; padding: 4px; }"
+            " QToolButton:hover { color: #FF8A8A; }"
+        )
         self.btn_excluir_pag.setMaximumWidth(32)
         hb.addWidget(self.btn_novo_pag)
         hb.addWidget(self.btn_excluir_pag)

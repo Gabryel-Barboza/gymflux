@@ -29,6 +29,7 @@ from gymflux.ui.theme import VERMELHO, cores_indicador, estilo_resultado
 from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
 LINHAS_VISIVEIS = 3
+LINHAS_MAX_TABELA = 8
 
 
 class DetalhesDialog(QDialog):
@@ -186,16 +187,17 @@ class DashboardView(QWidget):
         self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- logs / giros lado a lado — QFrame com header (borda única, sem margin-top) --
+        # -- logs / giros lado a lado — QFrame com header (borda unica, sem pane esticado) --
         hmid = QHBoxLayout()
         hmid.setSpacing(12)
         frame_log = QFrame()
         frame_log.setObjectName("CatracaFrameLog")
         frame_log.setStyleSheet(
-            "QFrame#CatracaFrameLog { border: 1px solid #C8D0D8; border-radius: 8px; }"
+            "QFrame#CatracaFrameLog { border: 1px solid #2A3138; "
+            "border-radius: 8px; padding: 6px; }"
         )
         lay_log = QVBoxLayout(frame_log)
-        lay_log.setContentsMargins(8, 8, 8, 8)
+        lay_log.setContentsMargins(6, 6, 6, 6)
         lay_log.setSpacing(6)
         lbl_log = QLabel("Acessos de hoje")
         lbl_log.setStyleSheet("font-weight: bold; border: none;")
@@ -208,25 +210,25 @@ class DashboardView(QWidget):
         self.tbl_log.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self.tbl_log.horizontalHeader().setHighlightSections(False)
         self.tbl_log.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.tbl_log.setMaximumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
-        self.tbl_log.setMinimumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
+        # borda cola no conteudo: maxHeight = cabecalho + 8 linhas apenas
+        self.tbl_log.setMaximumHeight(self._altura_tabela(self.tbl_log, LINHAS_MAX_TABELA))
         lay_log.addWidget(self.tbl_log)
         hmid.addWidget(frame_log, 3)
 
         frame_giros = QFrame()
         frame_giros.setObjectName("CatracaFrameGiros")
         frame_giros.setStyleSheet(
-            "QFrame#CatracaFrameGiros { border: 1px solid #C8D0D8; border-radius: 8px; }"
+            "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; "
+            "border-radius: 8px; padding: 6px; }"
         )
         lay_giros = QVBoxLayout(frame_giros)
-        lay_giros.setContentsMargins(8, 8, 8, 8)
+        lay_giros.setContentsMargins(6, 6, 6, 6)
         lay_giros.setSpacing(6)
         lbl_giros = QLabel("Giros")
         lbl_giros.setStyleSheet("font-weight: bold; border: none;")
         lay_giros.addWidget(lbl_giros)
         self.lst_giros = QListWidget()
-        self.lst_giros.setMaximumHeight(self._altura_lista(LINHAS_VISIVEIS))
-        self.lst_giros.setMinimumHeight(self._altura_lista(LINHAS_VISIVEIS))
+        self.lst_giros.setMaximumHeight(self._altura_lista(LINHAS_MAX_TABELA))
         lay_giros.addWidget(self.lst_giros)
         hmid.addWidget(frame_giros, 1)
         layout.addLayout(hmid)

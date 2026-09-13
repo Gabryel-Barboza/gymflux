@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.ui.config_store import ModoAcesso, UiConfig
-from gymflux.ui.theme import ModoTema, estilo_resultado, modo_de
+from gymflux.ui.theme import ModoTema, modo_de
 from gymflux.ui.viewmodels.config import ConfigViewModel
 
 
@@ -46,9 +47,22 @@ class ConfigView(QWidget):
         self.chk_bloq_saida = QCheckBox("Bloquear saída (NEGADO direto) [legado]")
         self.chk_bloq_entrada.setVisible(False)
         self.chk_bloq_saida.setVisible(False)
-        form_catraca.addRow("Porta catraca:", self.edt_porta)
-        form_catraca.addRow("Entrada:", self.cmb_entrada_modo)
-        form_catraca.addRow("Saída:", self.cmb_saida_modo)
+        lbl_porta = QLabel("Porta catraca:")
+        lbl_porta.setToolTip("Porta serial da catraca (ex: 1, COM3, MOCK:1)")
+        lbl_porta.setWhatsThis("Porta serial da catraca (ex: 1, COM3, MOCK:1)")
+        lbl_entrada = QLabel("Entrada:")
+        lbl_entrada.setToolTip("Modo de acesso na entrada")
+        lbl_entrada.setWhatsThis(
+            "Modo de acesso na entrada: LIVRE passa sem senha, SENHA exige identificação"
+        )
+        lbl_saida = QLabel("Saída:")
+        lbl_saida.setToolTip("Modo de acesso na saída")
+        lbl_saida.setWhatsThis(
+            "Modo de acesso na saída: LIVRE passa sem senha, SENHA exige identificação"
+        )
+        form_catraca.addRow(lbl_porta, self.edt_porta)
+        form_catraca.addRow(lbl_entrada, self.cmb_entrada_modo)
+        form_catraca.addRow(lbl_saida, self.cmb_saida_modo)
         form_catraca.addRow(self.chk_bloq_entrada)
         form_catraca.addRow(self.chk_bloq_saida)
         layout.addWidget(grp_catraca)
@@ -59,7 +73,10 @@ class ConfigView(QWidget):
         self.cmb_tema = QComboBox()
         self.cmb_tema.addItem("Escuro", ModoTema.ESCURO)
         self.cmb_tema.addItem("Claro", ModoTema.CLARO)
-        form_pers.addRow("Tema:", self.cmb_tema)
+        lbl_tema = QLabel("Tema:")
+        lbl_tema.setToolTip("Tema visual da interface")
+        lbl_tema.setWhatsThis("Tema visual da interface: escuro ou claro")
+        form_pers.addRow(lbl_tema, self.cmb_tema)
         layout.addWidget(grp_pers)
 
         # -- Categoria: Regras / Operação ---------------------------------------
@@ -75,9 +92,20 @@ class ConfigView(QWidget):
         self.spn_timeout.setRange(1, 60)
         self.spn_timeout.setSuffix(" s")
         self.chk_passback = QCheckBox("Anti-passback (RB05)")
-        form_regras.addRow("Senha mínima:", self.spn_senha_min)
-        form_regras.addRow("Tolerância:", self.spn_tolerancia)
-        form_regras.addRow("Timeout giro:", self.spn_timeout)
+        self.chk_passback.setToolTip("impede dupla entrada")
+        self.chk_passback.setWhatsThis("impede dupla entrada: bloqueia segunda entrada sem saída")
+        lbl_senha_min = QLabel("Senha mínima:")
+        lbl_senha_min.setToolTip("Mínimo de dígitos da senha numérica")
+        lbl_senha_min.setWhatsThis("Mínimo de dígitos da senha numérica (4-8)")
+        lbl_tol = QLabel("Tolerância:")
+        lbl_tol.setToolTip("dias após vencimento ainda libera")
+        lbl_tol.setWhatsThis("dias após vencimento ainda libera (RB01)")
+        lbl_timeout = QLabel("Timeout giro:")
+        lbl_timeout.setToolTip("Tempo máximo para girar a catraca após liberar")
+        lbl_timeout.setWhatsThis("Tempo máximo para girar a catraca após liberar (segundos)")
+        form_regras.addRow(lbl_senha_min, self.spn_senha_min)
+        form_regras.addRow(lbl_tol, self.spn_tolerancia)
+        form_regras.addRow(lbl_timeout, self.spn_timeout)
         form_regras.addRow(self.chk_passback)
         layout.addWidget(grp_regras)
 
@@ -89,13 +117,55 @@ class ConfigView(QWidget):
         botoes.addWidget(self.btn_salvar)
         botoes.addStretch(1)
         layout.addLayout(botoes)
-
-        self.lbl_status = QLabel("")
-        layout.addWidget(self.lbl_status)
         layout.addStretch(1)
+
+        # toast overlay (não ocupa linha, width proporcional ao texto, centered, verde #A3D65C)
+        self.lbl_status = QLabel("", self)
+        self.lbl_status.setVisible(False)
+        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_status.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.lbl_status.setStyleSheet(
+            "background-color: #A3D65C; color: #0F1113; "
+            "padding: 6px 12px; border-radius: 6px; font-weight: bold;"
+        )
+        self._toast_timer = QTimer(self)
+        self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(lambda: self.lbl_status.setVisible(False))
 
         self.btn_salvar.clicked.connect(self._salvar)
         self._carregar(self.vm.config)
+
+    def resizeEvent(self, event) -> None:  # type: ignore[override]
+        super().resizeEvent(event)
+        if self.lbl_status.isVisible():
+            self.lbl_status.adjustSize()
+            x = (self.width() - self.lbl_status.width()) // 2
+            y = (self.height() - self.lbl_status.height()) // 2
+            self.lbl_status.move(max(0, x), max(12, y))
+
+    def _mostrar_toast(self, texto: str, ok: bool) -> None:
+        self.lbl_status.setText(texto)
+        if ok:
+            self.lbl_status.setStyleSheet(
+                "background-color: #A3D65C; color: #0F1113; "
+                "padding: 6px 12px; border-radius: 6px; font-weight: bold;"
+            )
+        else:
+            self.lbl_status.setStyleSheet(
+                "background-color: #E57373; color: #0F1113; "
+                "padding: 6px 12px; border-radius: 6px; font-weight: bold;"
+            )
+        self.lbl_status.adjustSize()
+        x = (self.width() - self.lbl_status.width()) // 2
+        y = (self.height() - self.lbl_status.height()) // 2
+        if x < 0:
+            x = 8
+        if y < 0:
+            y = 12
+        self.lbl_status.move(x, y)
+        self.lbl_status.setVisible(True)
+        self.lbl_status.raise_()
+        self._toast_timer.start(3000)
 
     # -- slots -----------------------------------------------------------------
     def _carregar(self, cfg: UiConfig) -> None:
@@ -141,9 +211,7 @@ class ConfigView(QWidget):
         try:
             self.vm.salvar(cfg)
         except OSError as e:
-            self.lbl_status.setText(f"Erro ao salvar: {e}")
-            self.lbl_status.setStyleSheet(estilo_resultado(False, self.vm.config.tema))
+            self._mostrar_toast(f"Erro ao salvar: {e}", False)
             return
         self._carregar(self.vm.config)
-        self.lbl_status.setText("Configurações salvas e aplicadas.")
-        self.lbl_status.setStyleSheet(estilo_resultado(True, self.vm.config.tema))
+        self._mostrar_toast("Configurações salvas e aplicadas.", True)
