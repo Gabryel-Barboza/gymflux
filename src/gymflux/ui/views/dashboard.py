@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -148,13 +148,26 @@ class DashboardView(QWidget):
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
         self.edt_unico.setMinimumHeight(32)
-        self.edt_unico.setMaximumWidth(280)
+        self.edt_unico.setMaximumWidth(310)
         self.edt_unico.setStyleSheet("font-size: 14px; padding: 6px;")
         self.btn_liberar = QPushButton("Liberar catraca")
-        self.btn_liberar.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
+        # ícone mais destacado: maior, com tint para contraste
+        try:
+            from gymflux.ui.app import _tint_icon
+            from gymflux.ui.theme import AZUL
+
+            _icon_base = estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+            _icon_dest = _tint_icon(_icon_base, AZUL)
+            self.btn_liberar.setIcon(_icon_dest)
+        except Exception:
+            self.btn_liberar.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
+        self.btn_liberar.setIconSize(QSize(22, 22))
         self.btn_liberar.setMinimumHeight(32)
-        self.btn_liberar.setMinimumWidth(140)
-        self.btn_liberar.setStyleSheet("font-size: 14px; font-weight: bold; padding: 6px 20px;")
+        self.btn_liberar.setMinimumWidth(150)
+        self.btn_liberar.setStyleSheet(
+            "font-size: 14px; font-weight: bold; padding: 6px 20px; "
+            "border: 2px solid #5AC8FA;"
+        )
         huni.addWidget(self.edt_unico)
         huni.addWidget(self.btn_liberar)
         layout.addWidget(centro)

@@ -79,6 +79,8 @@ class UiConfig:
     # Fase 4.9: por direção, LIVRE (passa sem senha) vs SENHA (exige identificação)
     entrada_modo: ModoAcesso = ModoAcesso.SENHA
     saida_modo: ModoAcesso = ModoAcesso.LIVRE
+    # Fase 4.14: wallpaper
+    wallpaper: str | None = None
 
     def __post_init__(self) -> None:
         self.bloquear_entrada = _as_bool(self.bloquear_entrada)
@@ -92,6 +94,12 @@ class UiConfig:
         self.tema = _as_modo_tema(self.tema)
         self.entrada_modo = _as_modo_acesso(self.entrada_modo, ModoAcesso.SENHA)
         self.saida_modo = _as_modo_acesso(self.saida_modo, ModoAcesso.LIVRE)
+        # normaliza wallpaper: string vazia => None
+        if isinstance(self.wallpaper, str):
+            w = self.wallpaper.strip()
+            self.wallpaper = w or None
+        elif self.wallpaper is not None:
+            self.wallpaper = str(self.wallpaper).strip() or None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -126,23 +134,45 @@ class ConfigStore:
     def exists(self) -> bool:
         return self.caminho.exists()
 
+    def _default_wallpaper(self) -> str | None:
+        for p in (
+            Path("src/gymflux/ui/assets/wallpaper.png"),
+            Path("vendor/gymflux-logomarca.png"),
+        ):
+            if p.exists():
+                return str(p)
+        return None
+
     def load(self) -> UiConfig:
         """Lê o arquivo; ausente/corrompido => padrões (+ porta de fallback)."""
         caminho = self.caminho
         if not caminho.exists():
-            return UiConfig(porta_catraca=self.fallback_porta)
+            cfg = UiConfig(porta_catraca=self.fallback_porta)
+            # default wallpaper se existir em assets/vendor
+            if cfg.wallpaper is None:
+                cfg.wallpaper = self._default_wallpaper()
+            return cfg
         try:
             bruto = caminho.read_text(encoding="utf-8")
             data = json.loads(bruto)
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"[ConfigStore] {caminho} ilegível ({e}) — usando padrões")
-            return UiConfig(porta_catraca=self.fallback_porta)
+            cfg = UiConfig(porta_catraca=self.fallback_porta)
+            if cfg.wallpaper is None:
+                cfg.wallpaper = self._default_wallpaper()
+            return cfg
         if not isinstance(data, dict):
             logger.warning(f"[ConfigStore] {caminho} sem objeto JSON — usando padrões")
-            return UiConfig(porta_catraca=self.fallback_porta)
+            cfg = UiConfig(porta_catraca=self.fallback_porta)
+            if cfg.wallpaper is None:
+                cfg.wallpaper = self._default_wallpaper()
+            return cfg
         cfg = UiConfig.from_dict(data)
         if "porta_catraca" not in data and self.fallback_porta:
             cfg.porta_catraca = self.fallback_porta.strip() or "1"
+        # default wallpaper se chave ausente e existe em assets/vendor
+        if "wallpaper" not in data and cfg.wallpaper is None:
+            cfg.wallpaper = self._default_wallpaper()
         return cfg
 
     def save(self, cfg: UiConfig) -> Path:

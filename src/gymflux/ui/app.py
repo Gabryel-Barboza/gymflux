@@ -8,10 +8,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
-from PySide6.QtWidgets import QApplication, QMainWindow, QStyle, QTabWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (
+    QApplication,
+    QGraphicsOpacityEffect,
+    QLabel,
+    QMainWindow,
+    QStyle,
+    QTabWidget,
+)
 from sqlalchemy.orm import Session
 
 from gymflux.core.regras import RegraAcesso, RegraAcessoConfig
@@ -242,13 +252,16 @@ def _wire(
         app_inst = QApplication.instance()
         if isinstance(app_inst, QApplication):
             app_inst.setStyleSheet(stylesheet(nova.tema))
-            # atualiza ícone da aba selecionada no claro (Fase 4.10-A)
+            # atualiza ícone da aba selecionada e wallpaper
             import contextlib
 
             for w in app_inst.topLevelWidgets():
                 if hasattr(w, "_aplicar_tema_icones"):
                     with contextlib.suppress(Exception):
                         w._aplicar_tema_icones(nova.tema)  # type: ignore[attr-defined]
+                if hasattr(w, "aplicar_wallpaper"):
+                    with contextlib.suppress(Exception):
+                        w.aplicar_wallpaper(nova.wallpaper)  # type: ignore[attr-defined]
         logger.info("[UI] configurações aplicadas na sessão")
 
     config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
@@ -330,6 +343,21 @@ class GymFluxMainWindow(QMainWindow):
         self.tabs = tabs
         tabs.currentChanged.connect(self._on_tab_changed)
         self._aplicar_tema_icones(ctx.config_vm.config.tema)
+        # wallpaper ao fundo (default vendor/gymflux-logomarca.png)
+        self._wallpaper_label = QLabel(self)
+        self._wallpaper_label.setScaledContents(True)
+        self._wallpaper_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._wallpaper_label.lower()
+        try:
+            eff = QGraphicsOpacityEffect(self._wallpaper_label)
+            eff.setOpacity(0.13)
+            self._wallpaper_label.setGraphicsEffect(eff)
+        except Exception:
+            pass
+        self._wallpaper_pixmap: QPixmap | None = None
+        self.aplicar_wallpaper(ctx.config_vm.config.wallpaper)
+        # garante que tabs fiquem acima do wallpaper
+        self.tabs.raise_()
 
     def _aplicar_tema_icones(self, tema) -> None:  # type: ignore[no-untyped-def]
         is_claro = tema == ModoTema.CLARO or str(tema).upper() == "CLARO"
@@ -343,6 +371,61 @@ class GymFluxMainWindow(QMainWindow):
 
     def _on_tab_changed(self, idx: int) -> None:  # type: ignore[no-untyped-def]
         self._aplicar_tema_icones(self.ctx.config_vm.config.tema)
+
+    def aplicar_wallpaper(self, path: str | None) -> None:
+        """Aplica wallpaper ao fundo; None ou inexistente => esconde."""
+        try:
+            if not path:
+                self._wallpaper_label.hide()
+                self._wallpaper_pixmap = None
+                return
+            p = Path(path)
+            if not p.exists():
+                logger.warning(f"[UI] wallpaper não encontrado: {path}")
+                self._wallpaper_label.hide()
+                self._wallpaper_pixmap = None
+                return
+            pix = QPixmap(str(p))
+            if pix.isNull():
+                self._wallpaper_label.hide()
+                return
+            self._wallpaper_pixmap = pix
+            # ajusta label ao tamanho da janela
+            self._wallpaper_label.setGeometry(self.rect())
+            # escala mantendo aspecto, centralizado
+            scaled = pix.scaled(
+                self.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self._wallpaper_label.setPixmap(scaled)
+            self._wallpaper_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._wallpaper_label.show()
+            self._wallpaper_label.lower()
+            self.tabs.raise_()
+        except Exception as e:
+            logger.warning(f"[UI] wallpaper falhou {path}: {e}")
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._wallpaper_label.hide()
+
+    def resizeEvent(self, event) -> None:  # type: ignore[override]
+        super().resizeEvent(event)
+        # redimensiona wallpaper para cobrir janela
+        try:
+            if self._wallpaper_pixmap is not None and not self._wallpaper_pixmap.isNull():
+                self._wallpaper_label.setGeometry(self.rect())
+                scaled = self._wallpaper_pixmap.scaled(
+                    self.size(),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self._wallpaper_label.setPixmap(scaled)
+                self._wallpaper_label.lower()
+                self.tabs.raise_()
+        except Exception:
+            pass
 
     def _abrir_perfil_aluno(self, aluno_id: str) -> None:
         """Click-through do log: troca p/ aba Alunos e abre o modal de perfil."""

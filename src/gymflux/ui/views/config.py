@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -77,6 +78,25 @@ class ConfigView(QWidget):
         lbl_tema.setToolTip("Tema visual da interface")
         lbl_tema.setWhatsThis("Tema visual da interface: escuro ou claro")
         form_pers.addRow(lbl_tema, self.cmb_tema)
+        # wallpaper
+        self.edt_wallpaper = QLineEdit()
+        self.edt_wallpaper.setPlaceholderText("src/gymflux/ui/assets/wallpaper.png")
+        self.edt_wallpaper.setReadOnly(True)
+        self.edt_wallpaper.setToolTip("Imagem de fundo da aplicação")
+        self.btn_wallpaper = QPushButton("Escolher...")
+        self.btn_wallpaper.setToolTip("Escolher imagem de wallpaper")
+        self.btn_wallpaper_limpar = QPushButton("Limpar")
+        self.btn_wallpaper_limpar.setToolTip("Remover wallpaper e usar fundo padrão")
+        hwall = QHBoxLayout()
+        hwall.addWidget(self.edt_wallpaper, 1)
+        hwall.addWidget(self.btn_wallpaper)
+        hwall.addWidget(self.btn_wallpaper_limpar)
+        lbl_wall = QLabel("Wallpaper:")
+        lbl_wall.setToolTip("Imagem de fundo da aplicação")
+        lbl_wall.setWhatsThis(
+            "Wallpaper: imagem exibida ao fundo, padrão src/gymflux/ui/assets/wallpaper.png"
+        )
+        form_pers.addRow(lbl_wall, hwall)
         layout.addWidget(grp_pers)
 
         # -- Categoria: Regras / Operação ---------------------------------------
@@ -133,6 +153,8 @@ class ConfigView(QWidget):
         self._toast_timer.timeout.connect(lambda: self.lbl_status.setVisible(False))
 
         self.btn_salvar.clicked.connect(self._salvar)
+        self.btn_wallpaper.clicked.connect(self._escolher_wallpaper)
+        self.btn_wallpaper_limpar.clicked.connect(self._limpar_wallpaper)
         self._carregar(self.vm.config)
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
@@ -182,9 +204,24 @@ class ConfigView(QWidget):
         self.cmb_entrada_modo.setCurrentIndex(idx_e if idx_e >= 0 else 1)
         idx_s = self.cmb_saida_modo.findData(cfg.saida_modo)
         self.cmb_saida_modo.setCurrentIndex(idx_s if idx_s >= 0 else 0)
+        self.edt_wallpaper.setText(cfg.wallpaper or "")
+
+    def _escolher_wallpaper(self) -> None:
+        caminho, _ = QFileDialog.getOpenFileName(
+            self,
+            "Escolher wallpaper",
+            self.edt_wallpaper.text() or "src/gymflux/ui/assets",
+            "Imagens (*.png *.jpg *.jpeg *.bmp *.gif);;Todos (*)",
+        )
+        if caminho:
+            self.edt_wallpaper.setText(caminho)
+
+    def _limpar_wallpaper(self) -> None:
+        self.edt_wallpaper.clear()
 
     def _salvar(self) -> None:
         # currentData volta como str puro do QVariant: normaliza
+        wall = self.edt_wallpaper.text().strip() or None
         cfg = UiConfig(
             bloquear_entrada=self.chk_bloq_entrada.isChecked(),
             bloquear_saida=self.chk_bloq_saida.isChecked(),
@@ -196,6 +233,7 @@ class ConfigView(QWidget):
             tema=modo_de(self.cmb_tema.currentData()),
             entrada_modo=self.cmb_entrada_modo.currentData() or ModoAcesso.SENHA,
             saida_modo=self.cmb_saida_modo.currentData() or ModoAcesso.LIVRE,
+            wallpaper=wall,
         )
         # normaliza enum caso venha str
         if isinstance(cfg.entrada_modo, str):
