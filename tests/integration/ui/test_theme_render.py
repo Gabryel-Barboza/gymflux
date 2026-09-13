@@ -27,5 +27,6 @@ def test_modos_renderizam_offscreen(qapp, qtbot):
     assert "background-color: #0F1113" in qapp.styleSheet()
     qapp.setStyleSheet(stylesheet(ModoTema.CLARO))
     qapp.processEvents()
-    assert "background-color: #FFFFFF" in qapp.styleSheet()
+    assert "background-color: #E8EDF1" in qapp.styleSheet()
+    assert "border: 1px solid #C8D0D8" in qapp.styleSheet()
     assert w.isVisible()

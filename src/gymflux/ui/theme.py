@@ -25,12 +25,12 @@ BORDA = "#2A3138"  # bordas e separadores (modo escuro)
 TEXTO_SUAVE = "#9AA7B2"  # placeholders e mensagens neutras (modo escuro)
 AZUL_ESCURO = "#3A9BC4"  # hover/pressed dos botões (ambos os modos)
 
-# Base clara (Fase 4.7): troca só a base, acentos intactos.
-FUNDO_CLARO = "#F2F5F7"
-PAINEL_CLARO = "#FFFFFF"
+# Base clara (Fase 4.10-A): containers cinza claro + borda visível.
+FUNDO_CLARO = "#E8EDF1"
+PAINEL_CLARO = "#E8EDF1"
 TEXTO_CLARO = "#1A1E22"
 SUAVE_CLARO = "#5A6B78"
-BORDA_CLARA = "#D5DCE2"
+BORDA_CLARA = "#C8D0D8"
 
 # Tinta escura sobre preenchimentos claros/azuis (botões, seleções, selos).
 TINTA_SOBRE_ACENTO = "#0F1113"
@@ -168,6 +168,17 @@ def stylesheet(modo: ModoTema | str = ModoTema.ESCURO) -> str:
     borda = paleta.borda
     titulo = paleta.titulo
     valor = paleta.valor
+    is_claro = modo_de(modo) == ModoTema.CLARO
+    # Fase 4.10-A: aba selecionada com ícone/texto em AZUL no claro
+    cor_selecionada = AZUL if is_claro else titulo
+    # sombra leve só no claro (QSS não tem box-shadow; simula com borda + fundo)
+    sombra_clara = (
+        "\nQGroupBox, QTableWidget, QListWidget, QFrame#PlanoCard {"
+        "\n    border: 1px solid #C8D0D8;"
+        "\n}"
+        if is_claro
+        else ""
+    )
     return f"""
 QMainWindow, QWidget {{
     background-color: {fundo};
@@ -177,7 +188,7 @@ QMainWindow, QWidget {{
 QGroupBox {{
     background-color: {painel};
     border: 1px solid {borda};
-    border-radius: 6px;
+    border-radius: 8px;
     margin-top: 12px;
     padding-top: 8px;
     font-weight: bold;
@@ -190,7 +201,7 @@ QGroupBox::title {{
 }}
 QTabWidget::pane {{
     border: 1px solid {borda};
-    border-radius: 6px;
+    border-radius: 8px;
     background-color: {fundo};
 }}
 QTabBar::tab {{
@@ -203,9 +214,10 @@ QTabBar::tab {{
 }}
 QTabBar::tab:selected {{
     background-color: {fundo};
-    color: {titulo};
+    color: {cor_selecionada};
     font-weight: bold;
-}}
+    border-bottom: 2px solid {AZUL};
+}}{sombra_clara}
 QPushButton {{
     background-color: {AZUL};
     color: {TINTA_SOBRE_ACENTO};

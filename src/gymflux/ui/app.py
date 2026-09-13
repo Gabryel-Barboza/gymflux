@@ -22,7 +22,7 @@ from gymflux.services.liberar_acesso import LiberarAcessoService
 from gymflux.services.registrar_pagamento import RegistrarPagamentoService
 from gymflux.ui.catraca_bridge import CatracaBridge
 from gymflux.ui.config_store import ConfigStore, UiConfig
-from gymflux.ui.theme import stylesheet
+from gymflux.ui.theme import AZUL, ModoTema, stylesheet
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.caixa import CaixaViewModel
 from gymflux.ui.viewmodels.config import ConfigViewModel
@@ -242,6 +242,13 @@ def _wire(
         app_inst = QApplication.instance()
         if isinstance(app_inst, QApplication):
             app_inst.setStyleSheet(stylesheet(nova.tema))
+            # atualiza ícone da aba selecionada no claro (Fase 4.10-A)
+            import contextlib
+
+            for w in app_inst.topLevelWidgets():
+                if hasattr(w, "_aplicar_tema_icones"):
+                    with contextlib.suppress(Exception):
+                        w._aplicar_tema_icones(nova.tema)  # type: ignore[attr-defined]
         logger.info("[UI] configurações aplicadas na sessão")
 
     config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
@@ -265,6 +272,27 @@ def _wire(
     )
 
 
+def _tint_icon(icon, color_hex: str):  # type: ignore[no-untyped-def]
+    """Tint QIcon para color_hex (usado no claro p/ aba selecionada)."""
+    from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+
+    sizes = icon.availableSizes() or [icon.pixmap(32, 32).size()]
+    tinted = QIcon()
+    for sz in sizes:
+        pix = icon.pixmap(sz)
+        if pix.isNull():
+            continue
+        out = QPixmap(pix.size())
+        out.fill(QColor("transparent"))
+        p = QPainter(out)
+        p.drawPixmap(0, 0, pix)
+        p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)  # type: ignore[attr-defined]
+        p.fillRect(out.rect(), QColor(color_hex))
+        p.end()
+        tinted.addPixmap(out)
+    return tinted if not tinted.isNull() else icon
+
+
 class GymFluxMainWindow(QMainWindow):
     def __init__(self, ctx: AppContext, parent: Any = None) -> None:
         super().__init__(parent)
@@ -273,51 +301,44 @@ class GymFluxMainWindow(QMainWindow):
         self.resize(1024, 640)
         tabs = QTabWidget(self)
         estilo = self.style()
+        # ícones base (guardados para tint)
+        self._base_icons = [
+            estilo.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogListView),
+            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
+        ]
         dashboard_view = DashboardView(ctx.dashboard_vm, ctx.bridge)
         dashboard_view.perfil_solicitado.connect(self._abrir_perfil_aluno)
-        tabs.addTab(
-            dashboard_view,
-            estilo.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
-            "Catraca",
-        )
+        tabs.addTab(dashboard_view, self._base_icons[0], "Catraca")
         self.alunos_view = AlunosView(
             ctx.alunos_vm,
             ctx.caixa_vm,
             frequencia_vm=ctx.frequencia_vm,
             dashboard_vm=ctx.dashboard_vm,
         )
-        tabs.addTab(
-            self.alunos_view,
-            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
-            "Alunos",
-        )
-        tabs.addTab(
-            PlanosView(ctx.planos_vm),
-            estilo.standardIcon(QStyle.StandardPixmap.SP_FileIcon),
-            "Planos",
-        )
-        tabs.addTab(
-            CaixaView(ctx.caixa_vm),
-            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
-            "Caixa",
-        )
-        tabs.addTab(
-            FuncionariosView(ctx.funcionarios_vm),
-            estilo.standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon),
-            "Funcionários",
-        )
-        tabs.addTab(
-            FrequenciaView(ctx.frequencia_vm),
-            estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogListView),
-            "Frequência",
-        )
-        tabs.addTab(
-            ConfigView(ctx.config_vm),
-            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
-            "Configurações",
-        )
+        tabs.addTab(self.alunos_view, self._base_icons[1], "Alunos")
+        tabs.addTab(PlanosView(ctx.planos_vm), self._base_icons[2], "Planos")
+        tabs.addTab(CaixaView(ctx.caixa_vm), self._base_icons[3], "Caixa")
+        tabs.addTab(FuncionariosView(ctx.funcionarios_vm), self._base_icons[4], "Funcionários")
+        tabs.addTab(FrequenciaView(ctx.frequencia_vm), self._base_icons[5], "Frequência")
+        tabs.addTab(ConfigView(ctx.config_vm), self._base_icons[6], "Configurações")
         self.setCentralWidget(tabs)
         self.tabs = tabs
+        tabs.currentChanged.connect(self._on_tab_changed)
+        self._aplicar_tema_icones(ctx.config_vm.config.tema)
+
+    def _aplicar_tema_icones(self, tema) -> None:  # type: ignore[no-untyped-def]
+        is_claro = tema == ModoTema.CLARO or str(tema).upper() == "CLARO"
+        for i, base in enumerate(self._base_icons):
+            icon = _tint_icon(base, AZUL) if is_claro and i == self.tabs.currentIndex() else base
+            self.tabs.setTabIcon(i, icon)
+
+    def _on_tab_changed(self, idx: int) -> None:  # type: ignore[no-untyped-def]
+        self._aplicar_tema_icones(self.ctx.config_vm.config.tema)
 
     def _abrir_perfil_aluno(self, aluno_id: str) -> None:
         """Click-through do log: troca p/ aba Alunos e abre o modal de perfil."""

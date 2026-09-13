@@ -121,6 +121,10 @@ src/gymflux/       # único
   - Caixa: `CaixaView` sidebar esquerda (Fechar + 3 stats coloridas sem data `Recebido`/`Pendente`/`Total` + `lbl_totais` oculto p/ compat) + `cmb_aluno` editável com `QCompleter` `MatchContains` e scroll (500+); `NovoPagamentoDialog` sem vencimento (usa hoje/competência; vencimento edita-se no perfil `tbl_pag`).
   - Config: categorias `QGroupBox` Catraca (porta + entrada/saída ModoAcesso) / Personalização (tema) / Regras; mantém `chk_bloq_*` ocultos p/ compat testes.
   - Verificação Linux: 153 passed + 1 skipped, ruff/mypy limpos, screenshots claro/escuro em `/tmp/shots49` (7 abas × 2 modos). **core/services/infra/hardware intocados (só `config_store` + `dashboard_vm` + `ui/`).**
+- **2026-09-13 — Fase 4.10-A (tema claro + catraca) ✅:**
+  - `theme.py`: claro `FUNDO_CLARO`/`PAINEL_CLARO` `#E8EDF1` (era `#F2F5F7`/`#FFFFFF`) + `BORDA_CLARA` `#C8D0D8` (era `#D5DCE2`) + sombra leve + `QTabBar::tab:selected` texto+ícone `#5AC8FA` (tint via `_tint_icon` em `app.py`; `stylesheet` usa `color: AZUL` + `border-bottom: 2px solid AZUL` no claro); `app.py` `GymFluxMainWindow` guarda `_base_icons` + `_aplicar_tema_icones`/`_on_tab_changed` e `_wire._aplicar` atualiza ícones sem restart.
+  - `dashboard.py`: header `QFrame#CatracaHeader` (borda `#C8D0D8`, radius 8) com `lbl_compacto` + `btn_detalhes` à direita, centro `QFrame#CatracaCentro` com `edt_unico` 40px + `btn_liberar` 40px/160px moderno, abaixo `QGroupBox` "Acessos de hoje"/"Giros" lado a lado com headers fixos; toast overlay centralizado `QTimer` 4s + `resizeEvent` centraliza; `config.py` intocado (categorias já em 4.9).
+  - Verificação Linux: 153 passed + 1 skipped, ruff/mypy limpos, screenshots claro/escuro em `/tmp/shots410A` (7 abas × 2 modos). **core/services/infra/hardware intocados (só `theme.py` + `dashboard.py` + `app.py`).**
 - **2026-09-12 — chore(tests): suite rápida ✅ (commit `618a071`):**
   - PBKDF2 configurável: `core/aluno.py` +`_iteracoes_pbkdf2()` lendo `GYMFLUX_PBKDF2_ITERATIONS` (default prod 100_000 INALTERADO; `conferir_senha` já lia a contagem do hash, hashes antigos seguem válidos); `tests/conftest.py` fixa 1000 via fixture autouse + offscreen centralizado. 2 testes-guarda do default em `unit/core/test_senha_hash.py`.
   - Qt: `integration/ui/conftest.py` (`ctx` função-escopo + `dash` view direta sem montar 7 abas); `waitExposed` removido (processEvents); teardown destrói top-levels via `shiboken6.delete` (views vazavam 1000+ widgets/run por lambdas `self` em signals — governança impediu fix em prod, mitigado só nos testes). Nenhum sleep fixo existia (`waitSignal` do bridge já era o padrão certo).
@@ -179,6 +183,8 @@ src/gymflux/       # único
 - [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*`, convenção relé 1=entrada/2=saída).
 - [ ] Nota: `docs/` e `vendor/` são 100% gitignored — atualizações do contrato (§3/§4) e `dumps/` vivem só localmente, não sobem no commit.
 - [x] Correções Fase 2.1 aplicadas (2026-09-11: mypy override, teste duplicado, session_scope, campos não persistidos).
+- [x] Fase 4.10-A (feedback dono 2026-09-12) ✅: tema claro (containers `#E8EDF1` + borda `#C8D0D8` + sombra leve + `QTabBar::tab:selected` `#5AC8FA`) + catraca moderno (header compacto+Detalhes, centro CPF/senha+Liberar, logs/giros lado a lado, toast) — ver §4.
+- [ ] Fase 4.10 (restante, após 4.10-A): alunos (observações em QTextEdit + endereço + botão Salvar + filtro tipo Excel), planos (cards verticais compactos novamente + personalizado com dias), frequência (checkbox Dia + combos 500+ otimizados), caixa reabrir.
 
 ## 9. Checklist para Próxima Sessão
 

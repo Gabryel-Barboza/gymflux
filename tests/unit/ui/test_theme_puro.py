@@ -57,17 +57,18 @@ def test_modo_tema_e_stylesheet_parametrizado():
     assert stylesheet("ESCURO") == stylesheet(ModoTema.ESCURO)
     claro = stylesheet(ModoTema.CLARO)
     assert stylesheet("claro") == claro
-    # base trocada no claro (com indentação p/ não colidir substrings,
-    # ex. "background-color: #1A1E22" contém "color: #1A1E22")...
+    # Fase 4.10-A: claro usa #E8EDF1 + borda #C8D0D8 (com indentação)
     for regra in (
-        "\n    background-color: #F2F5F7;",
-        "\n    background-color: #FFFFFF;",
+        "\n    background-color: #E8EDF1;",
         "\n    color: #1A1E22;",
         "\n    color: #5A6B78;",
-        "\n    border: 1px solid #D5DCE2;",
+        "\n    border: 1px solid #C8D0D8;",
     ):
         assert regra in claro
         assert regra not in stylesheet()
+    # aba selecionada no claro com AZUL (texto e ícone)
+    assert "QTabBar::tab:selected" in claro
+    assert AZUL in claro  # cor da aba selecionada
     # ...acentos mantidos nos dois (AZUL/LIMA no QSS; VERMELHO vive nos
     # estilos inline de resultado/selo — ver abaixo)
     for cor in (AZUL, LIMA):

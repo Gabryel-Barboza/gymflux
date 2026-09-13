@@ -52,7 +52,8 @@ def test_config_alternar_tema_aplica_sem_restart(qtbot, ctx: AppContext, tmp_pat
     view._salvar()
     assert view.lbl_status.text() == "Configurações salvas e aplicadas."
     assert ConfigStore(tmp_path / "gymflux_config.json").load().tema == ModoTema.CLARO
-    assert "background-color: #FFFFFF" in qapp.styleSheet()
+    assert "background-color: #E8EDF1" in qapp.styleSheet()
+    assert "border: 1px solid #C8D0D8" in qapp.styleSheet()
 
     # rótulos passam a usar selo legível no claro
     dash = DashboardView(ctx.dashboard_vm, ctx.bridge)

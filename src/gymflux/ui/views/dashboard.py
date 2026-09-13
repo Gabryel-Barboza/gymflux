@@ -1,4 +1,4 @@
-"""Catraca — status compacto + Detalhes, toast, log com vermelho, campo único."""
+"""Catraca — layout moderno: header compacto + centro CPF/senha + logs lado a lado."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QDialogButtonBox,
+    QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -52,7 +54,7 @@ class DetalhesDialog(QDialog):
 
 
 class DashboardView(QWidget):
-    """Status compacto + campo único CPF/senha + toast; log com vermelho."""
+    """Header + centro + logs/giros lado a lado com headers fixos; toast 4s."""
 
     COLUNAS_LOG = ("Hora", "Aluno", "Direção", "Resultado", "Motivo")
     LINHAS_STATUS = ("Online", "Bloqueada", "Giros", "Firmware", "Driver", "Porta")
@@ -71,31 +73,40 @@ class DashboardView(QWidget):
         self._tentativas_visiveis: list[TentativaAcesso] = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(12)
         estilo = self.style()
 
-        # -- toast (overlay, auto-hide) -----------------------------------------
+        # -- toast overlay (não ocupa layout) ----------------------------------
         self.toast = QLabel("", self)
         self.toast.setVisible(False)
         self.toast.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.toast.setStyleSheet("padding: 8px; border-radius: 6px;")
+        self.toast.setStyleSheet("padding: 10px 16px; border-radius: 8px;")
+        self.toast.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._toast_timer = QTimer(self)
         self._toast_timer.setSingleShot(True)
         self._toast_timer.timeout.connect(lambda: self.toast.setVisible(False))
 
-        # -- status compacto ----------------------------------------------------
-        hstatus = QHBoxLayout()
+        # -- header moderno: status compacto + Detalhes à direita ---------------
+        header = QFrame(self)
+        header.setObjectName("CatracaHeader")
+        header.setStyleSheet(
+            "QFrame#CatracaHeader { border: 1px solid #C8D0D8; border-radius: 8px; padding: 4px; }"
+        )
+        hstatus = QHBoxLayout(header)
+        hstatus.setContentsMargins(8, 6, 8, 6)
         self.lbl_compacto = QLabel("—")
+        self.lbl_compacto.setTextFormat(Qt.TextFormat.PlainText)
         self.btn_detalhes = QPushButton("Detalhes")
         self.btn_detalhes.setIcon(
             estilo.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
         )
+        self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.lbl_compacto, 1)
         hstatus.addWidget(self.btn_detalhes)
-        layout.addLayout(hstatus)
+        layout.addWidget(header)
 
-        # tabela detalhada (mantida oculta p/ compat testes, mas compacto é o visível)
+        # tabela detalhada oculta (compat)
         self.tbl_status = QTableWidget(len(self.LINHAS_STATUS), 2)
         self.tbl_status.setHorizontalHeaderLabels(["Campo", "Valor"])
         self.tbl_status.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -111,22 +122,30 @@ class DashboardView(QWidget):
             self._itens_status[campo] = item
         linha_status = self._altura_tabela(self.tbl_status, len(self.LINHAS_STATUS))
         self.tbl_status.setMaximumHeight(linha_status)
-        # para Fase 4.9, tabela fica oculta (compacto + modal), mas mantém p/ teste
         self.tbl_status.setVisible(False)
         layout.addWidget(self.tbl_status)
 
-        # -- lado direito: campo único CPF/senha + botão único -----------------
-        huni = QHBoxLayout()
+        # -- centro: campo CPF/senha + Liberar único (moderno, centralizado) ---
+        centro = QFrame(self)
+        centro.setObjectName("CatracaCentro")
+        huni = QHBoxLayout(centro)
+        huni.setContentsMargins(12, 12, 12, 12)
+        huni.setSpacing(12)
         self.edt_unico = QLineEdit()
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
+        self.edt_unico.setMinimumHeight(40)
+        self.edt_unico.setStyleSheet("font-size: 15px; padding: 8px;")
         self.btn_liberar = QPushButton("Liberar catraca")
         self.btn_liberar.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
+        self.btn_liberar.setMinimumHeight(40)
+        self.btn_liberar.setMinimumWidth(160)
+        self.btn_liberar.setStyleSheet("font-size: 15px; font-weight: bold; padding: 8px 24px;")
         huni.addWidget(self.edt_unico, 2)
         huni.addWidget(self.btn_liberar)
-        layout.addLayout(huni)
+        layout.addWidget(centro)
 
-        # compat: mantém edt_aluno/edt_codigo/btn_entrada/btn_saida/bloquear mas ocultos
+        # compat antigos (ocultos)
         self.edt_aluno = QLineEdit()
         self.edt_aluno.setPlaceholderText("ID ou CPF")
         self.edt_aluno.setVisible(False)
@@ -148,7 +167,6 @@ class DashboardView(QWidget):
         self.btn_bloquear = QPushButton("Bloquear")
         self.btn_bloquear.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton))
         self.btn_bloquear.setVisible(False)
-        # mantém no layout mas ocultos (não ocupam espaço visível)
         layout.addWidget(self.edt_aluno)
         layout.addWidget(self.edt_codigo)
         layout.addWidget(self.btn_identificar)
@@ -157,30 +175,43 @@ class DashboardView(QWidget):
         layout.addWidget(self.btn_bloquear)
 
         self.lbl_resultado = QLabel("Informe o aluno e escolha a direção.")
-        self.lbl_resultado.setVisible(False)  # agora via toast
+        self.lbl_resultado.setVisible(False)
         layout.addWidget(self.lbl_resultado)
         self.lbl_verificacao = QLabel("Aguardando identificação...")
         fonte = self.lbl_verificacao.font()
         fonte.setPointSize(14)
         fonte.setBold(True)
         self.lbl_verificacao.setFont(fonte)
-        self.lbl_verificacao.setVisible(False)  # também via toast
+        self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- log + giros (altura p/ ~5 itens, com scroll) ------------------------
+        # -- logs / giros lado a lado com headers fixos -----------------------
         hmid = QHBoxLayout()
+        hmid.setSpacing(12)
+        grp_log = QGroupBox("Acessos de hoje")
+        lay_log = QVBoxLayout(grp_log)
+        lay_log.setContentsMargins(6, 12, 6, 6)
         self.tbl_log = QTableWidget(0, len(self.COLUNAS_LOG))
         self.tbl_log.setHorizontalHeaderLabels(list(self.COLUNAS_LOG))
         self.tbl_log.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl_log.verticalHeader().setVisible(False)
         self.tbl_log.horizontalHeader().setStretchLastSection(True)
+        self.tbl_log.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.tbl_log.horizontalHeader().setHighlightSections(False)
         self.tbl_log.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.tbl_log.setMaximumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
-        hmid.addWidget(self.tbl_log, 3)
+        self.tbl_log.setMinimumHeight(self._altura_tabela(self.tbl_log, LINHAS_VISIVEIS))
+        lay_log.addWidget(self.tbl_log)
+        hmid.addWidget(grp_log, 3)
 
+        grp_giros = QGroupBox("Giros")
+        lay_giros = QVBoxLayout(grp_giros)
+        lay_giros.setContentsMargins(6, 12, 6, 6)
         self.lst_giros = QListWidget()
         self.lst_giros.setMaximumHeight(self._altura_lista(LINHAS_VISIVEIS))
-        hmid.addWidget(self.lst_giros, 1)
+        self.lst_giros.setMinimumHeight(self._altura_lista(LINHAS_VISIVEIS))
+        lay_giros.addWidget(self.lst_giros)
+        hmid.addWidget(grp_giros, 1)
         layout.addLayout(hmid, 1)
 
         # -- sinais ------------------------------------------------------------
@@ -218,16 +249,28 @@ class DashboardView(QWidget):
         return itens * passo + 2 * self.lst_giros.frameWidth() + 2
 
     def _estilo(self, liberado: bool | None) -> str:
-        """Estilo de resultado no tema atual (claro usa selos legíveis)."""
         return estilo_resultado(liberado, self.vm.ui_config.tema)
+
+    def resizeEvent(self, event) -> None:  # type: ignore[override]
+        super().resizeEvent(event)
+        # centraliza toast no topo
+        if self.toast.isVisible():
+            self.toast.adjustSize()
+            x = (self.width() - self.toast.width()) // 2
+            self.toast.move(x, 12)
 
     def _mostrar_toast(self, texto: str, liberado: bool | None) -> None:
         self.toast.setText(texto)
-        self.toast.setStyleSheet(self._estilo(liberado))
+        extra = " padding: 10px 16px; border-radius: 8px;"
+        self.toast.setStyleSheet(self._estilo(liberado) + extra)
+        self.toast.adjustSize()
+        x = (self.width() - self.toast.width()) // 2
+        if x < 0:
+            x = 8
+        self.toast.move(x, 12)
         self.toast.setVisible(True)
         self.toast.raise_()
         self._toast_timer.start(4000)
-        # também atualiza labels legados p/ testes
         self.lbl_resultado.setText(texto)
         self.lbl_resultado.setStyleSheet(self._estilo(liberado))
         self.lbl_verificacao.setText(texto)
@@ -265,14 +308,13 @@ class DashboardView(QWidget):
             or self.edt_aluno.text().strip()
         )
         if not codigo:
-            # se LIVRE, permite vazio
             from gymflux.core.acesso import DirecaoAcesso
             from gymflux.ui.config_store import ModoAcesso
 
             modo_e = self.vm.ui_config.entrada_modo
             modo_s = self.vm.ui_config.saida_modo
-            if modo_e == ModoAcesso.LIVRE or modo_s == ModoAcesso.LIVRE:
-                # escolhe direção livre
+            ambos_livre = modo_e == ModoAcesso.LIVRE or modo_s == ModoAcesso.LIVRE
+            if ambos_livre:
                 direcao = (
                     DirecaoAcesso.SAIDA if modo_s == ModoAcesso.LIVRE else DirecaoAcesso.ENTRADA
                 )
@@ -295,7 +337,6 @@ class DashboardView(QWidget):
             motivo = str(decisao.motivo) if decisao.motivo else "negado"
             extra = f" ({decisao.detalhes})" if decisao.detalhes else ""
             self._mostrar_toast(f"{nome} — NEGADO · {motivo}{extra}", False)
-        # mantém compat: limpa ambos
         self.edt_unico.clear()
         self.edt_codigo.clear()
         self.edt_aluno.clear()
@@ -308,7 +349,6 @@ class DashboardView(QWidget):
         self._refresh_status()
 
     def _identificar(self) -> None:
-        # compat: usa edt_unico se edt_codigo vazio
         codigo = self.edt_codigo.text() or self.edt_unico.text()
         if not codigo.strip():
             self._mostrar_toast("NÃO IDENTIFICADO — informe o código", None)
@@ -361,7 +401,6 @@ class DashboardView(QWidget):
             "Driver": f"{driver}{mock}",
             "Porta": porta,
         }
-        # compacto
         compacto = (
             f"Online: {'SIM' if online else 'NÃO'} • "
             f"Bloqueada: {'SIM' if bloqueada else 'NÃO'} • "
@@ -396,7 +435,6 @@ class DashboardView(QWidget):
             )
             for col, v in enumerate(vals):
                 item = QTableWidgetItem(v)
-                # linha vermelha p/ NEGADO (fundo suave vermelho)
                 if str(t.resultado) == "NEGADO":
                     item.setBackground(
                         QColor("#3a1a1a" if self.vm.ui_config.tema.value == "ESCURO" else "#ffe0e0")
@@ -405,7 +443,6 @@ class DashboardView(QWidget):
                 self.tbl_log.setItem(row, col, item)
 
     def _registro_clicado(self, row: int, _col: int) -> None:
-        """Click-through: abre o perfil do aluno (funcionário não tem perfil)."""
         visiveis = list(reversed(self._tentativas_visiveis))
         if 0 <= row < len(visiveis):
             tentativa = visiveis[row]
