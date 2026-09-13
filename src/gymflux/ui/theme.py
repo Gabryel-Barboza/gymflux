@@ -189,8 +189,8 @@ QGroupBox {{
     background-color: {painel};
     border: 1px solid {borda};
     border-radius: 8px;
-    margin-top: 0px;
-    padding-top: 0px;
+    margin-top: 12px;
+    padding-top: 8px;
     font-weight: bold;
 }}
 QGroupBox::title {{

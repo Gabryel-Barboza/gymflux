@@ -261,7 +261,13 @@ def _wire(
                         w._aplicar_tema_icones(nova.tema)  # type: ignore[attr-defined]
                 if hasattr(w, "aplicar_wallpaper"):
                     with contextlib.suppress(Exception):
-                        w.aplicar_wallpaper(nova.wallpaper)  # type: ignore[attr-defined]
+                        from gymflux.ui.config_store import ModoFundo
+
+                        modo = getattr(nova, "fundo_modo", ModoFundo.WALLPAPER)
+                        if modo == ModoFundo.WALLPAPER:
+                            w.aplicar_wallpaper(nova.wallpaper)  # type: ignore[attr-defined]
+                        else:
+                            w.aplicar_wallpaper(None)  # type: ignore[attr-defined]
         logger.info("[UI] configurações aplicadas na sessão")
 
     config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
@@ -348,16 +354,25 @@ class GymFluxMainWindow(QMainWindow):
         self._wallpaper_label.setScaledContents(True)
         self._wallpaper_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._wallpaper_label.lower()
+        # wallpaper com opacidade total, no fundo no lugar da cor sólida
         try:
             eff = QGraphicsOpacityEffect(self._wallpaper_label)
-            eff.setOpacity(0.18)
+            eff.setOpacity(1.0)
             self._wallpaper_label.setGraphicsEffect(eff)
         except Exception:
             pass
         self._wallpaper_pixmap: QPixmap | None = None
         self._scaled_wallpaper: QPixmap | None = None
         self._cached_wallpaper_size: Any = None
-        self.aplicar_wallpaper(ctx.config_vm.config.wallpaper)
+        # respeita modo fundo: só mostra wallpaper se modo WALLPAPER
+        from gymflux.ui.config_store import ModoFundo
+
+        cfg_wall = ctx.config_vm.config.wallpaper
+        cfg_modo = getattr(ctx.config_vm.config, "fundo_modo", ModoFundo.WALLPAPER)
+        if cfg_modo == ModoFundo.WALLPAPER:
+            self.aplicar_wallpaper(cfg_wall)
+        else:
+            self.aplicar_wallpaper(None)
         # garante que tabs fiquem acima do wallpaper
         self.tabs.raise_()
 
@@ -398,12 +413,12 @@ class GymFluxMainWindow(QMainWindow):
                 self._cached_wallpaper_size = None
                 return
             self._wallpaper_pixmap = pix
-            # ajusta label ao tamanho da janela
+            # ajusta label ao tamanho da janela (cobre fundo)
             self._wallpaper_label.setGeometry(self.rect())
-            # escala mantendo aspecto, centralizado (cache)
+            # escala para cobrir todo o fundo (total opacidade, no lugar da cor sólida)
             scaled = pix.scaled(
                 self.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                 Qt.TransformationMode.SmoothTransformation,
             )
             self._scaled_wallpaper = scaled
@@ -438,7 +453,7 @@ class GymFluxMainWindow(QMainWindow):
                 else:
                     scaled = self._wallpaper_pixmap.scaled(
                         self.size(),
-                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                         Qt.TransformationMode.SmoothTransformation,
                     )
                     self._scaled_wallpaper = scaled

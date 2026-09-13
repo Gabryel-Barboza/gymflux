@@ -64,6 +64,20 @@ def _as_modo_acesso(valor: Any, default: ModoAcesso) -> ModoAcesso:
         return default
 
 
+class ModoFundo(StrEnum):
+    SOLIDO = "SOLIDO"
+    WALLPAPER = "WALLPAPER"
+
+
+def _as_modo_fundo(valor: Any, default: ModoFundo = ModoFundo.WALLPAPER) -> ModoFundo:
+    if isinstance(valor, ModoFundo):
+        return valor
+    try:
+        return ModoFundo(str(valor).strip().upper())
+    except ValueError:
+        return default
+
+
 @dataclass
 class UiConfig:
     """Ajustes da aba Configurações (valores sempre normalizados)."""
@@ -81,6 +95,7 @@ class UiConfig:
     saida_modo: ModoAcesso = ModoAcesso.LIVRE
     # Fase 4.14: wallpaper
     wallpaper: str | None = None
+    fundo_modo: ModoFundo = ModoFundo.WALLPAPER
 
     def __post_init__(self) -> None:
         self.bloquear_entrada = _as_bool(self.bloquear_entrada)
@@ -100,6 +115,11 @@ class UiConfig:
             self.wallpaper = w or None
         elif self.wallpaper is not None:
             self.wallpaper = str(self.wallpaper).strip() or None
+        self.fundo_modo = _as_modo_fundo(self.fundo_modo, ModoFundo.WALLPAPER)
+        # se wallpaper ativo mas sem imagem, cai para solido
+        if self.fundo_modo == ModoFundo.WALLPAPER and not self.wallpaper:
+            # mantém wallpaper default se possível, senão solido
+            pass
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

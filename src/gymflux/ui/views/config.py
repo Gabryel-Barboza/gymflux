@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from gymflux.ui.config_store import ModoAcesso, UiConfig
+from gymflux.ui.config_store import ModoAcesso, ModoFundo, UiConfig
 from gymflux.ui.theme import ModoTema, modo_de
 from gymflux.ui.viewmodels.config import ConfigViewModel
 
@@ -78,7 +78,16 @@ class ConfigView(QWidget):
         lbl_tema.setToolTip("Tema visual da interface")
         lbl_tema.setWhatsThis("Tema visual da interface: escuro ou claro")
         form_pers.addRow(lbl_tema, self.cmb_tema)
-        # wallpaper
+        # wallpaper com opção sólido vs wallpaper
+        self.cmb_fundo = QComboBox()
+        self.cmb_fundo.addItem("Cor sólida", ModoFundo.SOLIDO)
+        self.cmb_fundo.addItem("Wallpaper", ModoFundo.WALLPAPER)
+        lbl_fundo = QLabel("Fundo:")
+        lbl_fundo.setToolTip("Escolha entre cor sólida do tema ou imagem de wallpaper")
+        lbl_fundo.setWhatsThis(
+            "Fundo: Cor sólida usa a cor do tema, Wallpaper exibe imagem ao fundo"
+        )
+        form_pers.addRow(lbl_fundo, self.cmb_fundo)
         self.edt_wallpaper = QLineEdit()
         self.edt_wallpaper.setPlaceholderText("src/gymflux/ui/assets/wallpaper.png")
         self.edt_wallpaper.setReadOnly(True)
@@ -155,7 +164,9 @@ class ConfigView(QWidget):
         self.btn_salvar.clicked.connect(self._salvar)
         self.btn_wallpaper.clicked.connect(self._escolher_wallpaper)
         self.btn_wallpaper_limpar.clicked.connect(self._limpar_wallpaper)
+        self.cmb_fundo.currentIndexChanged.connect(self._atualizar_fundo_estado)
         self._carregar(self.vm.config)
+        self._atualizar_fundo_estado()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
@@ -205,6 +216,9 @@ class ConfigView(QWidget):
         idx_s = self.cmb_saida_modo.findData(cfg.saida_modo)
         self.cmb_saida_modo.setCurrentIndex(idx_s if idx_s >= 0 else 0)
         self.edt_wallpaper.setText(cfg.wallpaper or "")
+        idx_f = self.cmb_fundo.findData(cfg.fundo_modo)
+        self.cmb_fundo.setCurrentIndex(idx_f if idx_f >= 0 else 1)
+        self._atualizar_fundo_estado()
 
     def _escolher_wallpaper(self) -> None:
         caminho, _ = QFileDialog.getOpenFileName(
@@ -219,9 +233,22 @@ class ConfigView(QWidget):
     def _limpar_wallpaper(self) -> None:
         self.edt_wallpaper.clear()
 
+    def _atualizar_fundo_estado(self) -> None:
+        modo = self.cmb_fundo.currentData()
+        is_wall = modo == ModoFundo.WALLPAPER
+        self.edt_wallpaper.setEnabled(is_wall)
+        self.btn_wallpaper.setEnabled(is_wall)
+        self.btn_wallpaper_limpar.setEnabled(is_wall)
+
     def _salvar(self) -> None:
         # currentData volta como str puro do QVariant: normaliza
         wall = self.edt_wallpaper.text().strip() or None
+        fundo = self.cmb_fundo.currentData() or ModoFundo.WALLPAPER
+        if isinstance(fundo, str):
+            try:
+                fundo = ModoFundo(fundo)
+            except ValueError:
+                fundo = ModoFundo.WALLPAPER
         cfg = UiConfig(
             bloquear_entrada=self.chk_bloq_entrada.isChecked(),
             bloquear_saida=self.chk_bloq_saida.isChecked(),
@@ -234,6 +261,7 @@ class ConfigView(QWidget):
             entrada_modo=self.cmb_entrada_modo.currentData() or ModoAcesso.SENHA,
             saida_modo=self.cmb_saida_modo.currentData() or ModoAcesso.LIVRE,
             wallpaper=wall,
+            fundo_modo=fundo,
         )
         # normaliza enum caso venha str
         if isinstance(cfg.entrada_modo, str):
