@@ -68,6 +68,7 @@ class AlunosViewModel:
         observacoes: str | None = None,
         endereco: str | None = None,
         senha: str | None = None,
+        foto: str | None = None,
     ) -> Aluno:
         aluno = Aluno(
             id=f"aluno-{uuid.uuid4().hex[:8]}",
@@ -78,6 +79,7 @@ class AlunosViewModel:
             email=(email.strip() or None) if email else None,
             observacoes=(observacoes.strip() or None) if observacoes else None,
             endereco=(endereco.strip() or None) if endereco else None,
+            foto=(foto.strip() or None) if foto else None,
         )
         if senha and senha.strip():
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
@@ -98,6 +100,7 @@ class AlunosViewModel:
         endereco: str | None = None,
         senha: str | None = None,
         status: StatusAluno | None = None,
+        foto: str | None = None,
     ) -> Aluno:
         """Atualiza todos os campos editáveis; senha vazia mantém a atual."""
         aluno = self.alunos.buscar(aluno_id)
@@ -118,6 +121,9 @@ class AlunosViewModel:
             aluno.status = status
             if status != StatusAluno.BLOQUEADO:
                 aluno.bloqueado_manual = False
+        if foto is not None:
+            # foto pode ser string vazia para remover
+            aluno.foto = foto.strip() or None
         result = self.alunos.atualizar(aluno)
         self._commit()
         return result

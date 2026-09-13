@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, Qt
+from pathlib import Path
+
+from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
@@ -26,7 +31,8 @@ class NovoFuncionarioDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, titulo: str = "Novo funcionário") -> None:
         super().__init__(parent)
         self.setWindowTitle(titulo)
-        form = QFormLayout(self)
+        root = QHBoxLayout(self)
+        form = QFormLayout()
         self.edt_nome = QLineEdit()
         self.edt_senha = QLineEdit()
         # senha visível (texto claro) como no perfil aluno — estilo catraca
@@ -46,6 +52,65 @@ class NovoFuncionarioDialog(QDialog):
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         form.addRow(botoes)
+        root.addLayout(form, 1)
+        # foto quadrada à direita
+        foto_wrap = QVBoxLayout()
+        foto_wrap.setContentsMargins(0, 0, 0, 0)
+        self.lbl_foto = QLabel()
+        self.lbl_foto.setFixedSize(110, 110)
+        self.lbl_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
+        )
+        self.lbl_foto.setText("Foto\n(clique)")
+        self.lbl_foto.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lbl_foto.mousePressEvent = lambda e: self._escolher_foto()  # type: ignore[method-assign]
+        self._foto_path: str | None = None
+        foto_wrap.addWidget(self.lbl_foto, 0, Qt.AlignmentFlag.AlignTop)
+        self.btn_remover_foto = QPushButton("Remover foto")
+        self.btn_remover_foto.setMaximumWidth(110)
+        self.btn_remover_foto.clicked.connect(self._remover_foto)
+        foto_wrap.addWidget(self.btn_remover_foto)
+        foto_wrap.addStretch(1)
+        root.addLayout(foto_wrap)
+
+    def _escolher_foto(self) -> None:
+        caminho, _ = QFileDialog.getOpenFileName(
+            self, "Escolher foto", "", "Imagens (*.png *.jpg *.jpeg *.bmp);;Todos (*)"
+        )
+        if caminho:
+            self._foto_path = caminho
+            self._atualizar_foto()
+
+    def _remover_foto(self) -> None:
+        self._foto_path = None
+        self.lbl_foto.clear()
+        self.lbl_foto.setText("Foto\n(clique)")
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
+        )
+
+    def _atualizar_foto(self) -> None:
+        if not self._foto_path or not Path(self._foto_path).exists():
+            self.lbl_foto.clear()
+            self.lbl_foto.setText("Foto\n(clique)")
+            return
+        pix = QPixmap(self._foto_path)
+        if pix.isNull():
+            self.lbl_foto.setText("Inválida")
+            return
+        scaled = pix.scaled(
+            QSize(110, 110),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        x = max(0, (scaled.width() - 110) // 2)
+        y = max(0, (scaled.height() - 110) // 2)
+        cropped = scaled.copy(x, y, 110, 110)
+        self.lbl_foto.setPixmap(cropped)
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"
+        )
 
     def preencher(
         self, nome: str, horarios: str | None = None, dias: str | None = None
@@ -58,7 +123,7 @@ class NovoFuncionarioDialog(QDialog):
 
 
 class PerfilFuncionarioDialog(QDialog):
-    """Perfil simples (replica alunos): dados + senha visível + horarios/dias."""
+    """Perfil simples (replica alunos): dados + senha visível + horarios/dias + foto."""
 
     def __init__(
         self,
@@ -75,8 +140,9 @@ class PerfilFuncionarioDialog(QDialog):
         self._func_id = funcionario_id
         self._read_only = read_only
         self.setWindowTitle(f"Perfil — {func.nome}" + (" (visualização)" if read_only else ""))
-        self.resize(420, 260)
-        form = QFormLayout(self)
+        self.resize(540, 300)
+        root = QHBoxLayout(self)
+        form = QFormLayout()
         self.edt_nome = QLineEdit()
         self.edt_nome.setText(func.nome)
         self.edt_nome.setReadOnly(read_only)
@@ -114,6 +180,77 @@ class PerfilFuncionarioDialog(QDialog):
             botoes.accepted.connect(self._salvar)
             botoes.rejected.connect(self.reject)
         form.addRow(botoes)
+        root.addLayout(form, 1)
+        # foto quadrada à direita
+        foto_wrap = QVBoxLayout()
+        foto_wrap.setContentsMargins(0, 0, 0, 0)
+        self.lbl_foto = QLabel()
+        self.lbl_foto.setFixedSize(120, 120)
+        self.lbl_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
+        )
+        self.lbl_foto.setText("Sem foto")
+        if not read_only:
+            self.lbl_foto.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.lbl_foto.mousePressEvent = lambda e: self._escolher_foto()  # type: ignore[method-assign]
+        self._foto_path: str | None = getattr(func, "foto", None)
+        if self._foto_path and Path(self._foto_path).exists():
+            pix = QPixmap(self._foto_path)
+            if not pix.isNull():
+                scaled = pix.scaled(
+                    QSize(120, 120),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = max(0, (scaled.width() - 120) // 2)
+                y = max(0, (scaled.height() - 120) // 2)
+                cropped = scaled.copy(x, y, 120, 120)
+                self.lbl_foto.setPixmap(cropped)
+                self.lbl_foto.setStyleSheet(
+                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"  # noqa: E501
+                )
+            else:
+                self.lbl_foto.setText("Sem foto")
+        foto_wrap.addWidget(self.lbl_foto, 0, Qt.AlignmentFlag.AlignTop)
+        if not read_only:
+            self.btn_remover_foto = QPushButton("Remover foto")
+            self.btn_remover_foto.setMaximumWidth(120)
+            self.btn_remover_foto.clicked.connect(self._remover_foto)
+            foto_wrap.addWidget(self.btn_remover_foto)
+        foto_wrap.addStretch(1)
+        root.addLayout(foto_wrap)
+
+    def _escolher_foto(self) -> None:
+        if getattr(self, "_read_only", False):
+            return
+        caminho, _ = QFileDialog.getOpenFileName(
+            self, "Escolher foto", "", "Imagens (*.png *.jpg *.jpeg *.bmp);;Todos (*)"
+        )
+        if caminho:
+            self._foto_path = caminho
+            pix = QPixmap(caminho)
+            if not pix.isNull():
+                scaled = pix.scaled(
+                    QSize(120, 120),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = max(0, (scaled.width() - 120) // 2)
+                y = max(0, (scaled.height() - 120) // 2)
+                cropped = scaled.copy(x, y, 120, 120)
+                self.lbl_foto.setPixmap(cropped)
+                self.lbl_foto.setStyleSheet(
+                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"  # noqa: E501
+                )
+
+    def _remover_foto(self) -> None:
+        self._foto_path = None
+        self.lbl_foto.clear()
+        self.lbl_foto.setText("Sem foto")
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
+        )
 
     def _salvar(self) -> None:
         if self._read_only:
@@ -122,6 +259,30 @@ class PerfilFuncionarioDialog(QDialog):
         if not self.edt_nome.text().strip():
             QMessageBox.warning(self, "Funcionário", "Nome é obrigatório.")
             return
+        foto_src = getattr(self, "_foto_path", None)
+        foto_final = None
+        func_atual = self._vm.buscar(self._func_id)
+        foto_atual = getattr(func_atual, "foto", None) if func_atual else None
+        if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+            if foto_atual and Path(foto_src).resolve() == Path(foto_atual).resolve() if Path(foto_atual).exists() else False:  # type: ignore[arg-type]  # noqa: E501
+                foto_final = foto_atual
+            else:
+                try:
+                    dst_dir = Path("data/fotos/funcionarios")
+                    dst_dir.mkdir(parents=True, exist_ok=True)
+                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                    dst = dst_dir / f"{self._func_id}{ext}"
+                    import shutil
+
+                    shutil.copy2(foto_src, dst)
+                    foto_final = str(dst)
+                except Exception:
+                    foto_final = foto_src
+        elif foto_src is None and foto_atual:
+            # remover foto
+            foto_final = None
+        else:
+            foto_final = foto_atual
         try:
             self._vm.atualizar(
                 self._func_id,
@@ -129,6 +290,7 @@ class PerfilFuncionarioDialog(QDialog):
                 senha=self.edt_senha.text(),
                 horarios=self.edt_horarios.text(),
                 dias=self.edt_dias.text(),
+                foto=foto_final,
             )
         except ValueError as e:
             QMessageBox.warning(self, "Funcionário", str(e))
@@ -199,13 +361,28 @@ class FuncionariosView(QWidget):
         if not dlg.edt_nome.text().strip():
             QMessageBox.warning(self, "Funcionários", "Nome é obrigatório.")
             return
+        foto_src = getattr(dlg, "_foto_path", None)
+        foto_dst = foto_src if foto_src and Path(foto_src).exists() else None  # type: ignore[arg-type]
         try:
-            self.vm.cadastrar(
+            func = self.vm.cadastrar(
                 nome=dlg.edt_nome.text(),
                 senha=dlg.edt_senha.text(),
                 horarios=dlg.edt_horarios.text(),
                 dias=dlg.edt_dias.text(),
+                foto=foto_dst,
             )
+            if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+                try:
+                    dst_dir = Path("data/fotos/funcionarios")
+                    dst_dir.mkdir(parents=True, exist_ok=True)
+                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                    dst = dst_dir / f"{func.id}{ext}"
+                    import shutil
+
+                    shutil.copy2(foto_src, dst)
+                    self.vm.atualizar(func.id, nome=func.nome, senha="", horarios=func.horarios, dias=func.dias, foto=str(dst))  # noqa: E501
+                except Exception:
+                    pass
         except ValueError as e:
             QMessageBox.warning(self, "Funcionários", str(e))
             return

@@ -168,7 +168,7 @@ class DashboardView(QWidget):
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
         self.edt_unico.setMinimumHeight(32)
-        self.edt_unico.setMinimumWidth(380)
+        self.edt_unico.setMinimumWidth(410)
         self.edt_unico.setMaximumWidth(520)
         self.edt_unico.setStyleSheet("font-size: 14px; padding: 6px;")
         self.btn_liberar = QPushButton("Liberar catraca")

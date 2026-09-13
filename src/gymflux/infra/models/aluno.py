@@ -25,6 +25,7 @@ class AlunoModel(Base):
     bloqueado_manual: Mapped[bool] = mapped_column(nullable=False, default=False)
     # PIN de catraca em TEXTO (Fase 4.8, decisão do dono — risco aceito).
     senha: Mapped[str | None] = mapped_column(String(8), nullable=True, default=None)
+    foto: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

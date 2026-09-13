@@ -5,17 +5,20 @@ from __future__ import annotations
 import contextlib
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Protocol
 
 from loguru import logger
-from PySide6.QtCore import QDate, QPoint, Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtCore import QDate, QPoint, QSize, Qt
+from PySide6.QtGui import QBrush, QColor, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -61,12 +64,15 @@ class PagamentosProto(Protocol):
 
 
 class _AlunoForm(QWidget):
-    """Campos do aluno em grade: fileiras horizontais por domínio, largura contida."""
+    """Campos do aluno em grade + foto quadrada clicável à direita."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMaximumWidth(560)
-        grid = QGridLayout(self)
+        self.setMaximumWidth(680)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+        grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
         self.edt_nome = QLineEdit()
         self.edt_cpf = QLineEdit()
@@ -114,6 +120,69 @@ class _AlunoForm(QWidget):
         # linha 4: Observações (separado, span)
         grid.addWidget(QLabel("Observações:"), 4, 0)
         grid.addWidget(self.edt_obs, 4, 1, 1, 3)
+        root.addLayout(grid, 1)
+        # foto quadrada à direita clicável
+        foto_wrap = QVBoxLayout()
+        foto_wrap.setContentsMargins(0, 0, 0, 0)
+        foto_wrap.setSpacing(4)
+        self.lbl_foto = QLabel()
+        self.lbl_foto.setFixedSize(120, 120)
+        self.lbl_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
+        )
+        self.lbl_foto.setText("Foto\n(clique)")
+        self.lbl_foto.setScaledContents(False)
+        self.lbl_foto.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lbl_foto.mousePressEvent = lambda e: self._escolher_foto()  # type: ignore[method-assign]
+        self._foto_path: str | None = None
+        foto_wrap.addWidget(self.lbl_foto, 0, Qt.AlignmentFlag.AlignTop)
+        self.btn_remover_foto = QPushButton("Remover foto")
+        self.btn_remover_foto.setMaximumWidth(120)
+        self.btn_remover_foto.clicked.connect(self._remover_foto)
+        foto_wrap.addWidget(self.btn_remover_foto)
+        foto_wrap.addStretch(1)
+        root.addLayout(foto_wrap)
+
+    def _escolher_foto(self) -> None:
+        caminho, _ = QFileDialog.getOpenFileName(
+            self, "Escolher foto", "", "Imagens (*.png *.jpg *.jpeg *.bmp);;Todos (*)"
+        )
+        if caminho:
+            self._foto_path = caminho
+            self._atualizar_foto()
+
+    def _remover_foto(self) -> None:
+        self._foto_path = None
+        self.lbl_foto.clear()
+        self.lbl_foto.setText("Foto\n(clique)")
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
+        )
+
+    def _atualizar_foto(self) -> None:
+        if not self._foto_path or not Path(self._foto_path).exists():
+            self.lbl_foto.clear()
+            self.lbl_foto.setText("Foto\n(clique)")
+            return
+        pix = QPixmap(self._foto_path)
+        if pix.isNull():
+            self.lbl_foto.setText("Inválida")
+            return
+        # enquadra bem: KeepAspectRatioByExpanding + crop central
+        scaled = pix.scaled(
+            QSize(120, 120),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # crop central para quadrado
+        x = max(0, (scaled.width() - 120) // 2)
+        y = max(0, (scaled.height() - 120) // 2)
+        cropped = scaled.copy(x, y, 120, 120)
+        self.lbl_foto.setPixmap(cropped)
+        self.lbl_foto.setStyleSheet(
+            "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"
+        )
 
     def preencher(self, aluno: Aluno) -> None:
         self.edt_nome.setText(aluno.nome)
@@ -130,6 +199,8 @@ class _AlunoForm(QWidget):
         idx = self.cmb_status.findData(aluno.status)
         if idx >= 0:
             self.cmb_status.setCurrentIndex(idx)
+        self._foto_path = getattr(aluno, "foto", None)
+        self._atualizar_foto()
 
     def dados(self) -> dict[str, str]:
         status = self.cmb_status.currentData()
@@ -143,6 +214,7 @@ class _AlunoForm(QWidget):
             "endereco": self.edt_endereco.text(),
             "senha": self.edt_senha.text(),
             "status": str(status) if status is not None else StatusAluno.ATIVO.value,
+            "foto": self._foto_path or "",
         }
 
 
@@ -599,6 +671,33 @@ class PerfilAlunoDialog(QDialog):
         except ValueError:
             QMessageBox.warning(self, "Perfil", "Status inválido.")
             return
+        foto_src = d.get("foto", "")
+        foto_final = None
+        # foto pode ser caminho original ou vazio (remover) ou já definitiva
+        aluno_atual = self._vm.alunos.buscar(self._aluno_id)
+        foto_atual = getattr(aluno_atual, "foto", None) if aluno_atual else None
+        if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+            # se já é o caminho definitivo, mantém
+            if foto_atual and Path(foto_src).resolve() == Path(foto_atual).resolve() if Path(foto_atual).exists() else False:  # type: ignore[arg-type]  # noqa: E501
+                foto_final = foto_atual
+            else:
+                try:
+                    dst_dir = Path("data/fotos/alunos")
+                    dst_dir.mkdir(parents=True, exist_ok=True)
+                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                    dst = dst_dir / f"{self._aluno_id}{ext}"
+                    import shutil
+
+                    shutil.copy2(foto_src, dst)
+                    foto_final = str(dst)
+                except Exception as e:
+                    logger.warning(f"[UI] falha ao copiar foto {e}")
+                    foto_final = foto_src
+        elif not foto_src:
+            # remover foto se campo vazio e antes tinha
+            foto_final = None
+        else:
+            foto_final = foto_atual
         try:
             self._vm.atualizar(
                 self._aluno_id,
@@ -611,6 +710,7 @@ class PerfilAlunoDialog(QDialog):
                 endereco=d["endereco"],
                 senha=d["senha"],
                 status=status,
+                foto=foto_final,
             )
         except ValueError as e:
             QMessageBox.warning(self, "Perfil", str(e))
@@ -679,6 +779,9 @@ class AlunosView(QWidget):
         hbusca.addWidget(self.cmb_status, 1)
         layout.addLayout(hbusca)
 
+        # central: tabela + painel detalhes à direita
+        central = QHBoxLayout()
+        central.setSpacing(12)
         self.tbl = QTableWidget(0, len(self.COLUNAS))
         self.tbl.setHorizontalHeaderLabels(list(self.COLUNAS))
         self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -690,7 +793,38 @@ class AlunosView(QWidget):
         self.tbl.horizontalHeader().setSortIndicatorShown(True)
         self._sort_col = -1
         self._sort_asc = True
-        layout.addWidget(self.tbl, 1)
+        central.addWidget(self.tbl, 3)
+        # painel detalhes à direita da tabela
+        self.detalhes_frame = QFrame()
+        self.detalhes_frame.setObjectName("DetalhesAlunoFrame")
+        self.detalhes_frame.setStyleSheet(
+            "QFrame#DetalhesAlunoFrame { border: 1px solid #2A3138; border-radius: 8px; background-color: #1A1E22; }"  # noqa: E501
+        )
+        self.detalhes_frame.setMinimumWidth(280)
+        self.detalhes_frame.setMaximumWidth(340)
+        det_lay = QVBoxLayout(self.detalhes_frame)
+        det_lay.setContentsMargins(12, 12, 12, 12)
+        det_lay.setSpacing(8)
+        self.lbl_detalhes_foto = QLabel()
+        self.lbl_detalhes_foto.setFixedSize(140, 140)
+        self.lbl_detalhes_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_detalhes_foto.setStyleSheet(
+            "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
+        )
+        self.lbl_detalhes_foto.setText("Sem foto")
+        det_lay.addWidget(self.lbl_detalhes_foto, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.lbl_detalhes_nome = QLabel("Selecione um aluno")
+        self.lbl_detalhes_nome.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_detalhes_nome.setWordWrap(True)
+        det_lay.addWidget(self.lbl_detalhes_nome)
+        self.lbl_detalhes_info = QLabel("Detalhes aparecerão aqui")
+        self.lbl_detalhes_info.setStyleSheet("color: #9AA7B2;")
+        self.lbl_detalhes_info.setWordWrap(True)
+        self.lbl_detalhes_info.setTextFormat(Qt.TextFormat.PlainText)
+        det_lay.addWidget(self.lbl_detalhes_info)
+        det_lay.addStretch(1)
+        central.addWidget(self.detalhes_frame, 1)
+        layout.addLayout(central, 1)
 
         hbtn = QHBoxLayout()
         self.btn_novo = QPushButton("Novo aluno")
@@ -720,6 +854,7 @@ class AlunosView(QWidget):
         self.edt_busca.textChanged.connect(lambda _t: self.recarregar())
         self.cmb_status.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._abrir_perfil())
+        self.tbl.itemSelectionChanged.connect(self._atualizar_detalhes)
         self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)
         self.tbl.customContextMenuRequested.connect(self._menu_contexto)
         self.btn_novo.clicked.connect(self._novo)
@@ -770,6 +905,63 @@ class AlunosView(QWidget):
         if self._sort_col >= 0:
             order = Qt.SortOrder.AscendingOrder if self._sort_asc else Qt.SortOrder.DescendingOrder
             self.tbl.sortByColumn(self._sort_col, order)
+        self._atualizar_detalhes()
+
+    def _atualizar_detalhes(self) -> None:
+        row = self.tbl.currentRow()
+        if row < 0:
+            self.lbl_detalhes_foto.clear()
+            self.lbl_detalhes_foto.setText("Sem foto")
+            self.lbl_detalhes_foto.setStyleSheet(
+                "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
+            )
+            self.lbl_detalhes_nome.setText("Selecione um aluno")
+            self.lbl_detalhes_info.setText("Detalhes aparecerão aqui")
+            return
+        item_id = self.tbl.item(row, 0)
+        if item_id is None:
+            return
+        aluno = self.vm.alunos.buscar(item_id.text())
+        if aluno is None:
+            return
+        # foto
+        foto_path = getattr(aluno, "foto", None)
+        if foto_path and Path(foto_path).exists():  # type: ignore[arg-type]
+            pix = QPixmap(foto_path)
+            if not pix.isNull():
+                scaled = pix.scaled(
+                    QSize(140, 140),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                x = max(0, (scaled.width() - 140) // 2)
+                y = max(0, (scaled.height() - 140) // 2)
+                cropped = scaled.copy(x, y, 140, 140)
+                self.lbl_detalhes_foto.setPixmap(cropped)
+                self.lbl_detalhes_foto.setStyleSheet(
+                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"  # noqa: E501
+                )
+            else:
+                self.lbl_detalhes_foto.clear()
+                self.lbl_detalhes_foto.setText("Sem foto")
+        else:
+            self.lbl_detalhes_foto.clear()
+            self.lbl_detalhes_foto.setText("Sem foto")
+            self.lbl_detalhes_foto.setStyleSheet(
+                "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
+            )
+        self.lbl_detalhes_nome.setText(aluno.nome)
+        info = (
+            f"nome: {aluno.nome}\n"
+            f"CPF: {aluno.cpf or '—'}\n"
+            f"Telefone: {aluno.telefone or '—'}\n"
+            f"E-mail: {aluno.email or '—'}\n"
+            f"Status: {aluno.status}\n"
+            f"Bloqueio: {'SIM' if aluno.esta_bloqueado else 'não'}\n"
+            f"Senha: {aluno.senha or '—'}\n"
+            f"Endereço: {aluno.endereco or '—'}"
+        )
+        self.lbl_detalhes_info.setText(info)
 
     def _ordenar_coluna(self, col: int) -> None:
         """SORT no header: toggle asc/desc na mesma coluna."""
@@ -947,6 +1139,17 @@ class AlunosView(QWidget):
             except ValueError:
                 QMessageBox.warning(self, "Alunos", "Nascimento inválido (use AAAA-MM-DD).")
                 return
+        foto_src = d.get("foto", "")
+        foto_dst = None
+        if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+            try:
+                dst_dir = Path("data/fotos/alunos")
+                dst_dir.mkdir(parents=True, exist_ok=True)
+                ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                # id ainda não existe, usa temp; após cadastrar copia
+                foto_dst = foto_src
+            except Exception:
+                foto_dst = foto_src
         try:
             aluno = self.vm.cadastrar(
                 nome=d["nome"],
@@ -957,7 +1160,22 @@ class AlunosView(QWidget):
                 observacoes=d["observacoes"],
                 endereco=d["endereco"],
                 senha=d["senha"],
+                foto=foto_dst,
             )
+            # se foto selecionada, copia para pasta definitiva com id
+            if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+                try:
+                    dst_dir = Path("data/fotos/alunos")
+                    dst_dir.mkdir(parents=True, exist_ok=True)
+                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                    dst = dst_dir / f"{aluno.id}{ext}"
+                    import shutil
+
+                    shutil.copy2(foto_src, dst)
+                    # atualiza com caminho definitivo
+                    self.vm.atualizar(aluno.id, nome=aluno.nome, cpf=aluno.cpf, data_nasc=nasc, telefone=aluno.telefone, email=aluno.email, observacoes=aluno.observacoes, endereco=aluno.endereco, senha=d["senha"], status=aluno.status, foto=str(dst))  # noqa: E501
+                except Exception as e:
+                    logger.warning(f"[UI] falha ao copiar foto {e}")
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))
             return

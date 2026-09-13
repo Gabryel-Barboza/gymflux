@@ -28,6 +28,7 @@ def _model_to_domain(m: FuncionarioModel) -> Funcionario:
         ativo=bool(m.ativo),
         horarios=m.horarios,
         dias=m.dias,
+        foto=getattr(m, "foto", None),
     )
 
 
@@ -39,6 +40,7 @@ def _domain_to_model(f: Funcionario) -> FuncionarioModel:
         ativo=bool(f.ativo),
         horarios=f.horarios,
         dias=f.dias,
+        foto=getattr(f, "foto", None),
     )
 
 
@@ -68,6 +70,7 @@ class FuncionarioRepositorySQLAlchemy:
                 existing.ativo = bool(funcionario.ativo)
                 existing.horarios = funcionario.horarios
                 existing.dias = funcionario.dias
+                existing.foto = getattr(funcionario, "foto", None)
             self.session.flush()
         except Exception:
             try:

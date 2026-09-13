@@ -39,6 +39,7 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
         endereco=m.endereco,
         bloqueado_manual=bool(m.bloqueado_manual),
         senha=m.senha,
+        foto=getattr(m, "foto", None),
     )
 
 
@@ -55,6 +56,7 @@ def _domain_to_model(aluno: Aluno) -> AlunoModel:
         endereco=aluno.endereco,
         bloqueado_manual=bool(aluno.bloqueado_manual),
         senha=aluno.senha,
+        foto=getattr(aluno, "foto", None),
     )
 
 
@@ -94,7 +96,7 @@ class AlunoRepositorySQLAlchemy:
                 existing.endereco = aluno.endereco
                 existing.bloqueado_manual = bool(aluno.bloqueado_manual)
                 existing.senha = aluno.senha
-            self.session.flush()
+                existing.foto = getattr(aluno, "foto", None)
         except Exception:
             try:
                 self.session.rollback()

@@ -102,6 +102,7 @@ class Aluno:
     endereco: str | None = None
     bloqueado_manual: bool = False
     senha: str | None = None
+    foto: str | None = None
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():
