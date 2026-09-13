@@ -283,11 +283,13 @@ class DashboardView(QWidget):
         self.frame_giros = frame_giros
         layout.addLayout(hmid)
 
-        # -- wallpaper só atrás dos containers (não no fundo global) -------------
+        # -- wallpaper só atrás dos containers (não no fundo global) --
+        # fundo um nível acima do CatracaCentro: DashboardView, não CatracaCentro
         self._wallpaper_pixmap: QPixmap | None = None
         self._wallpaper_path: str | None = None
         self._wallpaper_labels: dict[QFrame, QLabel] = {}
-        self._wallpaper_frames: list[QFrame] = [header, centro, frame_log, frame_giros]
+        # CatracaCentro fica com fundo transparente e mostra wallpaper do dashboard
+        self._wallpaper_frames: list[QFrame] = [header, frame_log, frame_giros]
         for frm in self._wallpaper_frames:
             bg = QLabel(frm)
             bg.setObjectName(f"WallpaperBg_{frm.objectName()}")
@@ -298,6 +300,16 @@ class DashboardView(QWidget):
             bg.hide()
             self._wallpaper_labels[frm] = bg
             frm.installEventFilter(self)
+        # wallpaper de fundo do Dashboard (um nível acima do centro)
+        self._wallpaper_bg_dashboard = QLabel(self)
+        self._wallpaper_bg_dashboard.setObjectName("WallpaperBg_Dashboard")
+        self._wallpaper_bg_dashboard.setScaledContents(True)
+        self._wallpaper_bg_dashboard.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._wallpaper_bg_dashboard.setStyleSheet("border: none; background: transparent;")
+        self._wallpaper_bg_dashboard.lower()
+        self._wallpaper_bg_dashboard.hide()
+        # CatracaCentro transparente para mostrar fundo do dashboard
+        self.centro.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
         # -- sinais ------------------------------------------------------------
         self.btn_entrada.clicked.connect(lambda: self._liberar("ENTRADA"))
@@ -343,17 +355,15 @@ class DashboardView(QWidget):
         return super().eventFilter(obj, event)
 
     def aplicar_wallpaper(self, path: str | None) -> None:
-        """Aplica wallpaper apenas atrás dos 4 containers; None => fundo sólido."""
+        """Aplica wallpaper: dashboard (um nível acima do centro) + 3 containers."""
         # esconde se sem path
         if not path:
             self._wallpaper_pixmap = None
             self._wallpaper_path = None
             for lbl in getattr(self, "_wallpaper_labels", {}).values():
                 lbl.hide()
-            # restaura fundo sólido nos frames
-            for _frm in getattr(self, "_wallpaper_frames", []):
-                # remove transparência: deixa QSS padrão (sem background)
-                pass
+            with contextlib.suppress(Exception):
+                self._wallpaper_bg_dashboard.hide()
             return
         p = Path(path)
         if not p.exists():
@@ -362,6 +372,8 @@ class DashboardView(QWidget):
             self._wallpaper_path = None
             for lbl in self._wallpaper_labels.values():
                 lbl.hide()
+            with contextlib.suppress(Exception):
+                self._wallpaper_bg_dashboard.hide()
             return
         pix = QPixmap(str(p))
         if pix.isNull():
@@ -370,20 +382,21 @@ class DashboardView(QWidget):
             self._wallpaper_path = None
             for lbl in self._wallpaper_labels.values():
                 lbl.hide()
+            with contextlib.suppress(Exception):
+                self._wallpaper_bg_dashboard.hide()
             return
         self._wallpaper_pixmap = pix
         self._wallpaper_path = str(p)
-        # garante que frames tornem fundo transparente para wallpaper aparecer
-        for frm in self._wallpaper_frames:
-            # mantém borda, mas fundo transparente
-            base = frm.styleSheet()
-            if "background" not in base:
-                # não força background sólido; wallpaper cobre
-                pass
         self._atualizar_todos_wallpapers()
         for lbl in self._wallpaper_labels.values():
             lbl.show()
             lbl.lower()
+        # mostra fundo do dashboard (atrás do centro)
+        with contextlib.suppress(Exception):
+            self._wallpaper_bg_dashboard.show()
+            self._wallpaper_bg_dashboard.lower()
+            # garante que toast fique acima
+            self.toast.raise_()
 
     def _atualizar_wallpaper_frame(self, frame: QFrame) -> None:
         if self._wallpaper_pixmap is None or self._wallpaper_pixmap.isNull():
@@ -404,9 +417,29 @@ class DashboardView(QWidget):
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.lower()
 
+    def _atualizar_wallpaper_dashboard(self) -> None:
+        if self._wallpaper_pixmap is None or self._wallpaper_pixmap.isNull():
+            return
+        lbl = getattr(self, "_wallpaper_bg_dashboard", None)
+        if lbl is None:
+            return
+        lbl.setGeometry(self.rect())
+        scaled = self._wallpaper_pixmap.scaled(
+            self.size(),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        lbl.setPixmap(scaled)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.lower()
+        # toast sempre acima
+        with contextlib.suppress(Exception):
+            self.toast.raise_()
+
     def _atualizar_todos_wallpapers(self) -> None:
         for frm in getattr(self, "_wallpaper_frames", []):
             self._atualizar_wallpaper_frame(frm)
+        self._atualizar_wallpaper_dashboard()
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
