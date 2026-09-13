@@ -8,12 +8,14 @@ from typing import Protocol
 
 from loguru import logger
 from PySide6.QtCore import QDate, QPoint, Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,6 +24,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -51,12 +54,13 @@ class PagamentosProto(Protocol):
 
 
 class _AlunoForm(QWidget):
-    """Campos do aluno reutilizados no cadastro e no perfil (inclui status)."""
+    """Campos do aluno em grade: fileiras horizontais por domínio, largura contida."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        form = QFormLayout(self)
-        form.setContentsMargins(0, 0, 0, 0)
+        self.setMaximumWidth(560)
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
         self.edt_nome = QLineEdit()
         self.edt_cpf = QLineEdit()
         self.edt_cpf.setPlaceholderText("somente números (opcional)")
@@ -70,14 +74,26 @@ class _AlunoForm(QWidget):
         self.cmb_status = QComboBox()
         for st in StatusAluno:
             self.cmb_status.addItem(st.value, st)
-        form.addRow("Nome*:", self.edt_nome)
-        form.addRow("CPF:", self.edt_cpf)
-        form.addRow("Nascimento:", self.edt_nasc)
-        form.addRow("Telefone:", self.edt_tel)
-        form.addRow("E-mail:", self.edt_email)
-        form.addRow("Observações:", self.edt_obs)
-        form.addRow("Senha numérica:", self.edt_senha)
-        form.addRow("Status:", self.cmb_status)
+        # linha 0: Nome* | CPF
+        grid.addWidget(QLabel("Nome*:"), 0, 0)
+        grid.addWidget(self.edt_nome, 0, 1)
+        grid.addWidget(QLabel("CPF:"), 0, 2)
+        grid.addWidget(self.edt_cpf, 0, 3)
+        # linha 1: Nascimento | Telefone
+        grid.addWidget(QLabel("Nascimento:"), 1, 0)
+        grid.addWidget(self.edt_nasc, 1, 1)
+        grid.addWidget(QLabel("Telefone:"), 1, 2)
+        grid.addWidget(self.edt_tel, 1, 3)
+        # linha 2: E-mail | Observações
+        grid.addWidget(QLabel("E-mail:"), 2, 0)
+        grid.addWidget(self.edt_email, 2, 1)
+        grid.addWidget(QLabel("Observações:"), 2, 2)
+        grid.addWidget(self.edt_obs, 2, 3)
+        # linha 3: Senha | Status
+        grid.addWidget(QLabel("Senha numérica:"), 3, 0)
+        grid.addWidget(self.edt_senha, 3, 1)
+        grid.addWidget(QLabel("Status:"), 3, 2)
+        grid.addWidget(self.cmb_status, 3, 3)
 
     def preencher(self, aluno: Aluno) -> None:
         self.edt_nome.setText(aluno.nome)
@@ -86,8 +102,6 @@ class _AlunoForm(QWidget):
         self.edt_tel.setText(aluno.telefone or "")
         self.edt_email.setText(aluno.email or "")
         self.edt_obs.setText(aluno.observacoes or "")
-        # PIN visível (Fase 4.8, decisão do dono); em branco no cadastro,
-        # no perfil mostra o atual e em branco = manter
         self.edt_senha.setText(aluno.senha or "")
         self.edt_senha.setPlaceholderText("em branco = manter atual")
         idx = self.cmb_status.findData(aluno.status)
@@ -112,9 +126,9 @@ class NovoAlunoDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Novo aluno")
+        self.setMaximumWidth(620)
         layout = QVBoxLayout(self)
         self.form = _AlunoForm(self)
-        # atalhos compat (testes legados acessam edt_* direto no dialog)
         self.edt_nome = self.form.edt_nome
         self.edt_cpf = self.form.edt_cpf
         self.edt_nasc = self.form.edt_nasc
@@ -135,7 +149,7 @@ class NovoAlunoDialog(QDialog):
 
 
 class PerfilAlunoDialog(QDialog):
-    """Modal de perfil: campos editáveis + pagamentos + frequência (outros dias)."""
+    """Modal de perfil em abas (Pessoais | Plano/Matrícula | Frequência | Pagamentos) + Liberar."""
 
     COLUNAS_PAG = ("Vencimento", "Valor (R$)", "Pagamento", "Forma")
     COLUNAS_FREQ = ("Data", "Entradas", "Saídas")
@@ -147,6 +161,7 @@ class PerfilAlunoDialog(QDialog):
         aluno_id: str,
         parent: QWidget | None = None,
         frequencia_vm: FrequenciaViewModel | None = None,
+        dashboard_vm: object | None = None,
     ) -> None:
         super().__init__(parent)
         aluno = alunos_vm.alunos.buscar(aluno_id)
@@ -156,33 +171,69 @@ class PerfilAlunoDialog(QDialog):
         self._pagamentos = pagamentos_vm
         self._aluno_id = aluno_id
         self._frequencia = frequencia_vm
+        self._dashboard_vm = dashboard_vm
         self.setWindowTitle(f"Perfil — {aluno.nome}")
-        self.resize(560, 520)
+        self.resize(640, 520)
+        self.setMaximumWidth(700)
         layout = QVBoxLayout(self)
 
-        self.form = _AlunoForm(self)
+        tabs = QTabWidget(self)
+        # aba 1: Pessoais
+        tab_pessoais = QWidget()
+        lay_p = QVBoxLayout(tab_pessoais)
+        self.form = _AlunoForm(tab_pessoais)
         self.form.preencher(aluno)
-        layout.addWidget(self.form)
+        lay_p.addWidget(self.form)
+        lay_p.addStretch(1)
+        tabs.addTab(tab_pessoais, "Pessoais")
 
-        layout.addWidget(QLabel("Pagamentos do aluno:"))
-        self.tbl_pag = QTableWidget(0, len(self.COLUNAS_PAG))
-        self.tbl_pag.setHorizontalHeaderLabels(list(self.COLUNAS_PAG))
-        self.tbl_pag.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tbl_pag.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.tbl_pag, 1)
+        # aba 2: Plano/Matrícula
+        tab_plano = QWidget()
+        lay_plano = QVBoxLayout(tab_plano)
+        lay_plano.addWidget(QLabel("Matrículas do aluno:"))
+        self.tbl_mat = QTableWidget(0, 2)
+        self.tbl_mat.setHorizontalHeaderLabels(["Plano", "Vigência"])
+        self.tbl_mat.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_mat.horizontalHeader().setStretchLastSection(True)
+        lay_plano.addWidget(self.tbl_mat, 1)
+        self.btn_matricular = QPushButton("Matricular...")
+        lay_plano.addWidget(self.btn_matricular)
+        tabs.addTab(tab_plano, "Plano/Matrícula")
 
-        hb = QHBoxLayout()
-        self.btn_novo_pag = QPushButton("Novo pagamento")
-        hb.addWidget(self.btn_novo_pag)
-        hb.addStretch(1)
-        layout.addLayout(hb)
-
-        layout.addWidget(QLabel("Frequência (outros dias):"))
+        # aba 3: Frequência
+        tab_freq = QWidget()
+        lay_f = QVBoxLayout(tab_freq)
         self.tbl_freq = QTableWidget(0, len(self.COLUNAS_FREQ))
         self.tbl_freq.setHorizontalHeaderLabels(list(self.COLUNAS_FREQ))
         self.tbl_freq.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.tbl_freq.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.tbl_freq, 1)
+        lay_f.addWidget(self.tbl_freq, 1)
+        tabs.addTab(tab_freq, "Frequência")
+
+        # aba 4: Pagamentos
+        tab_pag = QWidget()
+        lay_pag = QVBoxLayout(tab_pag)
+        self.tbl_pag = QTableWidget(0, len(self.COLUNAS_PAG))
+        self.tbl_pag.setHorizontalHeaderLabels(list(self.COLUNAS_PAG))
+        self.tbl_pag.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl_pag.horizontalHeader().setStretchLastSection(True)
+        lay_pag.addWidget(self.tbl_pag, 1)
+        hb = QHBoxLayout()
+        self.btn_novo_pag = QPushButton("Novo pagamento")
+        hb.addWidget(self.btn_novo_pag)
+        hb.addStretch(1)
+        lay_pag.addLayout(hb)
+        tabs.addTab(tab_pag, "Pagamentos")
+
+        layout.addWidget(tabs, 1)
+
+        # botão Liberar (extra, fora das abas)
+        hlib = QHBoxLayout()
+        self.btn_liberar = QPushButton("Liberar")
+        self.btn_liberar.setToolTip("Liberar catraca para este aluno")
+        hlib.addWidget(self.btn_liberar)
+        hlib.addStretch(1)
+        layout.addLayout(hlib)
 
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
@@ -192,8 +243,54 @@ class PerfilAlunoDialog(QDialog):
         layout.addWidget(botoes)
 
         self.btn_novo_pag.clicked.connect(self._novo_pagamento)
+        self.btn_matricular.clicked.connect(self._matricular)
+        self.btn_liberar.clicked.connect(self._liberar)
         self._recarregar_pagamentos()
         self._recarregar_frequencia()
+        self._recarregar_matriculas()
+
+    def _recarregar_matriculas(self) -> None:
+        mats = self._vm.matriculas_do_aluno(self._aluno_id)
+        self.tbl_mat.setRowCount(len(mats))
+        for row, m in enumerate(mats):
+            vig = f"{m.vigencia.inicio.isoformat()} → {m.vigencia.fim.isoformat()}"
+            self.tbl_mat.setItem(row, 0, QTableWidgetItem(m.plano.nome))
+            self.tbl_mat.setItem(row, 1, QTableWidgetItem(vig))
+
+    def _matricular(self) -> None:
+        planos = [(p.id, f"{p.nome} ({p.duracao_dias}d)") for p in self._vm.planos_disponiveis()]
+        if not planos:
+            QMessageBox.information(self, "Perfil", "Cadastre um plano primeiro (aba Planos).")
+            return
+        aluno = self._vm.alunos.buscar(self._aluno_id)
+        if aluno is None:
+            return
+        dlg = MatricularDialog(aluno.nome, planos, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            self._vm.matricular(self._aluno_id, dlg.plano_id(), dlg.inicio())
+        except (ValueError, RuntimeError) as e:
+            QMessageBox.warning(self, "Perfil", str(e))
+            return
+        self._recarregar_matriculas()
+
+    def _liberar(self) -> None:
+        # tenta via dashboard_vm se disponível, senão via alunos_vm + mensagem
+        if self._dashboard_vm is not None:
+            try:
+                decisao = self._dashboard_vm.liberar_entrada(self._aluno_id)  # type: ignore[attr-defined]
+                QMessageBox.information(
+                    self,
+                    "Liberar",
+                    self._dashboard_vm.resume_decisao(decisao),  # type: ignore[attr-defined]
+                )
+                return
+            except Exception as e:
+                QMessageBox.warning(self, "Liberar", str(e))
+                return
+        # fallback: informa que catraca liberada depende do dashboard
+        QMessageBox.information(self, "Liberar", "Use a aba Catraca para liberar com CPF/senha.")
 
     def _recarregar_frequencia(self) -> None:
         if self._frequencia is None:
@@ -229,10 +326,12 @@ class PerfilAlunoDialog(QDialog):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:
+            # vencimento editável só no perfil; aqui usa hoje/competência
+            venc = dlg.vencimento() if hasattr(dlg, "vencimento") else date.today()
             self._pagamentos.registrar(
                 aluno_id=self._aluno_id,
                 valor=Decimal(str(dlg.spn_valor.value())),
-                data_vencimento=dlg.vencimento(),
+                data_vencimento=venc,
                 forma=dlg.forma(),
                 pago=dlg.chk_pago.isChecked(),
                 competencia=dlg.edt_comp.text(),
@@ -284,6 +383,7 @@ class MatricularDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Matricular — {aluno_nome}")
+        self.setMaximumWidth(420)
         form = QFormLayout(self)
         self.cmb_plano = QComboBox()
         for plano_id, plano_nome in planos:
@@ -316,11 +416,13 @@ class AlunosView(QWidget):
         pagamentos_vm: PagamentosProto | None = None,
         parent: QWidget | None = None,
         frequencia_vm: FrequenciaViewModel | None = None,
+        dashboard_vm: object | None = None,
     ) -> None:
         super().__init__(parent)
         self.vm = vm
         self.pagamentos_vm = pagamentos_vm
         self.frequencia_vm = frequencia_vm
+        self.dashboard_vm = dashboard_vm
         layout = QVBoxLayout(self)
 
         hbusca = QHBoxLayout()
@@ -341,29 +443,42 @@ class AlunosView(QWidget):
         self.tbl.setColumnHidden(0, True)
         self.tbl.horizontalHeader().setStretchLastSection(True)
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tbl.horizontalHeader().setSectionsClickable(True)
         layout.addWidget(self.tbl, 1)
 
         hbtn = QHBoxLayout()
         self.btn_novo = QPushButton("Novo aluno")
+        # toggle Bloquear/Desbloquear (único visível)
+        self.btn_bloq_toggle = QPushButton("Bloquear/Desbloquear")
+        # legados ocultos mas mantidos p/ compat testes antigos
         self.btn_matricular = QPushButton("Matricular...")
         self.btn_bloquear = QPushButton("Bloquear")
         self.btn_desbloquear = QPushButton("Desbloquear")
         self.btn_inativar = QPushButton("Inativar/Reativar")
+        self.btn_matricular.setVisible(False)
+        self.btn_bloquear.setVisible(False)
+        self.btn_desbloquear.setVisible(False)
+        self.btn_inativar.setVisible(False)
         for b in (
             self.btn_novo,
+            self.btn_bloq_toggle,
             self.btn_matricular,
             self.btn_bloquear,
             self.btn_desbloquear,
             self.btn_inativar,
         ):
             hbtn.addWidget(b)
+        hbtn.addStretch(1)
         layout.addLayout(hbtn)
 
         self.edt_busca.textChanged.connect(lambda _t: self.recarregar())
         self.cmb_status.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._abrir_perfil())
+        self.tbl.horizontalHeader().sectionClicked.connect(self._header_clicado)
         self.tbl.customContextMenuRequested.connect(self._menu_contexto)
         self.btn_novo.clicked.connect(self._novo)
+        self.btn_bloq_toggle.clicked.connect(self._toggle_bloqueio)
+        # legados
         self.btn_matricular.clicked.connect(self._matricular)
         self.btn_bloquear.clicked.connect(lambda: self._acao("bloquear"))
         self.btn_desbloquear.clicked.connect(lambda: self._acao("desbloquear"))
@@ -397,7 +512,53 @@ class AlunosView(QWidget):
                 "SIM" if a.esta_bloqueado else "não",
             )
             for col, v in enumerate(vals):
-                self.tbl.setItem(row, col, QTableWidgetItem(v))
+                item = QTableWidgetItem(v)
+                if a.esta_bloqueado:
+                    item.setForeground(QBrush(QColor("#E57373")))
+                self.tbl.setItem(row, col, item)
+
+    def _header_clicado(self, col: int) -> None:
+        """Clique no header filtra pela valor da coluna na linha selecionada ou primeira."""
+        row = self.tbl.currentRow()
+        if row < 0 and self.tbl.rowCount() > 0:
+            row = 0
+        if row < 0:
+            return
+        item = self.tbl.item(row, col)
+        if item is None:
+            return
+        texto = item.text().strip()
+        if texto in ("—", ""):
+            return
+        # col 1 Nome, col 2 CPF, col 4 Status
+        if col == 4:  # Status
+            try:
+                st = StatusAluno(texto)
+                idx = self.cmb_status.findData(st)
+                if idx >= 0:
+                    self.cmb_status.setCurrentIndex(idx)
+                    return
+            except ValueError:
+                pass
+        self.edt_busca.setText(texto)
+
+    def _toggle_bloqueio(self) -> None:
+        sel = self._selecionado()
+        if sel is None:
+            return
+        aluno_id, _nome = sel
+        aluno = self.vm.alunos.buscar(aluno_id)
+        if aluno is None:
+            return
+        try:
+            if aluno.esta_bloqueado:
+                self.vm.desbloquear(aluno_id)
+            else:
+                self.vm.bloquear(aluno_id)
+        except ValueError as e:
+            QMessageBox.warning(self, "Alunos", str(e))
+            return
+        self.recarregar()
 
     # -- ações -------------------------------------------------------------------
     def _menu_contexto(self, pos: QPoint) -> None:
@@ -406,9 +567,19 @@ class AlunosView(QWidget):
             return
         self.tbl.selectRow(item.row())
         menu = QMenu(self)
-        acao = menu.addAction("Abrir perfil...")
-        if menu.exec(self.tbl.viewport().mapToGlobal(pos)) == acao:
+        a_perfil = menu.addAction("Abrir perfil...")
+        a_mat = menu.addAction("Matricular...")
+        a_bloq = menu.addAction("Bloquear/Desbloquear")
+        a_inat = menu.addAction("Inativar/Reativar")
+        acao = menu.exec(self.tbl.viewport().mapToGlobal(pos))
+        if acao == a_perfil:
             self._abrir_perfil()
+        elif acao == a_mat:
+            self._matricular()
+        elif acao == a_bloq:
+            self._toggle_bloqueio()
+        elif acao == a_inat:
+            self._acao("inativar")
 
     def _abrir_perfil(self) -> None:
         sel = self._selecionado()
@@ -429,6 +600,7 @@ class AlunosView(QWidget):
                 aluno_id,
                 self,
                 frequencia_vm=self.frequencia_vm,
+                dashboard_vm=self.dashboard_vm,
             )
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))

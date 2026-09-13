@@ -1,4 +1,4 @@
-"""Tela de planos — cards modernos + dialog de cadastro/edição."""
+"""Tela de planos — cards em grade + dialog em grade."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFormLayout,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -31,7 +31,9 @@ class NovoPlanoDialog(QDialog):
     def __init__(self, parent: QWidget | None = None, titulo: str = "Novo plano") -> None:
         super().__init__(parent)
         self.setWindowTitle(titulo)
-        form = QFormLayout(self)
+        self.setMaximumWidth(520)
+        layout = QVBoxLayout(self)
+        grid = QGridLayout()
         self.edt_nome = QLineEdit()
         self.cmb_tipo = QComboBox()
         for t in TipoPlano:
@@ -46,17 +48,24 @@ class NovoPlanoDialog(QDialog):
         self.spn_dur = QSpinBox()
         self.spn_dur.setRange(1, 3650)
         self.spn_dur.setValue(30)
-        form.addRow("Nome*:", self.edt_nome)
-        form.addRow("Tipo:", self.cmb_tipo)
-        form.addRow("Valor (R$):", self.spn_valor)
-        form.addRow("Tolerância (dias):", self.spn_tol)
-        form.addRow("Duração (dias):", self.spn_dur)
+        # grade 2x2
+        grid.addWidget(QLabel("Nome*:"), 0, 0)
+        grid.addWidget(self.edt_nome, 0, 1)
+        grid.addWidget(QLabel("Tipo:"), 0, 2)
+        grid.addWidget(self.cmb_tipo, 0, 3)
+        grid.addWidget(QLabel("Valor (R$):"), 1, 0)
+        grid.addWidget(self.spn_valor, 1, 1)
+        grid.addWidget(QLabel("Tolerância (dias):"), 1, 2)
+        grid.addWidget(self.spn_tol, 1, 3)
+        grid.addWidget(QLabel("Duração (dias):"), 2, 0)
+        grid.addWidget(self.spn_dur, 2, 1)
+        layout.addLayout(grid)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
-        form.addRow(botoes)
+        layout.addWidget(botoes)
         self.cmb_tipo.currentIndexChanged.connect(self._tipo_mudou)
         self._tipo_mudou(0)
 
@@ -66,7 +75,6 @@ class NovoPlanoDialog(QDialog):
             self.spn_dur.setValue(DURACAO_POR_TIPO[tipo])
 
     def preencher(self, plano: Plano) -> None:
-        """Preenche p/ edição (mesmos campos do cadastro)."""
         self.edt_nome.setText(plano.nome)
         idx = self.cmb_tipo.findData(plano.tipo)
         if idx >= 0:
@@ -77,7 +85,7 @@ class NovoPlanoDialog(QDialog):
 
 
 class PlanosView(QWidget):
-    """1 card por plano (nome, tipo, duração, valor, tolerância) + Editar/Excluir."""
+    """Cards em grade (2 colunas) + Editar/Excluir."""
 
     def __init__(self, vm: PlanosViewModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -93,8 +101,7 @@ class PlanosView(QWidget):
         self.area = QScrollArea()
         self.area.setWidgetResizable(True)
         self.cards_host = QWidget()
-        self.cards_layout = QVBoxLayout(self.cards_host)
-        self.cards_layout.addStretch(1)
+        self.cards_layout = QGridLayout(self.cards_host)
         self.area.setWidget(self.cards_host)
         layout.addWidget(self.area, 1)
 
@@ -102,27 +109,30 @@ class PlanosView(QWidget):
         self.recarregar()
 
     def _limpar_cards(self) -> None:
-        while self.cards_layout.count() > 1:  # mantém o stretch final
+        while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)
-            widget = item.widget() if item is not None else None
-            if widget is not None:
-                widget.deleteLater()
+            w = item.widget() if item is not None else None
+            if w is not None:
+                w.deleteLater()
 
     def recarregar(self) -> None:
         self._limpar_cards()
         planos = self.vm.listar()
         self.cards: list[tuple[str, QFrame]] = []
-        for plano in planos:
+        cols = 2
+        for idx, plano in enumerate(planos):
             card = self._montar_card(plano)
-            self.cards_layout.insertWidget(self.cards_layout.count() - 1, card)
+            r, c = divmod(idx, cols)
+            self.cards_layout.addWidget(card, r, c)
             self.cards.append((plano.id, card))
         if not planos:
             vazio = QLabel("Nenhum plano cadastrado.")
-            self.cards_layout.insertWidget(self.cards_layout.count() - 1, vazio)
+            self.cards_layout.addWidget(vazio, 0, 0)
 
     def _montar_card(self, plano: Plano) -> QFrame:
         card = QFrame()
         card.setObjectName("PlanoCard")
+        card.setMaximumWidth(320)
         lay = QVBoxLayout(card)
         nome = QLabel(plano.nome)
         nome.setObjectName("PlanoNome")

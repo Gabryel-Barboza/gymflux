@@ -280,7 +280,12 @@ class GymFluxMainWindow(QMainWindow):
             estilo.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon),
             "Catraca",
         )
-        self.alunos_view = AlunosView(ctx.alunos_vm, ctx.caixa_vm, frequencia_vm=ctx.frequencia_vm)
+        self.alunos_view = AlunosView(
+            ctx.alunos_vm,
+            ctx.caixa_vm,
+            frequencia_vm=ctx.frequencia_vm,
+            dashboard_vm=ctx.dashboard_vm,
+        )
         tabs.addTab(
             self.alunos_view,
             estilo.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),

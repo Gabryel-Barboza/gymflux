@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -10,13 +11,15 @@ from typing import Protocol
 from gymflux.core.acesso import DecisaoAcesso, DirecaoAcesso, MotivoNegado, TentativaAcesso
 from gymflux.core.aluno import Aluno
 from gymflux.core.funcionario import Funcionario
+from gymflux.hardware.henry7x.interface import Direcao as DirecaoHW
+from gymflux.hardware.henry7x.interface import ResultadoCatraca
 from gymflux.services.identificar_acesso import (
     Identificacao,
     IdentificarAcessoService,
     OrigemIdentificacao,
 )
 from gymflux.services.liberar_acesso import LiberarAcessoService
-from gymflux.ui.config_store import UiConfig
+from gymflux.ui.config_store import ModoAcesso, UiConfig
 
 
 class LogRepoProto(Protocol):
@@ -48,7 +51,7 @@ class DashboardViewModel:
             self.commit()
 
     def _direcao_bloqueada(self, direcao: DirecaoAcesso) -> DecisaoAcesso | None:
-        """NEGADO direto se a direção está bloqueada nas Configurações."""
+        """Legado 4.8- (bloquear_*): NEGADO direto. Mantido p/ compat JSON antigo."""
         bloqueada = (
             self.ui_config.bloquear_entrada
             if direcao == DirecaoAcesso.ENTRADA
@@ -61,12 +64,90 @@ class DashboardViewModel:
             f"{direcao.value.capitalize()} bloqueada (Configurações)",
         )
 
+    def _modo(self, direcao: DirecaoAcesso) -> ModoAcesso:
+        return (
+            self.ui_config.entrada_modo
+            if direcao == DirecaoAcesso.ENTRADA
+            else self.ui_config.saida_modo
+        )
+
+    def _livre_liberar_direto(self, direcao: DirecaoAcesso) -> DecisaoAcesso:
+        """LIVRE: passa sem identificar — pulso direto no hardware + log."""
+        from datetime import datetime
+
+        from gymflux.core.acesso import ResultadoAcesso as ResultadoDominio
+        from gymflux.core.acesso import TentativaAcesso
+
+        hw_dir = DirecaoHW.ENTRADA if direcao == DirecaoAcesso.ENTRADA else DirecaoHW.SAIDA
+        ts = datetime.now()
+        try:
+            resultado_hw = self.acesso.driver.liberar(hw_dir)
+        except Exception as e:
+            decisao = DecisaoAcesso(
+                liberado=False,
+                resultado=ResultadoDominio.ERRO,
+                motivo=MotivoNegado.ERRO_HARDWARE,
+                detalhes=str(e),
+            )
+            tentativa = TentativaAcesso(
+                aluno_id=None,
+                direcao=direcao,
+                timestamp=ts,
+                resultado=ResultadoDominio.ERRO,
+                motivo=MotivoNegado.ERRO_HARDWARE,
+                detalhes=str(e),
+                catraca_id=self.acesso.catraca_id,
+            )
+            self.acesso.registro.registrar(tentativa)
+            if self.acesso.acesso_repo is not None:
+                with contextlib.suppress(Exception):
+                    self.acesso.acesso_repo.registrar(tentativa)
+            self._commit()
+            return decisao
+        if resultado_hw == ResultadoCatraca.LIBERADO:
+            decisao = DecisaoAcesso.liberado_ok(
+                f"{direcao.value.capitalize()} livre — catraca liberada"
+            )
+            res = ResultadoDominio.LIBERADO
+        else:
+            motivo_hw = (
+                MotivoNegado.BLOQUEIO_MANUAL
+                if resultado_hw == ResultadoCatraca.BLOQUEADO
+                else MotivoNegado.ERRO_HARDWARE
+            )
+            decisao = DecisaoAcesso(
+                liberado=False,
+                resultado=ResultadoDominio.NEGADO
+                if resultado_hw == ResultadoCatraca.BLOQUEADO
+                else ResultadoDominio.ERRO,
+                motivo=motivo_hw,
+                detalhes=f"Hardware retornou {resultado_hw.value}",
+            )
+            res = decisao.resultado
+        tentativa = TentativaAcesso(
+            aluno_id=None,
+            direcao=direcao,
+            timestamp=ts,
+            resultado=res,
+            motivo=decisao.motivo,
+            detalhes=decisao.detalhes,
+            catraca_id=self.acesso.catraca_id,
+        )
+        self.acesso.registro.registrar(tentativa)
+        if self.acesso.acesso_repo is not None:
+            with contextlib.suppress(Exception):
+                self.acesso.acesso_repo.registrar(tentativa)
+        self._commit()
+        return decisao
+
     # -- liberação (passa pela RB01-RB05 + hardware via service) --------------
     def liberar_entrada(self, aluno_id: str) -> DecisaoAcesso:
         negado = self._direcao_bloqueada(DirecaoAcesso.ENTRADA)
         if negado is not None:
             self._commit()
             return negado
+        if self._modo(DirecaoAcesso.ENTRADA) == ModoAcesso.LIVRE:
+            return self._livre_liberar_direto(DirecaoAcesso.ENTRADA)
         decisao = self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.ENTRADA)
         self._commit()
         return decisao
@@ -76,9 +157,47 @@ class DashboardViewModel:
         if negado is not None:
             self._commit()
             return negado
+        if self._modo(DirecaoAcesso.SAIDA) == ModoAcesso.LIVRE:
+            return self._livre_liberar_direto(DirecaoAcesso.SAIDA)
         decisao = self.acesso.tentar_acesso_por_id(aluno_id, DirecaoAcesso.SAIDA)
         self._commit()
         return decisao
+
+    def liberar_catraca_unico(self, codigo: str) -> tuple[DecisaoAcesso, Aluno | None]:
+        """Campo único CPF/senha + botão único 'Liberar catraca'.
+
+        Resolve direção pela config: se entrada=SENHA => ENTRADA, se saída=SENHA
+        e entrada=LIVRE => SAIDA, senão ENTRADA (default). Se a direção for
+        LIVRE, passa sem identificar (sem código). Código vazio + LIVRE => livre.
+        """
+        # decide direção (prioridade ENTRADA SENHA)
+        if self._modo(DirecaoAcesso.ENTRADA) == ModoAcesso.SENHA:
+            direcao = DirecaoAcesso.ENTRADA
+        elif self._modo(DirecaoAcesso.SAIDA) == ModoAcesso.SENHA:
+            direcao = DirecaoAcesso.SAIDA
+        else:
+            # ambos LIVRE: libera direto sem senha
+            return self._livre_liberar_direto(DirecaoAcesso.SAIDA), None
+        if self._modo(direcao) == ModoAcesso.LIVRE:
+            return self._livre_liberar_direto(direcao), None
+        texto = codigo.strip()
+        if not texto:
+            self._commit()
+            return DecisaoAcesso.negado("CAMPO_VAZIO", "Informe CPF ou senha"), None
+        # tenta CPF/ID primeiro, senão senha
+        aluno = self.resolver_aluno(texto)
+        if aluno is not None:
+            decisao = self.acesso.tentar_acesso_por_id(aluno.id, direcao)
+            self._commit()
+            return decisao, aluno
+        # tenta como senha
+        try:
+            return self.identificar_acesso(texto, OrigemIdentificacao.TECLADO, direcao=direcao)
+        except (ValueError, RuntimeError):
+            self._commit()
+            return DecisaoAcesso.negado(
+                MotivoNegado.ALUNO_NAO_ENCONTRADO, "Aluno não encontrado"
+            ), None
 
     # -- resolução de aluno p/ recepção (id exato ou CPF) ----------------------
     def resolver_aluno(self, texto: str) -> Aluno | None:
@@ -109,6 +228,8 @@ class DashboardViewModel:
         if negado is not None:
             self._commit()
             return negado, None
+        if self._modo(direcao) == ModoAcesso.LIVRE:
+            return self._livre_liberar_direto(direcao), None
         ori = OrigemIdentificacao(origem) if isinstance(origem, str) else origem
         if ori != OrigemIdentificacao.TECLADO:
             raise ValueError(f"origem {ori} removida na Fase 4.8 (só TECLADO)")

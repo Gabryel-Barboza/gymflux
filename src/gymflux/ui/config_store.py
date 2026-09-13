@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -49,11 +50,25 @@ def _as_modo_tema(valor: Any) -> ModoTema:
         return ModoTema.ESCURO
 
 
+class ModoAcesso(StrEnum):
+    LIVRE = "LIVRE"
+    SENHA = "SENHA"
+
+
+def _as_modo_acesso(valor: Any, default: ModoAcesso) -> ModoAcesso:
+    if isinstance(valor, ModoAcesso):
+        return valor
+    try:
+        return ModoAcesso(str(valor).strip().upper())
+    except ValueError:
+        return default
+
+
 @dataclass
 class UiConfig:
     """Ajustes da aba Configurações (valores sempre normalizados)."""
 
-    bloquear_entrada: bool = False
+    bloquear_entrada: bool = False  # legado 4.8- (mantido p/ compat JSON antigo)
     bloquear_saida: bool = False
     senha_min_digitos: int = 4
     tolerancia_dias: int = 3
@@ -61,6 +76,9 @@ class UiConfig:
     anti_passback: bool = False
     porta_catraca: str = "1"
     tema: ModoTema = ModoTema.ESCURO
+    # Fase 4.9: por direção, LIVRE (passa sem senha) vs SENHA (exige identificação)
+    entrada_modo: ModoAcesso = ModoAcesso.SENHA
+    saida_modo: ModoAcesso = ModoAcesso.LIVRE
 
     def __post_init__(self) -> None:
         self.bloquear_entrada = _as_bool(self.bloquear_entrada)
@@ -72,6 +90,8 @@ class UiConfig:
         porta = str(self.porta_catraca or "").strip()
         self.porta_catraca = porta or "1"
         self.tema = _as_modo_tema(self.tema)
+        self.entrada_modo = _as_modo_acesso(self.entrada_modo, ModoAcesso.SENHA)
+        self.saida_modo = _as_modo_acesso(self.saida_modo, ModoAcesso.LIVRE)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
