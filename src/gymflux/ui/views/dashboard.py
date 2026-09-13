@@ -29,12 +29,12 @@ from PySide6.QtWidgets import (
 
 from gymflux.core.acesso import TentativaAcesso
 from gymflux.ui.catraca_bridge import CatracaBridge
-from gymflux.ui.theme import VERMELHO, cores_indicador, estilo_resultado
+from gymflux.ui.theme import VERMELHO, ModoTema, cores_indicador, estilo_resultado, modo_de
 from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
 LINHAS_VISIVEIS = 3
 LINHAS_MAX_TABELA = 8
-WALLPAPER_SCALE = 0.82  # zoom out — afastar da tela
+WALLPAPER_SCALE = 0.68  # zoom out — afastar da tela
 
 
 class DetalhesDialog(QDialog):
@@ -168,16 +168,16 @@ class DashboardView(QWidget):
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
         self.edt_unico.setMinimumHeight(32)
-        self.edt_unico.setMaximumWidth(310)
+        self.edt_unico.setMaximumWidth(410)
         self.edt_unico.setStyleSheet("font-size: 14px; padding: 6px;")
         self.btn_liberar = QPushButton("Liberar catraca")
-        # ícone mais destacado: maior, com tint para contraste
+        # ícone contrastando com fundo AZUL #5AC8FA
         try:
             from gymflux.ui.app import _tint_icon
-            from gymflux.ui.theme import AZUL
+            from gymflux.ui.theme import TINTA_SOBRE_ACENTO
 
             _icon_base = estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
-            _icon_dest = _tint_icon(_icon_base, AZUL)
+            _icon_dest = _tint_icon(_icon_base, TINTA_SOBRE_ACENTO)
             self.btn_liberar.setIcon(_icon_dest)
         except Exception:
             self.btn_liberar.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
@@ -252,6 +252,7 @@ class DashboardView(QWidget):
         lay_log.setAlignment(Qt.AlignmentFlag.AlignTop)
         lbl_log = QLabel("Acessos de hoje")
         lbl_log.setStyleSheet("font-weight: bold; border: none;")
+        self.lbl_log_titulo = lbl_log
         lay_log.addWidget(lbl_log)
         self.tbl_log = QTableWidget(0, len(self.COLUNAS_LOG))
         self.tbl_log.setHorizontalHeaderLabels(list(self.COLUNAS_LOG))
@@ -284,6 +285,7 @@ class DashboardView(QWidget):
         lay_giros.setAlignment(Qt.AlignmentFlag.AlignTop)
         lbl_giros = QLabel("Giros")
         lbl_giros.setStyleSheet("font-weight: bold; border: none;")
+        self.lbl_giros_titulo = lbl_giros
         lay_giros.addWidget(lbl_giros)
         self.lst_giros = QListWidget()
         lst_h = self._altura_lista(LINHAS_MAX_TABELA)
@@ -301,7 +303,8 @@ class DashboardView(QWidget):
         self._wallpaper_path: str | None = None
         self._wallpaper_labels: dict[QFrame, QLabel] = {}
         # CatracaCentro fica com fundo transparente e mostra wallpaper do dashboard
-        self._wallpaper_frames: list[QFrame] = [header, frame_log, frame_giros]
+        # header não tem wallpaper — só fundo original
+        self._wallpaper_frames: list[QFrame] = [frame_log, frame_giros]
         for frm in self._wallpaper_frames:
             bg = QLabel(frm)
             bg.setObjectName(f"WallpaperBg_{frm.objectName()}")
@@ -393,14 +396,37 @@ class DashboardView(QWidget):
         paleta = paleta_do_modo(self.vm.ui_config.tema)
         painel = paleta.painel
         for frm in [self.header, self.centro, self.frame_log, self.frame_giros]:
+            base = frm.objectName()
+            # header nunca tem wallpaper — sempre fundo sólido original
+            if base == "CatracaHeader":
+                ov = self._overlay_labels.get(frm)
+                if ov is not None:
+                    ov.hide()
+                frm.setStyleSheet(
+                    f"QFrame#CatracaHeader {{ border: 1px solid #C8D0D8; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
+                )
+                continue
+            # centro: wallpaper mode sem fundo do pai (transparente total)
+            if base == "CatracaCentro":
+                ov = self._overlay_labels.get(frm)
+                if ov is not None:
+                    ov.hide()
+                if wallpaper_ativo:
+                    frm.setStyleSheet(
+                        "QFrame#CatracaCentro { border: none; border-radius: 8px; background: transparent; }"  # noqa: E501
+                    )
+                else:
+                    frm.setStyleSheet(
+                        f"QFrame#CatracaCentro {{ border: none; border-radius: 8px; background-color: {painel}; }}"  # noqa: E501
+                    )
+                continue
+            # log/giros: um nível abaixo do wallpaper
             if wallpaper_ativo:
-                # fundo preto pouca opacidade p/ sombra/leitura — atrás do conteúdo, acima do wallpaper  # noqa: E501
                 ov = self._overlay_labels.get(frm)
                 if ov is not None:
                     ov.setGeometry(frm.rect())
                     ov.show()
                     ov.lower()
-                    # garante conteúdo acima do overlay
                     for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
                         if not isinstance(
                             child, (QLabel, QLineEdit, QPushButton, QTableWidget, QListWidget)
@@ -408,26 +434,10 @@ class DashboardView(QWidget):
                             continue
                         with contextlib.suppress(Exception):
                             child.raise_()
-                    # wallpaper atrás do overlay
                     wp = self._wallpaper_labels.get(frm)
                     if wp is not None:
                         wp.lower()
-                    if frm is self.centro:
-                        with contextlib.suppress(Exception):
-                            self._wallpaper_bg_dashboard.lower()
-                            ov.lower()
-                            wp.lower() if wp else None  # type: ignore[attr-defined]
-                # frame transparente para wallpaper aparecer
-                base = frm.objectName()
-                if base == "CatracaCentro":
-                    frm.setStyleSheet(
-                        "QFrame#CatracaCentro { border: none; border-radius: 8px; background: transparent; }"  # noqa: E501
-                    )
-                elif base == "CatracaHeader":
-                    frm.setStyleSheet(
-                        "QFrame#CatracaHeader { border: 1px solid #C8D0D8; border-radius: 8px; background: transparent; padding: 4px; }"  # noqa: E501
-                    )
-                elif base == "CatracaFrameLog":
+                if base == "CatracaFrameLog":
                     frm.setStyleSheet(
                         "QFrame#CatracaFrameLog { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
                     )
@@ -439,17 +449,7 @@ class DashboardView(QWidget):
                 ov = self._overlay_labels.get(frm)
                 if ov is not None:
                     ov.hide()
-                # fundo sólido do tema — sem transparência
-                base = frm.objectName()
-                if base == "CatracaCentro":
-                    frm.setStyleSheet(
-                        f"QFrame#CatracaCentro {{ border: none; border-radius: 8px; background-color: {painel}; }}"  # noqa: E501
-                    )
-                elif base == "CatracaHeader":
-                    frm.setStyleSheet(
-                        f"QFrame#CatracaHeader {{ border: 1px solid #C8D0D8; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
-                    )
-                elif base == "CatracaFrameLog":
+                if base == "CatracaFrameLog":
                     frm.setStyleSheet(
                         f"QFrame#CatracaFrameLog {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
                     )
@@ -457,7 +457,34 @@ class DashboardView(QWidget):
                     frm.setStyleSheet(
                         f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
                     )
-        # botões nunca transparentes — garante opaco via QSS do tema (não altera)
+        # tabelas: modo claro precisa destaque sobre wallpaper escuro
+        self._aplicar_estilo_tabelas(wallpaper_ativo)
+
+    def _aplicar_estilo_tabelas(self, wallpaper_ativo: bool) -> None:
+        is_claro = modo_de(self.vm.ui_config.tema) == ModoTema.CLARO
+        if wallpaper_ativo and is_claro:
+            # wallpaper escuro + tema claro: destaca textos com fundo semi-transparente
+            self.tbl_log.setStyleSheet(
+                "QTableWidget { background-color: rgba(232,237,241, 210);"
+                " border: 1px solid #C8D0D8; }"
+                " QHeaderView::section { background-color: rgba(232,237,241, 230); }"
+            )
+            self.lst_giros.setStyleSheet(
+                "QListWidget { background-color: rgba(232,237,241, 210);"
+                " border: 1px solid #C8D0D8; }"
+            )
+            pill = (
+                "font-weight: bold; border: none; color: #F2F5F7;"
+                " background-color: rgba(0, 0, 0, 110);"
+                " border-radius: 6px; padding: 2px 6px;"
+            )
+            self.lbl_log_titulo.setStyleSheet(pill)
+            self.lbl_giros_titulo.setStyleSheet(pill)
+        else:
+            self.tbl_log.setStyleSheet("")
+            self.lst_giros.setStyleSheet("")
+            self.lbl_log_titulo.setStyleSheet("font-weight: bold; border: none;")
+            self.lbl_giros_titulo.setStyleSheet("font-weight: bold; border: none;")
 
     def sync_tema(self) -> None:
         """Reaplica fundo dos containers após troca de tema."""
