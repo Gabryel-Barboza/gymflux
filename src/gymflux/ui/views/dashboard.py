@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
+from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont
+from loguru import logger
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -117,6 +120,7 @@ class DashboardView(QWidget):
         hstatus.addWidget(self.lbl_compacto, 1)
         hstatus.addWidget(self.btn_detalhes)
         layout.addWidget(header)
+        self.header = header
 
         # tabela detalhada oculta (compat)
         self.tbl_status = QTableWidget(len(self.LINHAS_STATUS), 2)
@@ -140,6 +144,10 @@ class DashboardView(QWidget):
         # -- centro: campo CPF/senha + Liberar único (moderno, à direita) ---
         centro = QFrame(self)
         centro.setObjectName("CatracaCentro")
+        # sem fundo sólido quando wallpaper ativo (wallpaper fica atrás)
+        centro.setStyleSheet(
+            "QFrame#CatracaCentro { border: 1px solid #C8D0D8; border-radius: 8px; }"
+        )
         huni = QHBoxLayout(centro)
         huni.setContentsMargins(12, 12, 12, 12)
         huni.setSpacing(12)
@@ -171,6 +179,7 @@ class DashboardView(QWidget):
         huni.addWidget(self.edt_unico)
         huni.addWidget(self.btn_liberar)
         layout.addWidget(centro)
+        self.centro = centro
 
         # compat antigos (ocultos)
         self.edt_aluno = QLineEdit()
@@ -248,6 +257,7 @@ class DashboardView(QWidget):
         # frame hugging: header + tabela + margins
         frame_log.setMaximumHeight(tbl_h + 30 + 12)
         hmid.addWidget(frame_log, 3)
+        self.frame_log = frame_log
 
         frame_giros = QFrame()
         frame_giros.setObjectName("CatracaFrameGiros")
@@ -270,7 +280,24 @@ class DashboardView(QWidget):
         lay_giros.addWidget(self.lst_giros)
         frame_giros.setMaximumHeight(lst_h + 30 + 12)
         hmid.addWidget(frame_giros, 1)
+        self.frame_giros = frame_giros
         layout.addLayout(hmid)
+
+        # -- wallpaper só atrás dos containers (não no fundo global) -------------
+        self._wallpaper_pixmap: QPixmap | None = None
+        self._wallpaper_path: str | None = None
+        self._wallpaper_labels: dict[QFrame, QLabel] = {}
+        self._wallpaper_frames: list[QFrame] = [header, centro, frame_log, frame_giros]
+        for frm in self._wallpaper_frames:
+            bg = QLabel(frm)
+            bg.setObjectName(f"WallpaperBg_{frm.objectName()}")
+            bg.setScaledContents(True)
+            bg.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            bg.setStyleSheet("border: none; background: transparent; border-radius: 8px;")
+            bg.lower()
+            bg.hide()
+            self._wallpaper_labels[frm] = bg
+            frm.installEventFilter(self)
 
         # -- sinais ------------------------------------------------------------
         self.btn_entrada.clicked.connect(lambda: self._liberar("ENTRADA"))
@@ -309,6 +336,78 @@ class DashboardView(QWidget):
     def _estilo(self, liberado: bool | None) -> str:
         return estilo_resultado(liberado, self.vm.ui_config.tema)
 
+    # -- wallpaper por container -------------------------------------------------
+    def eventFilter(self, obj, event) -> bool:  # type: ignore[override]
+        if obj in getattr(self, "_wallpaper_frames", []) and event.type() == QEvent.Type.Resize:
+            self._atualizar_wallpaper_frame(obj)  # type: ignore[arg-type]
+        return super().eventFilter(obj, event)
+
+    def aplicar_wallpaper(self, path: str | None) -> None:
+        """Aplica wallpaper apenas atrás dos 4 containers; None => fundo sólido."""
+        # esconde se sem path
+        if not path:
+            self._wallpaper_pixmap = None
+            self._wallpaper_path = None
+            for lbl in getattr(self, "_wallpaper_labels", {}).values():
+                lbl.hide()
+            # restaura fundo sólido nos frames
+            for _frm in getattr(self, "_wallpaper_frames", []):
+                # remove transparência: deixa QSS padrão (sem background)
+                pass
+            return
+        p = Path(path)
+        if not p.exists():
+            logger.warning(f"[UI] wallpaper não encontrado: {path}")
+            self._wallpaper_pixmap = None
+            self._wallpaper_path = None
+            for lbl in self._wallpaper_labels.values():
+                lbl.hide()
+            return
+        pix = QPixmap(str(p))
+        if pix.isNull():
+            logger.warning(f"[UI] wallpaper inválido: {path}")
+            self._wallpaper_pixmap = None
+            self._wallpaper_path = None
+            for lbl in self._wallpaper_labels.values():
+                lbl.hide()
+            return
+        self._wallpaper_pixmap = pix
+        self._wallpaper_path = str(p)
+        # garante que frames tornem fundo transparente para wallpaper aparecer
+        for frm in self._wallpaper_frames:
+            # mantém borda, mas fundo transparente
+            base = frm.styleSheet()
+            if "background" not in base:
+                # não força background sólido; wallpaper cobre
+                pass
+        self._atualizar_todos_wallpapers()
+        for lbl in self._wallpaper_labels.values():
+            lbl.show()
+            lbl.lower()
+
+    def _atualizar_wallpaper_frame(self, frame: QFrame) -> None:
+        if self._wallpaper_pixmap is None or self._wallpaper_pixmap.isNull():
+            return
+        lbl = self._wallpaper_labels.get(frame)
+        if lbl is None:
+            return
+        # cobre todo o frame (dentro da borda)
+        lbl.setGeometry(frame.rect())
+        # escala cobrindo o frame, cortando excesso
+        scaled = self._wallpaper_pixmap.scaled(
+            frame.size(),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # centraliza corte: QPixmap.scaled já expande, Label com AlignCenter corta
+        lbl.setPixmap(scaled)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.lower()
+
+    def _atualizar_todos_wallpapers(self) -> None:
+        for frm in getattr(self, "_wallpaper_frames", []):
+            self._atualizar_wallpaper_frame(frm)
+
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         # centraliza toast no meio da tela
@@ -322,6 +421,9 @@ class DashboardView(QWidget):
             x = (self.width() - self.toast.width()) // 2
             y = (self.height() - self.toast.height()) // 2
             self.toast.move(max(8, x), max(8, y))
+        # mantém wallpaper cobrindo cada container ao redimensionar
+        with contextlib.suppress(Exception):
+            self._atualizar_todos_wallpapers()
 
     def _mostrar_toast(self, texto: str, liberado: bool | None) -> None:
         self.toast.setText(texto)

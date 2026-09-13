@@ -6,9 +6,9 @@ ViewModels/Views recebem dependências prontas (nunca importam infra/hardware).
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -16,7 +16,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
-    QGraphicsOpacityEffect,
     QLabel,
     QMainWindow,
     QStyle,
@@ -333,6 +332,7 @@ class GymFluxMainWindow(QMainWindow):
         dashboard_view = DashboardView(ctx.dashboard_vm, ctx.bridge)
         dashboard_view.perfil_solicitado.connect(self._abrir_perfil_aluno)
         tabs.addTab(dashboard_view, self._base_icons[0], "Catraca")
+        self.dashboard_view = dashboard_view
         self.alunos_view = AlunosView(
             ctx.alunos_vm,
             ctx.caixa_vm,
@@ -349,22 +349,14 @@ class GymFluxMainWindow(QMainWindow):
         self.tabs = tabs
         tabs.currentChanged.connect(self._on_tab_changed)
         self._aplicar_tema_icones(ctx.config_vm.config.tema)
-        # wallpaper ao fundo (default vendor/gymflux-logomarca.png)
+        # wallpaper: fundo global desabilitado — fica só atrás dos containers da catraca
         self._wallpaper_label = QLabel(self)
-        self._wallpaper_label.setScaledContents(True)
         self._wallpaper_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self._wallpaper_label.lower()
-        # wallpaper com opacidade total, no fundo no lugar da cor sólida
-        try:
-            eff = QGraphicsOpacityEffect(self._wallpaper_label)
-            eff.setOpacity(1.0)
-            self._wallpaper_label.setGraphicsEffect(eff)
-        except Exception:
-            pass
+        self._wallpaper_label.hide()
+        # mantém atributos p/ compat, mas não usa wallpaper global
         self._wallpaper_pixmap: QPixmap | None = None
         self._scaled_wallpaper: QPixmap | None = None
         self._cached_wallpaper_size: Any = None
-        # respeita modo fundo: só mostra wallpaper se modo WALLPAPER
         from gymflux.ui.config_store import ModoFundo
 
         cfg_wall = ctx.config_vm.config.wallpaper
@@ -373,7 +365,6 @@ class GymFluxMainWindow(QMainWindow):
             self.aplicar_wallpaper(cfg_wall)
         else:
             self.aplicar_wallpaper(None)
-        # garante que tabs fiquem acima do wallpaper
         self.tabs.raise_()
 
     def _aplicar_tema_icones(self, tema) -> None:  # type: ignore[no-untyped-def]
@@ -390,79 +381,29 @@ class GymFluxMainWindow(QMainWindow):
         self._aplicar_tema_icones(self.ctx.config_vm.config.tema)
 
     def aplicar_wallpaper(self, path: str | None) -> None:
-        """Aplica wallpaper ao fundo; None ou inexistente => esconde."""
+        """Delega wallpaper aos containers da catraca; fundo global sempre sólido."""
+        # garante fundo global sólido (sem wallpaper atrás de tudo)
         try:
-            if not path:
-                self._wallpaper_label.hide()
-                self._wallpaper_pixmap = None
-                self._scaled_wallpaper = None
-                self._cached_wallpaper_size = None
-                return
-            p = Path(path)
-            if not p.exists():
-                logger.warning(f"[UI] wallpaper não encontrado: {path}")
-                self._wallpaper_label.hide()
-                self._wallpaper_pixmap = None
-                self._scaled_wallpaper = None
-                self._cached_wallpaper_size = None
-                return
-            pix = QPixmap(str(p))
-            if pix.isNull():
-                self._wallpaper_label.hide()
-                self._scaled_wallpaper = None
-                self._cached_wallpaper_size = None
-                return
-            self._wallpaper_pixmap = pix
-            # ajusta label ao tamanho da janela (cobre fundo)
-            self._wallpaper_label.setGeometry(self.rect())
-            # escala para cobrir todo o fundo (total opacidade, no lugar da cor sólida)
-            scaled = pix.scaled(
-                self.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._scaled_wallpaper = scaled
-            self._cached_wallpaper_size = self.size()
-            self._wallpaper_label.setPixmap(scaled)
-            self._wallpaper_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._wallpaper_label.show()
-            self._wallpaper_label.lower()
-            self.tabs.raise_()
-        except Exception as e:
-            logger.warning(f"[UI] wallpaper falhou {path}: {e}")
-            import contextlib
-
-            with contextlib.suppress(Exception):
-                self._wallpaper_label.hide()
+            self._wallpaper_label.hide()
+            self._wallpaper_pixmap = None
             self._scaled_wallpaper = None
             self._cached_wallpaper_size = None
+        except Exception:
+            pass
+        # delega aos 4 containers da dashboard
+        try:
+            if hasattr(self, "dashboard_view") and hasattr(
+                self.dashboard_view, "aplicar_wallpaper"
+            ):
+                self.dashboard_view.aplicar_wallpaper(path)
+        except Exception as e:
+            logger.warning(f"[UI] delegar wallpaper falhou {path}: {e}")
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        # redimensiona wallpaper para cobrir janela (com cache)
-        try:
-            if self._wallpaper_pixmap is not None and not self._wallpaper_pixmap.isNull():
-                self._wallpaper_label.setGeometry(self.rect())
-                # usa cache se tamanho não mudou
-                if (
-                    self._cached_wallpaper_size is not None
-                    and self._cached_wallpaper_size == self.size()
-                    and self._scaled_wallpaper is not None
-                ):
-                    scaled = self._scaled_wallpaper
-                else:
-                    scaled = self._wallpaper_pixmap.scaled(
-                        self.size(),
-                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
-                    self._scaled_wallpaper = scaled
-                    self._cached_wallpaper_size = self.size()
-                self._wallpaper_label.setPixmap(scaled)
-                self._wallpaper_label.lower()
-                self.tabs.raise_()
-        except Exception:
-            pass
+        # sem wallpaper global — dashboard cuida via eventFilter/resize
+        with contextlib.suppress(Exception):
+            self.tabs.raise_()
 
     def _abrir_perfil_aluno(self, aluno_id: str) -> None:
         """Click-through do log: troca p/ aba Alunos e abre o modal de perfil."""
