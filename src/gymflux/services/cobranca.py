@@ -98,13 +98,14 @@ def aplicar_cobranca_mensal(
             if not aluno.esta_ativo:
                 continue
             mats = mats_por_aluno.get(aluno.id, [])
-            # considera qualquer matrícula ativa (mesmo expirada) — cobrança mensal
-            # não deve depender da vigência exata, só de estar ativa
-            ativas = [m for m in mats if m.ativa]
-            if not ativas:
+            # só matrículas ativas e vigentes no mês atual (original)
+            # evita cobrar mensalmente quem tem plano trimestral/anual expirado
+            # ou ainda não vigente — respeita vigência + duracao
+            vigentes = [m for m in mats if m.ativa and m.vigencia.contem(hoje)]
+            if not vigentes:
                 continue
-            # usa a matrícula mais recente como referência de plano/valor
-            mat = max(ativas, key=lambda m: m.vigencia.inicio)
+            # usa a vigência mais recente como referência de plano/valor
+            mat = max(vigentes, key=lambda m: m.vigencia.inicio)
             if comp_atual in comps_por_aluno.get(aluno.id, set()):
                 continue
             duracao = max(1, int(mat.plano.duracao_dias))

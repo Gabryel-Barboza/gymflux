@@ -27,6 +27,13 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
     status = (
         StatusAluno(m.status) if m.status in StatusAluno._value2member_map_ else StatusAluno.ATIVO
     )
+    created = getattr(m, "created_at", None)
+    created_date = None
+    if created is not None:
+        try:
+            created_date = created.date() if hasattr(created, "date") else created
+        except Exception:
+            created_date = None
     return Aluno(
         id=m.id,
         nome=m.nome,
@@ -40,10 +47,43 @@ def _model_to_domain(m: AlunoModel) -> Aluno:
         bloqueado_manual=bool(m.bloqueado_manual),
         senha=m.senha,
         foto=getattr(m, "foto", None),
+        created_at=created_date,
     )
 
 
 def _domain_to_model(aluno: Aluno) -> AlunoModel:
+    from datetime import datetime
+
+    created_dt = None
+    if getattr(aluno, "created_at", None) is not None:
+        try:
+            c = aluno.created_at  # type: ignore[attr-defined]
+            if hasattr(c, "year"):
+                # date or datetime -> ternary
+                created_dt = (
+                    c  # type: ignore[assignment]
+                    if hasattr(c, "hour")
+                    else datetime.combine(c, datetime.min.time())  # type: ignore[arg-type]
+                )
+        except Exception:
+            created_dt = None
+    # se tiver created_dt, passa; senão deixa server_default (now)
+    if created_dt is not None:
+        return AlunoModel(
+            id=aluno.id,
+            nome=aluno.nome,
+            cpf=aluno.cpf,
+            data_nasc=aluno.data_nasc,
+            telefone=aluno.telefone,
+            email=aluno.email,
+            status=aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status),
+            observacoes=aluno.observacoes,
+            endereco=aluno.endereco,
+            bloqueado_manual=bool(aluno.bloqueado_manual),
+            senha=aluno.senha,
+            foto=getattr(aluno, "foto", None),
+            created_at=created_dt,
+        )
     return AlunoModel(
         id=aluno.id,
         nome=aluno.nome,

@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.core.pagamento import FormaPagamento
-from gymflux.ui.theme import AZUL, LIMA, VERMELHO, estilo_selo
+from gymflux.ui.theme import AZUL, LIMA, VERMELHO, ModoTema, estilo_selo, modo_de
 from gymflux.ui.viewmodels.caixa import CaixaViewModel
 
 
@@ -374,7 +374,12 @@ class CaixaView(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole, p.id)
                 item.setData(Qt.ItemDataRole.UserRole + 1, p.aluno_id)
                 if not p.pago and p.dias_atraso(hoje) > 0:
-                    item.setBackground(QColor("#ffe0e0"))
+                    # tema-aware: escuro fundo escuro, claro rosa
+                    is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+                    bg = "#3a1a1a" if is_escuro else "#ffe0e0"
+                    fg = VERMELHO if is_escuro else "#991111"
+                    item.setBackground(QColor(bg))
+                    item.setForeground(QColor(fg))
                 self.tbl.setItem(row, col, item)
         self.tbl.setSortingEnabled(sorting)
         if self._sort_col >= 0:

@@ -42,20 +42,6 @@ def aplicar_inatividade(
         # só ATIVO não-bloqueado: bloqueio manual e INATIVO ficam intactos
         if not aluno.esta_ativo:
             continue
-        # nunca inativa recém-criado sem histórico: dá 30 dias de carência
-        # (evita que aluno novo sem LIBERADO seja inativado antes da primeira cobrança)
-        try:
-            # tenta pegar data de criação via atributo opcional (se existir)
-            criacao = getattr(aluno, "created_at", None)
-            if criacao is not None:
-                try:
-                    criacao_date = criacao.date() if hasattr(criacao, "date") else criacao
-                    if (hoje - criacao_date).days < 30:
-                        continue
-                except Exception:
-                    pass
-        except Exception:
-            pass
         try:
             logs = acesso_repo.listar_por_aluno(aluno.id)
         except Exception as e:
@@ -65,13 +51,24 @@ def aplicar_inatividade(
             (t.timestamp.date() for t in logs if t.resultado == ResultadoAcesso.LIBERADO),
             default=None,
         )
-        if ultima is None:
-            # sem histórico: só inativa se já passou da carência (acima)
-            # se não tem created_at, mantém regra antiga (inativa)
-            # mas se tem carência, já pulou acima
-            pass
-        elif (hoje - ultima).days < dias:
-            continue
+        if ultima is not None:
+            if (hoje - ultima).days < dias:
+                continue
+        else:
+            # nunca entrou: usa created_at como carência (90 dias)
+            created = getattr(aluno, "created_at", None)
+            if created is not None:
+                try:
+                    c_date = created.date() if hasattr(created, "date") else created
+                    if (hoje - c_date).days < dias:  # type: ignore[operator]
+                        continue
+                except Exception:
+                    pass
+            else:
+                # sem created_at e sem logs: mantém regra antiga (inativa) para compat com testes
+                # mas em produção com DB, created_at sempre existe (server_default), então
+                # novos alunos ficam protegidos por 90 dias
+                pass
         aluno.inativar()
         aluno.limpar_senha()
         aluno_repo.salvar(aluno)
