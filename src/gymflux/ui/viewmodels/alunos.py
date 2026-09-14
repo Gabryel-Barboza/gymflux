@@ -24,6 +24,12 @@ class PlanoRepoProto(Protocol):
     def listar(self) -> list[Plano]: ...
 
 
+class PagamentoRepoProto(Protocol):
+    def salvar(self, pagamento: Any) -> Any: ...
+    def listar_por_aluno(self, aluno_id: str) -> list[Any]: ...
+    def listar(self) -> list[Any]: ...
+
+
 @dataclass
 class AlunosViewModel:
     alunos: CadastrarAlunoService
@@ -31,6 +37,7 @@ class AlunosViewModel:
     matricula_repo: MatriculaRepoProto | None = None
     plano_repo: PlanoRepoProto | None = None
     funcionario_repo: Any | None = None
+    pagamento_repo: PagamentoRepoProto | None = None
 
     def _commit(self) -> None:
         if self.commit is not None:
@@ -203,11 +210,63 @@ class AlunosViewModel:
         plano = self.plano_repo.buscar_por_id(plano_id)
         if plano is None:
             raise ValueError(f"Plano id={plano_id} não encontrado")
-        vigencia = Vigencia.a_partir_de(inicio or date.today(), plano.duracao_dias)
+        inicio_dt = inicio or date.today()
+        vigencia = Vigencia.a_partir_de(inicio_dt, plano.duracao_dias)
         matricula = Matricula(aluno_id=aluno_id, plano=plano, vigencia=vigencia, ativa=True)
         self.matricula_repo.salvar(matricula, matricula_id=f"mat-{uuid.uuid4().hex[:8]}")
+        # débito automático: primeiro pagamento do plano (pendente, competência do início)
+        # mesmo padrão da cobrança mensal (venc dia 10, valor do plano).
+        # idempotente por competência; falha aqui não desfaz a matrícula.
+        if self.pagamento_repo is not None:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                self._gerar_primeiro_pagamento(aluno_id, plano, inicio_dt)
         self._commit()
         return matricula
+
+    def _gerar_primeiro_pagamento(self, aluno_id: str, plano: Plano, inicio: date) -> None:
+        """Cria pendente da competência do início se ainda não existir."""
+        from loguru import logger
+
+        from gymflux.core.pagamento import Pagamento
+
+        if self.pagamento_repo is None:
+            return
+        comp = inicio.strftime("%Y-%m")
+        try:
+            existentes: list[Any]
+            if hasattr(self.pagamento_repo, "listar_por_aluno"):
+                existentes = self.pagamento_repo.listar_por_aluno(aluno_id)  # type: ignore[attr-defined]
+            else:
+                todos = self.pagamento_repo.listar()  # type: ignore[attr-defined]
+                existentes = [p for p in todos if getattr(p, "aluno_id", None) == aluno_id]
+        except Exception as e:
+            logger.warning(f"[Matrícula] listar pagamentos falhou ({e}) — débito pulado")
+            return
+        for p in existentes:
+            mes = getattr(p, "competencia", None) or getattr(p, "data_vencimento", inicio).strftime(
+                "%Y-%m"
+            )
+            if mes == comp:
+                return
+        venc = date(inicio.year, inicio.month, 10)
+        novo = Pagamento(
+            id=f"pag-{uuid.uuid4().hex[:8]}",
+            aluno_id=aluno_id,
+            valor=plano.valor,
+            data_vencimento=venc,
+            data_pagamento=None,
+            forma=None,
+            competencia=comp,
+        )
+        try:
+            self.pagamento_repo.salvar(novo)  # type: ignore[attr-defined]
+            logger.info(
+                f"[Matrícula] débito {comp} aluno={aluno_id} plano={plano.nome} valor={plano.valor}"
+            )
+        except Exception as e:
+            logger.warning(f"[Matrícula] débito {comp} falhou ({e})")
 
     def matriculas_com_id(self, aluno_id: str) -> list[tuple[str, Matricula]]:
         """Retorna (id, Matricula) p/ exibir e excluir; funciona com SQL e memória."""

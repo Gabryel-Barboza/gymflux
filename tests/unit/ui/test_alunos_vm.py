@@ -94,6 +94,63 @@ def test_matricular_sem_plano_da_erro_amigavel():
         w["alunos"].matricular(aluno.id, "plano-inexistente")
 
 
+def _wired_com_pagamento() -> dict:
+    from gymflux.core.plano import Plano
+
+    base = _wired()
+    # plano mensal para matrícula + pagamento_repo injetado
+    plano = Plano.criar_mensal(id="mensal", nome="Mensal")
+    base["alunos"].plano_repo.salvar(plano)  # type: ignore[attr-defined]
+    # injeta pagamento_repo (memória do _wired não expõe, recria via pagamentos VM)
+    pag_repo = base["pagamentos"].pagamentos.repo  # type: ignore[attr-defined]
+    base["alunos"].pagamento_repo = pag_repo  # type: ignore[attr-defined]
+    return base
+
+
+def test_matricular_gera_primeiro_pagamento():
+    from datetime import date
+    from decimal import Decimal
+
+    w = _wired_com_pagamento()
+    aluno = w["alunos"].cadastrar(nome="Novo", cpf="11144477735")
+    w["alunos"].matricular(aluno.id, "mensal", inicio=date(2026, 9, 15))
+    pags = w["pagamentos"].pagamentos.repo.listar_por_aluno(aluno.id)  # type: ignore[attr-defined]
+    assert len(pags) == 1
+    pag = pags[0]
+    assert pag.competencia == "2026-09"
+    assert pag.valor == Decimal("99.90")
+    assert pag.data_vencimento == date(2026, 9, 10)
+    assert pag.data_pagamento is None
+
+
+def test_matricular_nao_duplica_mesma_competencia():
+    from datetime import date
+
+    w = _wired_com_pagamento()
+    aluno = w["alunos"].cadastrar(nome="Novo", cpf="11144477735")
+    w["alunos"].matricular(aluno.id, "mensal", inicio=date(2026, 9, 15))
+    w["alunos"].matricular(aluno.id, "mensal", inicio=date(2026, 9, 20))
+    pags = w["pagamentos"].pagamentos.repo.listar_por_aluno(aluno.id)  # type: ignore[attr-defined]
+    assert len(pags) == 1
+
+
+def test_matricular_trimestral_valor_do_plano():
+    from datetime import date
+    from decimal import Decimal
+
+    from gymflux.core.plano import Plano
+
+    w = _wired_com_pagamento()
+    tri = Plano.criar_trimestral(id="tri", nome="Tri")
+    w["alunos"].plano_repo.salvar(tri)  # type: ignore[attr-defined]
+    aluno = w["alunos"].cadastrar(nome="Tri Aluno", cpf="22255588846")
+    w["alunos"].matricular(aluno.id, "tri", inicio=date(2026, 9, 15))
+    pags = w["pagamentos"].pagamentos.repo.listar_por_aluno(aluno.id)  # type: ignore[attr-defined]
+    assert len(pags) == 1
+    assert pags[0].valor == Decimal("259.90")
+    assert pags[0].competencia == "2026-09"
+
+
 def test_cadastrar_senha_invalida_rejeita():
     w = _wired()
     with pytest.raises(ValueError):

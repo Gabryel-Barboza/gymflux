@@ -1398,4 +1398,6 @@ class AlunosView(QWidget):
         except (ValueError, RuntimeError) as e:
             QMessageBox.warning(self, "Alunos", str(e))
             return
-        QMessageBox.information(self, "Alunos", f"{aluno_nome} matriculado com sucesso.")
+        QMessageBox.information(
+            self, "Alunos", f"{aluno_nome} matriculado com sucesso. Débito gerado no Caixa."
+        )

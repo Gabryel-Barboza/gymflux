@@ -83,8 +83,8 @@ def test_fallback_linux_sem_tray_fecha_normal(qtbot, monkeypatch):
     assert ev.isAccepted() is True
 
 
-def test_giros_fundo_preto_no_claro(qtbot):
-    """Giros com fundo preto também no claro (pedido)."""
+def test_giros_titulo_preto_container_tema(qtbot):
+    """Só o título Giros é preto; container/lista seguem o tema."""
     from PySide6.QtWidgets import QApplication
 
     from gymflux.ui.app import build_window, create_context
@@ -102,7 +102,13 @@ def test_giros_fundo_preto_no_claro(qtbot):
     # força sync
     with contextlib.suppress(Exception):
         win.dashboard_view._aplicar_fundo_containers(False)
-    # QListWidget deve ter fundo preto #0F1113 mesmo no claro
+    # título tem fundo preto #0F1113 com texto claro
+    titulo_style = win.dashboard_view.lbl_giros_titulo.styleSheet()
+    assert "#0F1113" in titulo_style
+    assert "color: #F2F5F7" in titulo_style
+    # lista segue o tema (sem preto forçado)
     lst_style = win.dashboard_view.lst_giros.styleSheet()
-    assert "#0F1113" in lst_style
-    assert "color: #F2F5F7" in lst_style
+    assert "#0F1113" not in lst_style
+    # container segue tema (painel claro, não preto)
+    frame_style = win.dashboard_view.frame_giros.styleSheet()
+    assert "#0F1113" not in frame_style

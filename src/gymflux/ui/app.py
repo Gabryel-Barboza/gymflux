@@ -315,6 +315,7 @@ def _wire(
             matricula_repo=mat_repo,
             plano_repo=plano_repo,
             funcionario_repo=func_repo,
+            pagamento_repo=pag_repo,
         ),
         planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
         caixa_vm=caixa_vm,
