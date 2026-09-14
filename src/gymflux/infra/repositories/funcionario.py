@@ -29,6 +29,7 @@ def _model_to_domain(m: FuncionarioModel) -> Funcionario:
         horarios=m.horarios,
         dias=m.dias,
         foto=getattr(m, "foto", None),
+        senha=getattr(m, "senha", None),
     )
 
 
@@ -41,6 +42,7 @@ def _domain_to_model(f: Funcionario) -> FuncionarioModel:
         horarios=f.horarios,
         dias=f.dias,
         foto=getattr(f, "foto", None),
+        senha=getattr(f, "senha", None),
     )
 
 
@@ -71,6 +73,7 @@ class FuncionarioRepositorySQLAlchemy:
                 existing.horarios = funcionario.horarios
                 existing.dias = funcionario.dias
                 existing.foto = getattr(funcionario, "foto", None)
+                existing.senha = getattr(funcionario, "senha", None)
             self.session.flush()
         except Exception:
             try:

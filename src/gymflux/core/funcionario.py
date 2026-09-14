@@ -22,13 +22,18 @@ class Funcionario:
     horarios: str | None = None
     dias: str | None = None
     foto: str | None = None
+    # senha em texto para exibição no perfil (decisão dono — exibir igual aluno)
+    senha: str | None = None
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():
             raise ValueError("nome não pode ser vazio")
 
     def definir_senha(self, senha: str) -> None:
-        """Define senha numérica (4-8 dígitos); armazena só o hash com salt."""
+        """Define senha numérica (4-8 dígitos); armazena hash e texto para exibição."""
+        from gymflux.core.aluno import validar_senha_numerica
+
+        self.senha = validar_senha_numerica(senha)
         self.senha_hash = gerar_senha_hash(senha)
 
     def verificar_senha(self, senha: str) -> bool:

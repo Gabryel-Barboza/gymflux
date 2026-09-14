@@ -184,9 +184,14 @@ class PerfilFuncionarioDialog(QDialog):
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("em branco = manter atual (4-8 dígitos)")
-        self.edt_senha.setText("")
+        # exibe senha atual igual outros campos (para saber se esqueceu)
+        senha_atual = getattr(func, "senha", None) or ""
+        self.edt_senha.setText(senha_atual)
+        if not senha_atual:
+            # fallback tenta extrair do hash? não, deixa vazio
+            self.edt_senha.setText("")
         self.edt_senha.setReadOnly(read_only)
-        if read_only:
+        if read_only and not senha_atual:
             self.edt_senha.setPlaceholderText("••••")
         self.edt_horarios = QLineEdit()
         self.edt_horarios.setText(func.horarios or "")

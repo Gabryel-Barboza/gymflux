@@ -290,10 +290,19 @@ class DashboardView(QWidget):
         lay_log.setContentsMargins(6, 6, 6, 6)
         lay_log.setSpacing(6)
         lay_log.setAlignment(Qt.AlignmentFlag.AlignTop)
+        # header expansível com seta
+        self.btn_toggle_log = QPushButton("▶ Acessos de hoje")
+        self.btn_toggle_log.setCheckable(True)
+        self.btn_toggle_log.setChecked(False)
+        self.btn_toggle_log.setStyleSheet(
+            "QPushButton { font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; }"  # noqa: E501
+        )
+        self.btn_toggle_log.setCursor(Qt.CursorShape.PointingHandCursor)
+        lay_log.addWidget(self.btn_toggle_log)
         lbl_log = QLabel("Acessos de hoje")
         lbl_log.setStyleSheet("font-weight: bold; border: none;")
+        lbl_log.setVisible(False)
         self.lbl_log_titulo = lbl_log
-        lay_log.addWidget(lbl_log)
         self.tbl_log = QTableWidget(0, len(self.COLUNAS_LOG))
         self.tbl_log.setHorizontalHeaderLabels(list(self.COLUNAS_LOG))
         self.tbl_log.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -306,11 +315,15 @@ class DashboardView(QWidget):
         tbl_h = self._altura_tabela(self.tbl_log, LINHAS_MAX_TABELA)
         self.tbl_log.setMaximumHeight(tbl_h)
         self.tbl_log.setMinimumHeight(tbl_h)
+        self.tbl_log.setVisible(False)
         lay_log.addWidget(self.tbl_log)
-        # frame hugging: header + tabela + margins
-        frame_log.setMaximumHeight(tbl_h + 30 + 12)
+        # frame hugging: colapsado inicialmente
+        frame_log.setMaximumHeight(30 + 12)
+        frame_log.setMinimumHeight(30 + 12)
         hmid.addWidget(frame_log, 3)
         self.frame_log = frame_log
+        self._log_expandido = False
+        self.btn_toggle_log.toggled.connect(self._toggle_acessos_log)
 
         frame_giros = QFrame()
         frame_giros.setObjectName("CatracaFrameGiros")
@@ -483,11 +496,15 @@ class DashboardView(QWidget):
                     f"QFrame#CatracaFrameLog {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
                 )
                 continue
-            # Giros: mantém wallpaper
+            # Giros: mantém wallpaper — mais transparente no escuro para ver logo
             if base == "CatracaFrameGiros":
                 if wallpaper_ativo:
                     ov = self._overlay_labels.get(frm)
                     if ov is not None:
+                        # escuro mais transparente (50) para ver logo, claro mantém 90
+                        is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+                        alpha = 50 if is_escuro else 90
+                        ov.setStyleSheet(f"background-color: rgba(0, 0, 0, {alpha}); border-radius: 8px;")  # noqa: E501
                         ov.setGeometry(frm.rect())
                         ov.show()
                         ov.lower()
@@ -681,6 +698,21 @@ class DashboardView(QWidget):
             lbl.lower()
             ov.raise_()
 
+    def _toggle_acessos_log(self, expandido: bool) -> None:
+        self._log_expandido = expandido
+        self.tbl_log.setVisible(expandido)
+        self.btn_toggle_log.setText("▼ Acessos de hoje" if expandido else "▶ Acessos de hoje")
+        # ajusta altura do frame
+        if expandido:
+            tbl_h = self._altura_tabela(self.tbl_log, LINHAS_MAX_TABELA)
+            self.frame_log.setMaximumHeight(tbl_h + 30 + 12)
+            self.frame_log.setMinimumHeight(tbl_h + 30 + 12)
+        else:
+            self.frame_log.setMaximumHeight(30 + 12)
+            self.frame_log.setMinimumHeight(30 + 12)
+        with contextlib.suppress(Exception):
+            self._atualizar_todos_wallpapers()
+
     def _atualizar_todos_wallpapers(self) -> None:
         for frm in getattr(self, "_wallpaper_frames", []):
             self._atualizar_wallpaper_frame(frm)
@@ -726,25 +758,9 @@ class DashboardView(QWidget):
         self.toast.setVisible(False)
 
     def _mostrar_toast(self, texto: str, liberado: bool | None) -> None:
-        # texto pode ser "NOME — LIBERADO" ou "NOME — NEGADO · motivo"
-        # separa título e subtítulo para design mais rico
-        titulo = texto
+        # texto em linha única centralizada — não separa em duas linhas
+        titulo = texto.strip()
         subtitulo = ""
-        if " — " in texto:
-            partes = texto.split(" — ", 1)
-            titulo = partes[0].strip()
-            resto = partes[1].strip()
-            # resto pode ser "LIBERADO" ou "NEGADO · motivo"
-            if "·" in resto:
-                estado, motivo = resto.split("·", 1)
-                titulo = f"{titulo} — {estado.strip()}"
-                subtitulo = motivo.strip()
-            else:
-                titulo = f"{titulo} — {resto}"
-        elif "·" in texto:
-            p = texto.split("·", 1)
-            titulo = p[0].strip()
-            subtitulo = p[1].strip()
         # escolhe ícone e cores
         if liberado is True:
             bg = "#A3D65C"
@@ -793,14 +809,20 @@ class DashboardView(QWidget):
         else:
             self.toast_sub.setVisible(False)
             self.toast_sub.setText("")
-        # tamanho e posição central
+        # tamanho e posição central — largura aumentada para caber em uma linha
         self.toast.adjustSize()
-        max_w = int(self.width() * 0.7) if self.width() > 0 else 560
+        max_w = int(self.width() * 0.88) if self.width() > 0 else 720
+        min_w = 420
+        if self.toast.width() < min_w:
+            self.toast.setMinimumWidth(min_w)
         if self.toast.width() > max_w:
             self.toast.setMaximumWidth(max_w)
             self.toast.adjustSize()
         else:
             self.toast.setMaximumWidth(16777215)
+        # centraliza texto em uma linha
+        self.toast_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.toast_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # garante opacidade 1 antes de mostrar
         with contextlib.suppress(Exception):
             if self._toast_opacity is not None:
@@ -875,7 +897,18 @@ class DashboardView(QWidget):
         except (ValueError, RuntimeError) as e:
             self._mostrar_toast(f"NÃO IDENTIFICADO — {e}", None)
             return
-        nome = self.vm.nome_aluno(aluno.id) if aluno is not None else "NÃO IDENTIFICADO"
+        # funcionario tem prioridade — aluno None mas decisao com detalhes "Funcionário — Nome"
+        nome = None
+        if aluno is not None:
+            nome = self.vm.nome_aluno(aluno.id)
+        elif decisao.detalhes and "Funcionário" in decisao.detalhes:
+            # extrai nome do funcionário do detalhes "Funcionário — Nome"
+            try:
+                nome = decisao.detalhes.split("—", 1)[1].strip()
+            except Exception:
+                nome = "Funcionário"
+        else:
+            nome = "NÃO IDENTIFICADO"
         if decisao.liberado:
             self._mostrar_toast(f"{nome} — LIBERADO", True)
         else:
@@ -903,7 +936,16 @@ class DashboardView(QWidget):
         except (ValueError, RuntimeError) as e:
             self._mostrar_toast(f"NÃO IDENTIFICADO — {e}", None)
             return
-        nome = self.vm.nome_aluno(aluno.id) if aluno is not None else "NÃO IDENTIFICADO"
+        nome = None
+        if aluno is not None:
+            nome = self.vm.nome_aluno(aluno.id)
+        elif decisao.detalhes and "Funcionário" in decisao.detalhes:
+            try:
+                nome = decisao.detalhes.split("—", 1)[1].strip()
+            except Exception:
+                nome = "Funcionário"
+        else:
+            nome = "NÃO IDENTIFICADO"
         if decisao.liberado:
             self._mostrar_toast(f"{nome} — LIBERADO", True)
         else:
