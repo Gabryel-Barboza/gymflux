@@ -264,8 +264,8 @@ class DashboardView(QWidget):
         )
         self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.status_pill, 0)
-        hstatus.addWidget(self.btn_detalhes)
         hstatus.addStretch(1)
+        hstatus.addWidget(self.btn_detalhes, 0, Qt.AlignmentFlag.AlignRight)
         self.header = header
 
         # tabela detalhada oculta (compat)
@@ -561,10 +561,15 @@ class DashboardView(QWidget):
                         ov.show()
                         ov.lower()
                         for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
-                            if not isinstance(child, (QLabel, QPushButton)):
+                            if not isinstance(child, (QLabel, QPushButton, QFrame)):
                                 continue
                             with contextlib.suppress(Exception):
                                 child.raise_()
+                        # pill opaco acima do overlay para verde forte destacado
+                        with contextlib.suppress(Exception):
+                            self.status_pill.raise_()
+                            self.lbl_compacto.raise_()
+                            self.btn_detalhes.raise_()
                     frm.setStyleSheet(
                         "QFrame#CatracaHeader { border: 1px solid #C8D0D8; border-radius: 8px; background: transparent; padding: 4px; }"  # noqa: E501
                     )
@@ -1104,12 +1109,18 @@ class DashboardView(QWidget):
         )
         self.lbl_compacto.setText(compacto)
         fg, bg = cores_indicador(online, self.vm.ui_config.tema)
-        # pill só no texto com padding e radius
-        self.lbl_compacto.setStyleSheet(f"color: {fg}; background: transparent;")
+        # pill opaco e destacado — verde forte com texto preto no claro
+        self.lbl_compacto.setStyleSheet(
+            f"color: {fg}; background: transparent; font-weight: bold;"
+        )
         if bg:
             self.status_pill.setStyleSheet(
-                f"QFrame#StatusPill {{ background-color: {bg}; border-radius: 12px; padding: 2px 8px; }}"  # noqa: E501
+                f"QFrame#StatusPill {{ background-color: {bg}; border-radius: 12px; padding: 4px 10px; border: none; }}"  # noqa: E501
             )
+            # garante pill acima do overlay para ficar opaco
+            with contextlib.suppress(Exception):
+                self.status_pill.raise_()
+                self.lbl_compacto.raise_()
         else:
             self.status_pill.setStyleSheet(
                 "QFrame#StatusPill { background: transparent; border: none; }"

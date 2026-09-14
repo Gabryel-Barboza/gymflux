@@ -310,6 +310,7 @@ class PerfilAlunoDialog(QDialog):
         parent: QWidget | None = None,
         frequencia_vm: FrequenciaViewModel | None = None,
         dashboard_vm: object | None = None,
+        aba_inicial: int = 0,
     ) -> None:
         super().__init__(parent)
         aluno = alunos_vm.alunos.buscar(aluno_id)
@@ -454,6 +455,8 @@ class PerfilAlunoDialog(QDialog):
         self._recarregar_pagamentos()
         self._recarregar_frequencia()
         self._recarregar_matriculas()
+        if 0 <= aba_inicial < tabs.count():
+            tabs.setCurrentIndex(aba_inicial)
 
     def _recarregar_matriculas(self) -> None:
         # usa cache com ids para exclusão
@@ -1278,8 +1281,8 @@ class AlunosView(QWidget):
         aluno_id, _nome = sel
         self.abrir_perfil_por_id(aluno_id)
 
-    def abrir_perfil_por_id(self, aluno_id: str) -> None:
-        """Abre o perfil direto pelo id (uso do click-through do dashboard)."""
+    def abrir_perfil_por_id(self, aluno_id: str, aba_inicial: int = 0) -> None:
+        """Abre o perfil direto pelo id (uso do click-through do dashboard/caixa)."""
         if self.pagamentos_vm is None:
             QMessageBox.warning(self, "Alunos", "Módulo de pagamentos indisponível.")
             return
@@ -1291,6 +1294,7 @@ class AlunosView(QWidget):
                 self,
                 frequencia_vm=self.frequencia_vm,
                 dashboard_vm=self.dashboard_vm,
+                aba_inicial=aba_inicial,
             )
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))

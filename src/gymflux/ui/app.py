@@ -242,6 +242,19 @@ def _wire(
     if n_inativos:
         logger.info(f"[UI] inatividade: {n_inativos} aluno(s) desativado(s)")
 
+    # Cobrança recorrente: gera pendências do mês atual (otimizado, nunca aborta).
+    try:
+        from gymflux.services.cobranca import aplicar_cobranca_mensal
+
+        n_cobranca = aplicar_cobranca_mensal(aluno_repo, mat_repo, pag_repo)
+        if n_cobranca and commit is not None:
+            commit()
+    except Exception as e:
+        n_cobranca = 0
+        logger.warning(f"[UI] cobrança mensal falhou: {e}")
+    if n_cobranca:
+        logger.info(f"[UI] cobrança: {n_cobranca} pendência(s) gerada(s)")
+
     def _aplicar(nova: UiConfig) -> None:
         liberar_svc.regra.config = nova.to_regra_config()
         dashboard_vm.ui_config = nova
@@ -361,7 +374,9 @@ class GymFluxMainWindow(QMainWindow):
         )
         tabs.addTab(self.alunos_view, self._base_icons[1], "Alunos")
         tabs.addTab(PlanosView(ctx.planos_vm), self._base_icons[2], "Planos")
-        tabs.addTab(CaixaView(ctx.caixa_vm), self._base_icons[3], "Caixa")
+        self.caixa_view = CaixaView(ctx.caixa_vm)
+        self.caixa_view.aluno_perfil_solicitado.connect(self._abrir_perfil_pagamentos)
+        tabs.addTab(self.caixa_view, self._base_icons[3], "Caixa")
         self.funcionarios_view = FuncionariosView(ctx.funcionarios_vm)
         tabs.addTab(self.funcionarios_view, self._base_icons[4], "Funcionários")
         tabs.addTab(FrequenciaView(ctx.frequencia_vm), self._base_icons[5], "Frequência")
@@ -435,6 +450,14 @@ class GymFluxMainWindow(QMainWindow):
                 self.tabs.setCurrentIndex(i)
                 break
         self.alunos_view.abrir_perfil_por_id(aluno_id)
+
+    def _abrir_perfil_pagamentos(self, aluno_id: str) -> None:
+        """Caixa duplo-clique: abre perfil do aluno direto na aba Pagamentos."""
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Alunos":
+                self.tabs.setCurrentIndex(i)
+                break
+        self.alunos_view.abrir_perfil_por_id(aluno_id, aba_inicial=3)
 
 
 def build_window(ctx: AppContext) -> GymFluxMainWindow:

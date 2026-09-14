@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 from loguru import logger
-from PySide6.QtCore import QStringListModel, Qt
+from PySide6.QtCore import QPoint, QStringListModel, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -125,6 +125,9 @@ class NovoPagamentoDialog(QDialog):
 class CaixaView(QWidget):
     COLUNAS = ("Aluno", "Valor (R$)", "Vencimento", "Situação", "Forma", "Competência")
 
+    # duplo-clique redireciona para o aluno (perfil na aba Pagamentos)
+    aluno_perfil_solicitado = Signal(str)
+
     def __init__(self, vm: CaixaViewModel, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.vm = vm
@@ -217,7 +220,8 @@ class CaixaView(QWidget):
         self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tbl.customContextMenuRequested.connect(self._menu_contexto)
-        self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._marcar_pago())
+        # duplo-clique redireciona para o aluno (perfil na aba Pagamentos)
+        self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._abrir_perfil_aluno())
         self.btn_novo.clicked.connect(self._novo)
         self.btn_marcar_pago.clicked.connect(self._marcar_pago)
         self.btn_fechar.clicked.connect(self._fechar)
@@ -318,6 +322,9 @@ class CaixaView(QWidget):
             )
             for col, v in enumerate(vals):
                 item = QTableWidgetItem(v)
+                # guarda ids para sobreviver à ordenação visual
+                item.setData(Qt.ItemDataRole.UserRole, p.id)
+                item.setData(Qt.ItemDataRole.UserRole + 1, p.aluno_id)
                 if not p.pago and p.dias_atraso(hoje) > 0:
                     item.setBackground(QColor("#ffe0e0"))
                 self.tbl.setItem(row, col, item)
@@ -369,18 +376,36 @@ class CaixaView(QWidget):
 
     def _pagamento_selecionado(self):  # type: ignore[no-untyped-def]
         row = self.tbl.currentRow()
-        if row < 0 or row >= len(getattr(self, "_linhas_cache", [])):
+        if row < 0:
             QMessageBox.information(self, "Caixa", "Selecione um pagamento na tabela.")
             return None
-        # atenção: ordenação visual pode embaralhar; resolve pelo vencimento+valor+nome
-        # usa cache na ordem de exibição desordenada — busca pelo índice atual é aproximado;
-        # para precisão, desativa sort temporariamente? usa item da linha via dados visíveis
-        # simplificação: usa cache direto (suficiente com sort desligado no preenchimento)
-        try:
-            pag, _nome = self._linhas_cache[row]
-            return pag
-        except Exception:
+        # resolve via UserRole (sobrevive à ordenação visual)
+        item = self.tbl.item(row, 0)
+        pag_id = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if not pag_id:
+            QMessageBox.information(self, "Caixa", "Selecione um pagamento na tabela.")
             return None
+        for p, _n in getattr(self, "_linhas_cache", []):
+            if p.id == pag_id:
+                return p
+        return None
+
+    def _aluno_selecionado_id(self) -> str | None:
+        row = self.tbl.currentRow()
+        if row < 0:
+            return None
+        item = self.tbl.item(row, 0)
+        if item is None:
+            return None
+        aluno_id = item.data(Qt.ItemDataRole.UserRole + 1)
+        return str(aluno_id) if aluno_id else None
+
+    def _abrir_perfil_aluno(self) -> None:
+        aluno_id = self._aluno_selecionado_id()
+        if not aluno_id:
+            QMessageBox.information(self, "Caixa", "Selecione um pagamento na tabela.")
+            return
+        self.aluno_perfil_solicitado.emit(aluno_id)
 
     def _marcar_pago(self) -> None:
         pag = self._pagamento_selecionado()
@@ -410,7 +435,7 @@ class CaixaView(QWidget):
             return
         self.recarregar()
 
-    def _menu_contexto(self, pos) -> None:  # type: ignore[no-untyped-def]
+    def _menu_contexto(self, pos: QPoint) -> None:
         from PySide6.QtWidgets import QMenu
 
         item = self.tbl.itemAt(pos)
@@ -418,9 +443,12 @@ class CaixaView(QWidget):
             return
         self.tbl.selectRow(item.row())
         menu = QMenu(self)
+        a_perfil = menu.addAction("Abrir aluno (pagamentos)...")
         a_pago = menu.addAction("Marcar como pago / pendente")
         acao = menu.exec(self.tbl.viewport().mapToGlobal(pos))
-        if acao == a_pago:
+        if acao == a_perfil:
+            self._abrir_perfil_aluno()
+        elif acao == a_pago:
             self._marcar_pago()
 
     def _fechar(self) -> None:
