@@ -89,9 +89,9 @@ class ConfigView(QWidget):
         )
         form_pers.addRow(lbl_fundo, self.cmb_fundo)
         self.edt_wallpaper = QLineEdit()
-        self.edt_wallpaper.setPlaceholderText("auto — preto no escuro / branco no claro (vazio)")
+        self.edt_wallpaper.setPlaceholderText("auto")
         self.edt_wallpaper.setReadOnly(True)
-        self.edt_wallpaper.setToolTip("Imagem de fundo — vazio = automático por tema")
+        self.edt_wallpaper.setToolTip("Imagem de fundo — vazio = automático por tema (preto/branco)")  # noqa: E501
         self.btn_wallpaper = QPushButton("Escolher...")
         self.btn_wallpaper.setToolTip("Escolher imagem de wallpaper")
         self.btn_wallpaper_limpar = QPushButton("Limpar")

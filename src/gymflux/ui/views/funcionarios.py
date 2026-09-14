@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -42,8 +43,24 @@ class NovoFuncionarioDialog(QDialog):
         self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")
         self.edt_dias = QLineEdit()
         self.edt_dias.setPlaceholderText("Ex.: Seg-Sex (opcional)")
+        # senha com botão ver
+        h_senha = QHBoxLayout()
+        h_senha.addWidget(self.edt_senha, 1)
+        self.btn_ver_senha = QToolButton()
+        self.btn_ver_senha.setText("👁")
+        self.btn_ver_senha.setToolTip("Mostrar/ocultar senha")
+        self.btn_ver_senha.setCheckable(True)
+        self.btn_ver_senha.toggled.connect(  # type: ignore[no-untyped-call]
+            lambda c: self.edt_senha.setEchoMode(  # type: ignore[union-attr]
+                QLineEdit.EchoMode.Normal if c else QLineEdit.EchoMode.Password
+            )
+        )
+        # começa visível como nos alunos (Normal)
+        self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
+        self.btn_ver_senha.setChecked(True)
+        h_senha.addWidget(self.btn_ver_senha)
         form.addRow("Nome*:", self.edt_nome)
-        form.addRow("Senha numérica*:", self.edt_senha)
+        form.addRow("Senha numérica*:", h_senha)
         form.addRow("Horários:", self.edt_horarios)
         form.addRow("Dias:", self.edt_dias)
         botoes = QDialogButtonBox(

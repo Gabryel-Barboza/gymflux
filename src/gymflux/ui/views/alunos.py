@@ -93,7 +93,7 @@ class _AlunoForm(QWidget):
         )
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
-        self.edt_senha.setPlaceholderText("4 a 8 dígitos (opcional)")
+        self.edt_senha.setPlaceholderText("")
         self.cmb_status = QComboBox()
         for st in StatusAluno:
             self.cmb_status.addItem(st.value, st)

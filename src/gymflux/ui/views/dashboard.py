@@ -273,20 +273,19 @@ class DashboardView(QWidget):
         self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- logs / giros — Giros hugging e Acessos expansível full-width no fim da tela --
+        # -- logs / giros lado a lado — Acessos hoje (3) --- Giros (1) expansível para cima --  # noqa: E501
         layout.addStretch(1)
-        # Giros sozinho no topo da área inferior (lado a lado antigo agora só giros)
         hmid = QHBoxLayout()
         hmid.setSpacing(12)
-        hmid.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
-        # Acessos de hoje expansível full-width no fim da tela
+        hmid.setAlignment(Qt.AlignmentFlag.AlignBottom)
+        # Acessos de hoje — expansível para cima, alinhado ao fim
         frame_log = QFrame()
         frame_log.setObjectName("CatracaFrameLog")
         frame_log.setStyleSheet(
             "QFrame#CatracaFrameLog { border: 1px solid #2A3138; "
             "border-radius: 8px; padding: 6px; }"
         )
-        frame_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        frame_log.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         lay_log = QVBoxLayout(frame_log)
         lay_log.setContentsMargins(6, 6, 6, 6)
         lay_log.setSpacing(6)
@@ -315,9 +314,10 @@ class DashboardView(QWidget):
         self.tbl_log.setMinimumHeight(tbl_h)
         self.tbl_log.setVisible(False)
         lay_log.addWidget(self.tbl_log)
-        # frame hugging: colapsado inicialmente — full-width no fim da tela
+        # frame hugging: colapsado inicialmente
         frame_log.setMaximumHeight(30 + 12)
         frame_log.setMinimumHeight(30 + 12)
+        hmid.addWidget(frame_log, 3)
         self.frame_log = frame_log
         self._log_expandido = False
         self.btn_toggle_log.toggled.connect(self._toggle_acessos_log)
@@ -344,12 +344,8 @@ class DashboardView(QWidget):
         lay_giros.addWidget(self.lst_giros)
         frame_giros.setMaximumHeight(lst_h + 30 + 12)
         hmid.addWidget(frame_giros, 1)
-        # giros ocupa o espaço da área inferior, mas acessos fica full-width no fim
-        hmid.addStretch(1)
         self.frame_giros = frame_giros
         layout.addLayout(hmid)
-        # Acessos de hoje expansível full-width no fim da tela (clicável)
-        layout.addWidget(frame_log)
 
         # -- wallpaper só atrás dos containers (não no fundo global) --
         # fundo um nível acima do CatracaCentro: DashboardView, não CatracaCentro
@@ -456,6 +452,12 @@ class DashboardView(QWidget):
                 ov = self._overlay_labels.get(frm)
                 if wallpaper_ativo:
                     if ov is not None:
+                        is_claro = modo_de(self.vm.ui_config.tema) == ModoTema.CLARO
+                        # claro: overlay claro harmônico com wallpaper branco; escuro: preto suave
+                        if is_claro:
+                            ov.setStyleSheet("background-color: rgba(255,255,255, 165); border-radius: 8px;")  # noqa: E501
+                        else:
+                            ov.setStyleSheet("background-color: rgba(0, 0, 0, 70); border-radius: 8px;")  # noqa: E501
                         ov.setGeometry(frm.rect())
                         ov.show()
                         ov.lower()
@@ -503,15 +505,16 @@ class DashboardView(QWidget):
                         f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
                     )
                 continue
-            # Giros: mantém wallpaper — mais transparente no escuro para ver logo
+            # Giros: mantém wallpaper — overlay harmônico com fundo branco no claro
             if base == "CatracaFrameGiros":
                 if wallpaper_ativo:
                     ov = self._overlay_labels.get(frm)
                     if ov is not None:
-                        # escuro mais transparente (50) para ver logo, claro mantém 90
-                        is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
-                        alpha = 50 if is_escuro else 90
-                        ov.setStyleSheet(f"background-color: rgba(0, 0, 0, {alpha}); border-radius: 8px;")  # noqa: E501
+                        is_claro = modo_de(self.vm.ui_config.tema) == ModoTema.CLARO
+                        if is_claro:
+                            ov.setStyleSheet("background-color: rgba(255,255,255, 165); border-radius: 8px;")  # noqa: E501 claro
+                        else:
+                            ov.setStyleSheet("background-color: rgba(0, 0, 0, 50); border-radius: 8px;")  # noqa: E501
                         ov.setGeometry(frm.rect())
                         ov.show()
                         ov.lower()
