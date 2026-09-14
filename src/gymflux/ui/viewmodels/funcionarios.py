@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from gymflux.core.funcionario import Funcionario
 
@@ -17,14 +17,42 @@ class FuncionarioRepoProto(Protocol):
     def remover(self, funcionario_id: str) -> None: ...
 
 
+class AlunoRepoProto(Protocol):
+    def listar(self) -> list[Any]: ...
+
+
 @dataclass
 class FuncionariosViewModel:
     repo: FuncionarioRepoProto
     commit: Callable[[], None] | None = None
+    aluno_repo: Any | None = None
 
     def _commit(self) -> None:
         if self.commit is not None:
             self.commit()
+
+    def _senha_duplicada(self, senha: str, ignore_func_id: str | None = None) -> bool:
+        if not senha or not senha.strip():
+            return False
+        codigo = senha.strip()
+        for f in self.repo.listar():
+            if ignore_func_id and f.id == ignore_func_id:
+                continue
+            if getattr(f, "senha", None) == codigo:
+                return True
+            try:
+                if hasattr(f, "verificar_senha") and f.verificar_senha(codigo):  # type: ignore[attr-defined]
+                    return True
+            except Exception:
+                pass
+        if self.aluno_repo is not None:
+            try:
+                for a in self.aluno_repo.listar():  # type: ignore[attr-defined]
+                    if getattr(a, "senha", None) == codigo:
+                        return True
+            except Exception:
+                pass
+        return False
 
     def listar(self) -> list[Funcionario]:
         return sorted(self.repo.listar(), key=lambda f: f.nome.lower())
@@ -41,6 +69,8 @@ class FuncionariosViewModel:
         dias: str | None = None,
         foto: str | None = None,
     ) -> Funcionario:
+        if senha and senha.strip() and self._senha_duplicada(senha):
+            raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
         func = Funcionario(
             id=f"func-{uuid.uuid4().hex[:8]}",
             nome=nome.strip(),
@@ -70,6 +100,8 @@ class FuncionariosViewModel:
             raise ValueError("nome não pode ser vazio")
         func.nome = nome.strip()
         if senha and senha.strip():
+            if self._senha_duplicada(senha, ignore_func_id=funcionario_id):
+                raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
             func.definir_senha(senha)  # vazia mantém o hash atual
         if horarios is not None:
             func.horarios = horarios.strip() or None

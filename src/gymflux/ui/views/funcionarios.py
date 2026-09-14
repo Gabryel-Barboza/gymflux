@@ -169,7 +169,7 @@ class NovoFuncionarioDialog(QDialog):
     ) -> None:
         self.edt_nome.setText(nome)
         self.edt_senha.clear()
-        self.edt_senha.setPlaceholderText("em branco = manter atual")
+        self.edt_senha.setPlaceholderText("")
         self.edt_horarios.setText(horarios or "")
         self.edt_dias.setText(dias or "")
 
@@ -201,15 +201,11 @@ class PerfilFuncionarioDialog(QDialog):
         self.edt_nome.setReadOnly(read_only)
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
-        self.edt_senha.setPlaceholderText("em branco = manter atual (4-8 dígitos)")
+        self.edt_senha.setPlaceholderText("")
         # exibe senha atual igual outros campos (para saber se esqueceu)
         senha_atual = getattr(func, "senha", None) or ""
         self.edt_senha.setText(senha_atual)
-        if not senha_atual:
-            self.edt_senha.setText("")
         self.edt_senha.setReadOnly(read_only)
-        if read_only and not senha_atual:
-            self.edt_senha.setPlaceholderText("••••")
         self.edt_horarios = QLineEdit()
         self.edt_horarios.setText(func.horarios or "")
         self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")

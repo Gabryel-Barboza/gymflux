@@ -246,7 +246,7 @@ class _AlunoForm(QWidget):
         # senha visivel texto claro, echo Normal, preenchido
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setText(aluno.senha or "")
-        self.edt_senha.setPlaceholderText("em branco = manter")
+        self.edt_senha.setPlaceholderText("")
         idx = self.cmb_status.findData(aluno.status)
         if idx >= 0:
             self.cmb_status.setCurrentIndex(idx)

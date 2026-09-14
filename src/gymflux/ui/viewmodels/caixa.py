@@ -167,7 +167,10 @@ class CaixaViewModel:
         self._commit()
 
     def marcar_como_pago(
-        self, pagamento_id: str, data_pagamento: date | None = None
+        self,
+        pagamento_id: str,
+        data_pagamento: date | None = None,
+        forma: FormaPagamento | str | None = None,
     ) -> Pagamento:
         """Marca pendente como pago (data de hoje por padrão) + commit."""
         from dataclasses import replace
@@ -186,7 +189,11 @@ class CaixaViewModel:
             raise ValueError(f"Pagamento id={pagamento_id} não encontrado")
         if orig.pago:
             return orig
-        novo = replace(orig, data_pagamento=data_pagamento or date.today())
+        novo = replace(
+            orig,
+            data_pagamento=data_pagamento or date.today(),
+            forma=forma if forma is not None else orig.forma,
+        )
         if repo is not None and hasattr(repo, "salvar"):
             repo.salvar(novo)  # type: ignore[attr-defined]
         else:

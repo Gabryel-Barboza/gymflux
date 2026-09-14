@@ -314,10 +314,13 @@ def _wire(
             commit=commit,
             matricula_repo=mat_repo,
             plano_repo=plano_repo,
+            funcionario_repo=func_repo,
         ),
         planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
         caixa_vm=caixa_vm,
-        funcionarios_vm=FuncionariosViewModel(repo=func_repo, commit=commit),
+        funcionarios_vm=FuncionariosViewModel(
+            repo=func_repo, commit=commit, aluno_repo=aluno_repo
+        ),
         frequencia_vm=frequencia_vm,
         config_vm=config_vm,
         config_store=store,

@@ -609,36 +609,21 @@ class DashboardView(QWidget):
                         f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
                     )
                 continue
-            # Giros: fundo preto — overlay quase opaco no escuro, harmônico no claro
+            # Giros: fundo preto sempre (pedido) — mesmo no claro e com wallpaper
             if base == "CatracaFrameGiros":
-                if wallpaper_ativo:
-                    ov = self._overlay_labels.get(frm)
-                    if ov is not None:
-                        is_claro = modo_de(self.vm.ui_config.tema) == ModoTema.CLARO
-                        if is_claro:
-                            ov.setStyleSheet("background-color: rgba(255,255,255, 165); border-radius: 8px;")  # noqa: E501 claro
-                        else:
-                            ov.setStyleSheet("background-color: rgba(0, 0, 0, 200); border-radius: 8px;")  # noqa: E501
-                        ov.setGeometry(frm.rect())
-                        ov.show()
-                        ov.lower()
-                        for child in frm.findChildren(QWidget):  # type: ignore[call-overload]
-                            if not isinstance(child, (QLabel, QListWidget)):
-                                continue
-                            with contextlib.suppress(Exception):
-                                child.raise_()
-                        wp = self._wallpaper_labels.get(frm)
-                        if wp is not None:
-                            wp.lower()
-                    frm.setStyleSheet(
-                        "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background: transparent; padding: 6px; }"  # noqa: E501
+                ov = self._overlay_labels.get(frm)
+                if ov is not None:
+                    ov.hide()
+                frm.setStyleSheet(
+                    "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background-color: #0F1113; padding: 6px; }"  # noqa: E501
+                )
+                # garante Giros preto mesmo com wallpaper
+                with contextlib.suppress(Exception):
+                    self.lst_giros.setStyleSheet(
+                        "QListWidget { background-color: #0F1113; color: #F2F5F7; border: 1px solid #2A3138; }"  # noqa: E501
                     )
-                else:
-                    ov = self._overlay_labels.get(frm)
-                    if ov is not None:
-                        ov.hide()
-                    frm.setStyleSheet(
-                        "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background-color: #0F1113; padding: 6px; }"  # noqa: E501
+                    self.lbl_giros_titulo.setStyleSheet(
+                        "font-weight: bold; border: none; color: #F2F5F7; background: transparent;"
                     )
         # tabelas: modo claro precisa destaque sobre wallpaper escuro
         self._aplicar_estilo_tabelas(wallpaper_ativo)
@@ -652,29 +637,24 @@ class DashboardView(QWidget):
                 " border: 1px solid #C8D0D8; }"
                 " QHeaderView::section { background-color: rgba(232,237,241, 230); }"
             )
-            self.lst_giros.setStyleSheet(
-                "QListWidget { background-color: rgba(232,237,241, 210);"
-                " border: 1px solid #C8D0D8; }"
-            )
             pill = (
                 "font-weight: bold; border: none; color: #F2F5F7;"
                 " background-color: rgba(0, 0, 0, 110);"
                 " border-radius: 6px; padding: 2px 6px;"
             )
             self.lbl_log_titulo.setStyleSheet(pill)
-            self.lbl_giros_titulo.setStyleSheet(pill)
         else:
             self.tbl_log.setStyleSheet("")
-            # Giros sempre preto (pedido) — mesmo no claro e mesmo sem wallpaper
-            self.lst_giros.setStyleSheet(
-                "QListWidget { background-color: #0F1113; color: #F2F5F7;"
-                " border: 1px solid #2A3138; }"
-            )
-            self.lbl_giros_titulo.setStyleSheet(
-                "font-weight: bold; border: none; color: #F2F5F7;"
-                " background: transparent;"
-            )
             self.lbl_log_titulo.setStyleSheet("font-weight: bold; border: none;")
+        # Giros sempre preto (pedido) — mesmo no claro e com/sem wallpaper
+        self.lst_giros.setStyleSheet(
+            "QListWidget { background-color: #0F1113; color: #F2F5F7;"
+            " border: 1px solid #2A3138; }"
+        )
+        self.lbl_giros_titulo.setStyleSheet(
+            "font-weight: bold; border: none; color: #F2F5F7;"
+            " background: transparent;"
+        )
 
     def sync_tema(self) -> None:
         """Reaplica fundo dos containers após troca de tema."""

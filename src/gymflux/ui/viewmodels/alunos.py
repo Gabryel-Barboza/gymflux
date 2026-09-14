@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 
 from gymflux.core.aluno import Aluno, StatusAluno
 from gymflux.core.plano import Matricula, Plano, Vigencia
@@ -30,6 +30,7 @@ class AlunosViewModel:
     commit: Callable[[], None] | None = None
     matricula_repo: MatriculaRepoProto | None = None
     plano_repo: PlanoRepoProto | None = None
+    funcionario_repo: Any | None = None
 
     def _commit(self) -> None:
         if self.commit is not None:
@@ -57,6 +58,32 @@ class AlunosViewModel:
         return sorted(result, key=lambda a: a.nome.lower())
 
     # -- CRUD -----------------------------------------------------------------
+    def _senha_duplicada(self, senha: str, ignore_aluno_id: str | None = None) -> bool:
+        if not senha or not senha.strip():
+            return False
+        codigo = senha.strip()
+        # verifica outros alunos
+        for a in self.alunos.listar():
+            if ignore_aluno_id and a.id == ignore_aluno_id:
+                continue
+            if a.senha == codigo:
+                return True
+        # verifica funcionarios
+        if self.funcionario_repo is not None:
+            try:
+                for f in self.funcionario_repo.listar():  # type: ignore[attr-defined]
+                    if getattr(f, "senha", None) == codigo:
+                        return True
+                    # fallback hash
+                    try:
+                        if hasattr(f, "verificar_senha") and f.verificar_senha(codigo):  # type: ignore[attr-defined]
+                            return True
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        return False
+
     def cadastrar(
         self,
         *,
@@ -70,6 +97,8 @@ class AlunosViewModel:
         senha: str | None = None,
         foto: str | None = None,
     ) -> Aluno:
+        if senha and senha.strip() and self._senha_duplicada(senha):
+            raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
         aluno = Aluno(
             id=f"aluno-{uuid.uuid4().hex[:8]}",
             nome=nome.strip(),
@@ -116,6 +145,8 @@ class AlunosViewModel:
         aluno.observacoes = (observacoes.strip() or None) if observacoes else None
         aluno.endereco = (endereco.strip() or None) if endereco else None
         if senha and senha.strip():
+            if self._senha_duplicada(senha, ignore_aluno_id=aluno_id):
+                raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
         if status is not None:
             aluno.status = status

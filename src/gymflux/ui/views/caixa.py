@@ -7,12 +7,13 @@ from decimal import Decimal
 from typing import ClassVar
 
 from loguru import logger
-from PySide6.QtCore import QPoint, QStringListModel, Qt, Signal
+from PySide6.QtCore import QDate, QPoint, QStringListModel, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QCompleter,
+    QDateEdit,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -121,6 +122,39 @@ class NovoPagamentoDialog(QDialog):
             except Exception:
                 pass
         return self._vencimento_default
+
+
+class MarcarPagoDialog(QDialog):
+    """Escolhe forma e data ao marcar pendente como pago."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Marcar como pago")
+        form = QFormLayout(self)
+        self.cmb_forma = QComboBox()
+        for f in FormaPagamento:
+            self.cmb_forma.addItem(f.value, f.value)
+        idx = self.cmb_forma.findText(FormaPagamento.PIX.value)
+        if idx >= 0:
+            self.cmb_forma.setCurrentIndex(idx)
+        self.dat_pag = QDateEdit(QDate.currentDate())
+        self.dat_pag.setCalendarPopup(True)
+        self.dat_pag.setDisplayFormat("yyyy-MM-dd")
+        form.addRow("Forma*:", self.cmb_forma)
+        form.addRow("Data pagamento*:", self.dat_pag)
+        botoes = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        botoes.accepted.connect(self.accept)
+        botoes.rejected.connect(self.reject)
+        form.addRow(botoes)
+
+    def forma(self) -> str:
+        return str(self.cmb_forma.currentData() or self.cmb_forma.currentText()).strip()
+
+    def data_pagamento(self) -> date:
+        qd = self.dat_pag.date()
+        return date(qd.year(), qd.month(), qd.day())
 
 
 class CaixaView(QWidget):
@@ -442,8 +476,11 @@ class CaixaView(QWidget):
                 return
             self.recarregar()
             return
+        dlg = MarcarPagoDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
         try:
-            self.vm.marcar_como_pago(pag.id)
+            self.vm.marcar_como_pago(pag.id, data_pagamento=dlg.data_pagamento(), forma=dlg.forma())
         except ValueError as e:
             QMessageBox.warning(self, "Caixa", str(e))
             return
