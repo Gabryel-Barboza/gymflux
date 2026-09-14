@@ -128,9 +128,6 @@ class _AlunoForm(QWidget):
         self.lbl_foto = QLabel()
         self.lbl_foto.setFixedSize(120, 120)
         self.lbl_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_foto.setStyleSheet(
-            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
-        )
         self.lbl_foto.setText("Foto\n(clique)")
         self.lbl_foto.setScaledContents(False)
         self.lbl_foto.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -143,6 +140,7 @@ class _AlunoForm(QWidget):
         foto_wrap.addWidget(self.btn_remover_foto)
         foto_wrap.addStretch(1)
         root.addLayout(foto_wrap)
+        self._aplicar_tema_foto(False)
 
     def _escolher_foto(self) -> None:
         caminho, _ = QFileDialog.getOpenFileName(
@@ -156,14 +154,13 @@ class _AlunoForm(QWidget):
         self._foto_path = None
         self.lbl_foto.clear()
         self.lbl_foto.setText("Foto\n(clique)")
-        self.lbl_foto.setStyleSheet(
-            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
-        )
+        self._aplicar_tema_foto(False)
 
     def _atualizar_foto(self) -> None:
         if not self._foto_path or not Path(self._foto_path).exists():
             self.lbl_foto.clear()
             self.lbl_foto.setText("Foto\n(clique)")
+            self._aplicar_tema_foto(False)
             return
         pix = QPixmap(self._foto_path)
         if pix.isNull():
@@ -180,9 +177,62 @@ class _AlunoForm(QWidget):
         y = max(0, (scaled.height() - 120) // 2)
         cropped = scaled.copy(x, y, 120, 120)
         self.lbl_foto.setPixmap(cropped)
-        self.lbl_foto.setStyleSheet(
-            "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"
-        )
+        self._aplicar_tema_foto(True)
+
+    def _detectar_tema(self):  # type: ignore[no-untyped-def]
+        from gymflux.ui.theme import ModoTema
+
+        tema = ModoTema.ESCURO
+        try:
+            parent = self.parent()
+            while parent is not None:
+                has_vm = hasattr(parent, "vm")  # type: ignore[attr-defined]
+                dash = getattr(parent, "dashboard_vm", None)  # type: ignore[attr-defined]
+                if has_vm and dash is not None:
+                    cfg = getattr(dash, "ui_config", None)
+                    tema = getattr(cfg, "tema", tema)
+                    break
+                parent = parent.parent()
+        except Exception:
+            pass
+        # fallback via stylesheet global (claro tem #E8EDF1)
+        try:
+            from PySide6.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            ss = ""
+            if isinstance(app, QApplication):
+                ss = app.styleSheet()
+            if "#E8EDF1" in ss:
+                    tema = ModoTema.CLARO
+        except Exception:
+            pass
+        return tema
+
+    def _aplicar_tema_foto(self, tem_foto: bool) -> None:
+        from gymflux.ui.theme import paleta_do_modo
+
+        tema = self._detectar_tema()
+        try:
+            paleta = paleta_do_modo(tema)
+        except Exception:
+            from gymflux.ui.theme import PALETA_ESCURA
+
+            paleta = PALETA_ESCURA
+        is_claro = paleta.texto == "#1A1E22"
+        bg = paleta.painel if is_claro else "#0F1113"
+        border = "#C8D0D8" if is_claro else "#5AC8FA"
+        if tem_foto:
+            self.lbl_foto.setStyleSheet(
+                "QLabel { border: 2px solid " + border + "; border-radius: 8px;"
+                f" background-color: {bg}; }}"
+            )
+        else:
+            dash = "dashed" if not tem_foto else "solid"
+            self.lbl_foto.setStyleSheet(
+                f"QLabel {{ border: 2px {dash} {border}; border-radius: 8px;"
+                f" background-color: {bg}; color: {paleta.suave}; }}"
+            )
 
     def preencher(self, aluno: Aluno) -> None:
         self.edt_nome.setText(aluno.nome)
@@ -363,13 +413,30 @@ class PerfilAlunoDialog(QDialog):
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
-        # traduz Save -> Salvar
+        # traduz Save -> Salvar e alinha à direita com tema correto
         btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
         if btn_save is not None:
             btn_save.setText("Salvar")
+            btn_save.setStyleSheet(
+                "QPushButton { background-color: #5AC8FA; color: #0F1113;"
+                " border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
+            )
+        btn_cancel = botoes.button(QDialogButtonBox.StandardButton.Cancel)
+        if btn_cancel is not None:
+            btn_cancel.setText("Cancelar")
+            btn_cancel.setStyleSheet(
+                "QPushButton { background-color: transparent;"
+                " border: 1px solid #5AC8FA; color: #5AC8FA;"
+                " border-radius: 6px; padding: 6px 14px; }"
+            )
         botoes.accepted.connect(self._salvar)
         botoes.rejected.connect(self.reject)
-        layout.addWidget(botoes)
+        # alinha botões à direita com stretch
+        h_botoes = QHBoxLayout()
+        h_botoes.setContentsMargins(0, 8, 0, 0)
+        h_botoes.addStretch(1)
+        h_botoes.addWidget(botoes)
+        layout.addLayout(h_botoes)
 
         self.btn_novo_pag.clicked.connect(self._novo_pagamento)
         self.btn_matricular.clicked.connect(self._matricular)
@@ -794,12 +861,9 @@ class AlunosView(QWidget):
         self._sort_col = -1
         self._sort_asc = True
         central.addWidget(self.tbl, 3)
-        # painel detalhes à direita da tabela
+        # painel detalhes à direita da tabela — tema correto
         self.detalhes_frame = QFrame()
         self.detalhes_frame.setObjectName("DetalhesAlunoFrame")
-        self.detalhes_frame.setStyleSheet(
-            "QFrame#DetalhesAlunoFrame { border: 1px solid #2A3138; border-radius: 8px; background-color: #1A1E22; }"  # noqa: E501
-        )
         self.detalhes_frame.setMinimumWidth(280)
         self.detalhes_frame.setMaximumWidth(340)
         det_lay = QVBoxLayout(self.detalhes_frame)
@@ -808,23 +872,19 @@ class AlunosView(QWidget):
         self.lbl_detalhes_foto = QLabel()
         self.lbl_detalhes_foto.setFixedSize(140, 140)
         self.lbl_detalhes_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_detalhes_foto.setStyleSheet(
-            "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
-        )
         self.lbl_detalhes_foto.setText("Sem foto")
         det_lay.addWidget(self.lbl_detalhes_foto, 0, Qt.AlignmentFlag.AlignHCenter)
         self.lbl_detalhes_nome = QLabel("Selecione um aluno")
-        self.lbl_detalhes_nome.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.lbl_detalhes_nome.setWordWrap(True)
         det_lay.addWidget(self.lbl_detalhes_nome)
         self.lbl_detalhes_info = QLabel("Detalhes aparecerão aqui")
-        self.lbl_detalhes_info.setStyleSheet("color: #9AA7B2;")
         self.lbl_detalhes_info.setWordWrap(True)
         self.lbl_detalhes_info.setTextFormat(Qt.TextFormat.PlainText)
         det_lay.addWidget(self.lbl_detalhes_info)
         det_lay.addStretch(1)
         central.addWidget(self.detalhes_frame, 1)
         layout.addLayout(central, 1)
+        self._aplicar_tema_detalhes()
 
         hbtn = QHBoxLayout()
         self.btn_novo = QPushButton("Novo aluno")
@@ -912,11 +972,9 @@ class AlunosView(QWidget):
         if row < 0:
             self.lbl_detalhes_foto.clear()
             self.lbl_detalhes_foto.setText("Sem foto")
-            self.lbl_detalhes_foto.setStyleSheet(
-                "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
-            )
             self.lbl_detalhes_nome.setText("Selecione um aluno")
             self.lbl_detalhes_info.setText("Detalhes aparecerão aqui")
+            self._aplicar_tema_detalhes()
             return
         item_id = self.tbl.item(row, 0)
         if item_id is None:
@@ -938,18 +996,12 @@ class AlunosView(QWidget):
                 y = max(0, (scaled.height() - 140) // 2)
                 cropped = scaled.copy(x, y, 140, 140)
                 self.lbl_detalhes_foto.setPixmap(cropped)
-                self.lbl_detalhes_foto.setStyleSheet(
-                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"  # noqa: E501
-                )
             else:
                 self.lbl_detalhes_foto.clear()
                 self.lbl_detalhes_foto.setText("Sem foto")
         else:
             self.lbl_detalhes_foto.clear()
             self.lbl_detalhes_foto.setText("Sem foto")
-            self.lbl_detalhes_foto.setStyleSheet(
-                "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; color: #9AA7B2; }"  # noqa: E501
-            )
         self.lbl_detalhes_nome.setText(aluno.nome)
         info = (
             f"nome: {aluno.nome}\n"
@@ -962,6 +1014,78 @@ class AlunosView(QWidget):
             f"Endereço: {aluno.endereco or '—'}"
         )
         self.lbl_detalhes_info.setText(info)
+        self._aplicar_tema_detalhes()
+
+    def _aplicar_tema_detalhes(self, tema=None) -> None:  # type: ignore[no-untyped-def]
+        from gymflux.ui.theme import ModoTema, paleta_do_modo
+
+        # tenta inferir tema atual via dashboard_vm ou QApplication
+        if tema is None:
+            try:
+                if hasattr(self, "dashboard_vm") and self.dashboard_vm is not None:  # type: ignore[attr-defined]
+                    cfg = getattr(self.dashboard_vm, "ui_config", None)  # type: ignore[attr-defined]
+                    tema = getattr(cfg, "tema", None) if cfg else None
+            except Exception:
+                tema = None
+        if tema is None:
+            tema = ModoTema.ESCURO
+            try:
+                from PySide6.QtWidgets import QApplication
+
+                app = QApplication.instance()
+                ss = ""
+                if isinstance(app, QApplication):
+                    ss = app.styleSheet()
+                if "#E8EDF1" in ss:
+                    tema = ModoTema.CLARO
+            except Exception:
+                pass
+        try:
+            paleta = paleta_do_modo(tema or ModoTema.ESCURO)
+        except Exception:
+            from gymflux.ui.theme import PALETA_ESCURA
+
+            paleta = PALETA_ESCURA
+        is_claro = paleta.texto == "#1A1E22"
+        # detalhe frame
+        self.detalhes_frame.setStyleSheet(
+            "QFrame#DetalhesAlunoFrame { border: 1px solid " + paleta.borda + ";"
+            f" border-radius: 8px; background-color: {paleta.painel}; }}"
+        )
+        # foto no detalhes
+        foto_bg = paleta.painel if is_claro else "#0F1113"
+        foto_border = "#C8D0D8" if is_claro else "#5AC8FA"
+        pm = self.lbl_detalhes_foto.pixmap()
+        if pm is None or pm.isNull():
+            self.lbl_detalhes_foto.setStyleSheet(
+                f"QLabel {{ border: 2px dashed {foto_border}; border-radius: 8px;"
+                f" background-color: {foto_bg}; color: {paleta.suave}; }}"
+            )
+        else:
+            self.lbl_detalhes_foto.setStyleSheet(
+                f"QLabel {{ border: 2px solid {foto_border}; border-radius: 8px;"
+                f" background-color: {foto_bg}; }}"
+            )
+        # textos
+        self.lbl_detalhes_nome.setStyleSheet(
+            f"font-weight: bold; font-size: 14px; color: {paleta.texto};"
+            " background: transparent;"
+        )
+        self.lbl_detalhes_info.setStyleSheet(
+            f"color: {paleta.suave}; background: transparent;"
+        )
+        # foto no form (se existir)
+        with contextlib.suppress(Exception):
+            if hasattr(self, "form") and hasattr(self.form, "lbl_foto"):
+                # atualiza foto do form se existir (para perfil)
+                pass
+
+    def sincronizar_tema(self, tema) -> None:
+        self._aplicar_tema_detalhes(tema)
+        with contextlib.suppress(Exception):
+            if hasattr(self, "form") and hasattr(self.form, "_atualizar_foto"):
+                # força re-render foto com tema correto se já tem pixmap
+                self.form._atualizar_foto()
 
     def _ordenar_coluna(self, col: int) -> None:
         """SORT no header: toggle asc/desc na mesma coluna."""

@@ -8,7 +8,7 @@ from typing import Any
 
 from loguru import logger
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPixmap
+from PySide6.QtGui import QBrush, QColor, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -83,25 +83,64 @@ class DashboardView(QWidget):
         estilo = self.style()
 
         # -- toast overlay centralizado e destacado (modal) -----------------------
-        self.toast = QLabel("", self)
+        self.toast = QFrame(self)
+        self.toast.setObjectName("ToastFrame")
         self.toast.setVisible(False)
-        self.toast.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.toast.setWordWrap(True)
-        self.toast.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        # sombra para destacar sobre o fundo
+        self.toast.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.toast.setStyleSheet(
+            "QFrame#ToastFrame { background-color: #1A1E22; border: 1px solid #2A3138; border-radius: 14px; }"  # noqa: E501
+        )
+        # sombra
         try:
             from PySide6.QtWidgets import QGraphicsDropShadowEffect
 
             _shadow = QGraphicsDropShadowEffect(self.toast)
-            _shadow.setBlurRadius(18)
-            _shadow.setOffset(0, 4)
-            _shadow.setColor(QColor(0, 0, 0, 110))
+            _shadow.setBlurRadius(28)
+            _shadow.setOffset(0, 8)
+            _shadow.setColor(QColor(0, 0, 0, 160))
             self.toast.setGraphicsEffect(_shadow)
         except Exception:
             pass
+        # layout interno: ícone + textos
+        self._toast_layout = QHBoxLayout(self.toast)
+        self._toast_layout.setContentsMargins(18, 14, 18, 14)
+        self._toast_layout.setSpacing(12)
+        self.toast_icon = QLabel(self.toast)
+        self.toast_icon.setFixedSize(36, 36)
+        self.toast_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.toast_icon.setStyleSheet("border: none; background: transparent; font-size: 20px;")
+        self._toast_layout.addWidget(self.toast_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        txt_wrap = QVBoxLayout()
+        txt_wrap.setSpacing(2)
+        txt_wrap.setContentsMargins(0, 0, 0, 0)
+        self.toast_title = QLabel("", self.toast)
+        self.toast_title.setWordWrap(True)
+        self.toast_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.toast_title.setStyleSheet("border: none; background: transparent; font-weight: bold; font-size: 15px; color: #F2F5F7;")  # noqa: E501
+        self.toast_sub = QLabel("", self.toast)
+        self.toast_sub.setWordWrap(True)
+        self.toast_sub.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.toast_sub.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #9AA7B2;")  # noqa: E501
+        self.toast_sub.setVisible(False)
+        txt_wrap.addWidget(self.toast_title)
+        txt_wrap.addWidget(self.toast_sub)
+        self._toast_layout.addLayout(txt_wrap, 1)
+        # opacidade para fade
+        self._toast_opacity: Any = None  # type: ignore[no-redef]
+        self._toast_anim: Any = None  # type: ignore[no-redef]
+        try:
+            from PySide6.QtWidgets import QGraphicsOpacityEffect
+
+            self._toast_opacity = QGraphicsOpacityEffect(self.toast)  # type: ignore[assignment]
+            self._toast_opacity.setOpacity(1.0)
+            self.toast.setGraphicsEffect(self._toast_opacity)
+            # combina sombra e opacidade não pode ter 2 effects, usa wrapper
+            # mantém só opacidade, sombra via stylesheet
+        except Exception:
+            self._toast_opacity = None
         self._toast_timer = QTimer(self)
         self._toast_timer.setSingleShot(True)
-        self._toast_timer.timeout.connect(lambda: self.toast.setVisible(False))
+        self._toast_timer.timeout.connect(self._hide_toast)
 
         # -- header moderno: status compacto + Detalhes à direita ---------------
         header = QFrame(self)
@@ -656,7 +695,6 @@ class DashboardView(QWidget):
         # centraliza toast no meio da tela
         if self.toast.isVisible():
             self.toast.adjustSize()
-            # largura proporcional, max 70% da largura
             max_w = int(self.width() * 0.7)
             if self.toast.width() > max_w:
                 self.toast.setMaximumWidth(max_w)
@@ -668,30 +706,105 @@ class DashboardView(QWidget):
         with contextlib.suppress(Exception):
             self._atualizar_todos_wallpapers()
 
+    def _hide_toast(self) -> None:
+        # fade out suave antes de esconder
+        try:
+            if self._toast_opacity is not None:
+                from PySide6.QtCore import QPropertyAnimation
+
+                anim = QPropertyAnimation(self._toast_opacity, b"opacity")  # type: ignore[arg-type]
+                anim.setDuration(220)
+                anim.setStartValue(1.0)
+                anim.setEndValue(0.0)
+                anim.finished.connect(lambda: self.toast.setVisible(False))  # type: ignore[attr-defined]
+                anim.finished.connect(lambda: self._toast_opacity.setOpacity(1.0))  # type: ignore[attr-defined]
+                self._toast_anim = anim  # type: ignore[assignment]
+                anim.start()
+                return
+        except Exception:
+            pass
+        self.toast.setVisible(False)
+
     def _mostrar_toast(self, texto: str, liberado: bool | None) -> None:
-        self.toast.setText(texto)
-        # modal destacado: padding grande, borda, fonte maior
-        extra = (
-            " padding: 18px 32px; border-radius: 12px; "
-            "border: 2px solid #2A3138; font-size: 16px; font-weight: bold; "
-            "min-width: 260px; max-width: 600px; "
+        # texto pode ser "NOME — LIBERADO" ou "NOME — NEGADO · motivo"
+        # separa título e subtítulo para design mais rico
+        titulo = texto
+        subtitulo = ""
+        if " — " in texto:
+            partes = texto.split(" — ", 1)
+            titulo = partes[0].strip()
+            resto = partes[1].strip()
+            # resto pode ser "LIBERADO" ou "NEGADO · motivo"
+            if "·" in resto:
+                estado, motivo = resto.split("·", 1)
+                titulo = f"{titulo} — {estado.strip()}"
+                subtitulo = motivo.strip()
+            else:
+                titulo = f"{titulo} — {resto}"
+        elif "·" in texto:
+            p = texto.split("·", 1)
+            titulo = p[0].strip()
+            subtitulo = p[1].strip()
+        # escolhe ícone e cores
+        if liberado is True:
+            bg = "#A3D65C"
+            fg = "#0F1113"
+            border = "#8AC04A"
+            icon_char = "✓"
+            icon_bg = "#0F1113"
+            icon_fg = "#A3D65C"
+        elif liberado is False:
+            bg = "#E57373"
+            fg = "#0F1113"
+            border = "#C95A5A"
+            icon_char = "✕"
+            icon_bg = "#0F1113"
+            icon_fg = "#E57373"
+        else:
+            bg = "#1A1E22" if modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO else "#E8EDF1"
+            fg = "#F2F5F7" if modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO else "#1A1E22"
+            border = "#2A3138" if modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO else "#C8D0D8"
+            icon_char = "!"
+            icon_bg = "#5AC8FA"
+            icon_fg = "#0F1113"
+        # aplica estilo ao frame
+        self.toast.setStyleSheet(
+            f"QFrame#ToastFrame {{ background-color: {bg}; border: 1px solid {border}; border-radius: 14px; }}"  # noqa: E501
         )
-        base = self._estilo(liberado)
-        # garante contraste: adiciona borda e padding ao estilo base
-        self.toast.setStyleSheet(base + extra)
-        # fonte maior e bold
-        f = QFont(self.toast.font())
-        f.setPointSize(13)
-        f.setBold(True)
-        self.toast.setFont(f)
+        # ícone circular
+        self.toast_icon.setText(icon_char)
+        self.toast_icon.setStyleSheet(
+            f"QLabel {{ background-color: {icon_bg}; color: {icon_fg};"
+            " border-radius: 18px; font-weight: bold; font-size: 18px;"
+            " border: none; }}"
+        )
+        self.toast_title.setText(titulo)
+        self.toast_title.setStyleSheet(
+            "border: none; background: transparent;"
+            f" font-weight: bold; font-size: 15px; color: {fg};"
+        )
+        if subtitulo:
+            self.toast_sub.setText(subtitulo)
+            self.toast_sub.setStyleSheet(
+                "border: none; background: transparent;"
+                f" font-size: 12px; color: {fg};"
+            )
+            self.toast_sub.setVisible(True)
+        else:
+            self.toast_sub.setVisible(False)
+            self.toast_sub.setText("")
+        # tamanho e posição central
         self.toast.adjustSize()
-        # largura proporcional ao texto, max 70% da tela
         max_w = int(self.width() * 0.7) if self.width() > 0 else 560
         if self.toast.width() > max_w:
             self.toast.setMaximumWidth(max_w)
             self.toast.adjustSize()
         else:
             self.toast.setMaximumWidth(16777215)
+        # garante opacidade 1 antes de mostrar
+        with contextlib.suppress(Exception):
+            if self._toast_opacity is not None:
+                self._toast_opacity.setOpacity(1.0)
         x = (self.width() - self.toast.width()) // 2
         y = (self.height() - self.toast.height()) // 2
         if x < 0:
@@ -702,6 +815,7 @@ class DashboardView(QWidget):
         self.toast.setVisible(True)
         self.toast.raise_()
         self._toast_timer.start(4000)
+        # mantém compat com labels ocultos
         self.lbl_resultado.setText(texto)
         self.lbl_resultado.setStyleSheet(self._estilo(liberado))
         self.lbl_verificacao.setText(texto)
