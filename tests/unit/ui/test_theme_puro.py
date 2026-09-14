@@ -29,21 +29,21 @@ from gymflux.ui.theme import (
 )
 
 
-def test_paleta_aprovada():
-    assert AZUL == "#5AC8FA"
-    assert FUNDO == "#0F1113"
-    assert LIMA == "#A3D65C"
-    assert VERMELHO == "#E57373"
-    assert TEXTO == "#F2F5F7"
-
-
 def test_stylesheet_contem_paleta_e_seletores():
-    qss = stylesheet()
+    # paleta aprovada #5AC8FA/#0F1113/#A3D65C/#E57373/#F2F5F7 + QSS
+    for cor, esperado in (
+        (AZUL, "#5AC8FA"),
+        (FUNDO, "#0F1113"),
+        (LIMA, "#A3D65C"),
+        (VERMELHO, "#E57373"),
+        (TEXTO, "#F2F5F7"),
+    ):
+        assert cor == esperado
     for cor in (AZUL, FUNDO, LIMA, TEXTO):
-        assert cor in qss
-    assert VERMELHO in estilo_resultado(False)  # negado vai inline no resultado
+        assert cor in stylesheet()
+    assert VERMELHO in estilo_resultado(False)  # negado vai inline, não no QSS
     for seletor in ("QPushButton", "QTabWidget", "QTableWidget", "QLineEdit", "QGroupBox"):
-        assert seletor in qss
+        assert seletor in stylesheet()
 
 
 def test_estilo_resultado():

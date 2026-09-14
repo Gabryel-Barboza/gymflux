@@ -141,7 +141,9 @@ def test_trimestral_so_gera_a_cada_90d() -> None:
     ref_out = date(2026, 10, 14)
     ref_dez = date(2026, 12, 20)
     plano_tri = Plano.criar_trimestral()
-    mat_tri = Matricula(aluno_id="al-1", plano=plano_tri, vigencia=Vigencia(date(2026, 9, 1), date(2026, 12, 31)))
+    mat_tri = Matricula(
+        aluno_id="al-1", plano=plano_tri, vigencia=Vigencia(date(2026, 9, 1), date(2026, 12, 31))
+    )
     # último venc em Set
     pag_set = Pagamento(
         id="pag-set",

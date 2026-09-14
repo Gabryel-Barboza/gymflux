@@ -119,3 +119,45 @@ def test_mes_derivado_do_vencimento_quando_sem_competencia():
             data_vencimento=date(2026, 8, 15),
             competencia="agosto",
         )
+
+
+def test_reabrir_mes_e_reusar_competencia():
+    vm = _caixa()
+    aluno_id = _aluno(vm)
+    vm.registrar(
+        aluno_id=aluno_id,
+        valor="100.00",
+        data_vencimento=date(2026, 9, 10),
+        competencia="2026-09",
+    )
+    vm.fechar_mes("2026-09")
+    assert vm.mes_fechado("2026-09") is True
+    vm.reabrir_mes("2026-09")
+    assert vm.mes_fechado("2026-09") is False
+    # após reabrir, registra de novo na mesma competência
+    vm.registrar(
+        aluno_id=aluno_id,
+        valor="10.00",
+        data_vencimento=date(2026, 9, 20),
+        competencia="2026-09",
+    )
+    assert len(vm.por_mes("2026-09")) == 2
+    # reabrir mês não fechado deve falhar
+    with pytest.raises(ValueError, match="não está fechado"):
+        vm.reabrir_mes("2026-09")
+
+
+def test_forma_none_default_pix():
+    vm = _caixa()
+    aluno_id = _aluno(vm)
+    pag = vm.registrar(
+        aluno_id=aluno_id,
+        valor="50.00",
+        data_vencimento=date(2026, 9, 10),
+        forma=None,
+    )
+    # bug que quebrou 20 testes: forma=None deve virar PIX, não None
+    assert pag.forma == "PIX" or str(pag.forma) == "PIX"
+    # forma vazia string deve falhar (não cair no default)
+    with pytest.raises(ValueError):
+        vm.registrar(aluno_id=aluno_id, valor="50.00", data_vencimento=date(2026, 9, 10), forma="")

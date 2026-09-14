@@ -27,6 +27,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         except ValueError:
             continue
         item.add_marker(pytest.mark.ui)
+        item.add_marker(pytest.mark.slow)
+        item.add_marker(pytest.mark.integration)
 
 
 @pytest.fixture
