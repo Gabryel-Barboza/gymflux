@@ -264,7 +264,15 @@ def _wire(
 
                         modo = getattr(nova, "fundo_modo", ModoFundo.WALLPAPER)
                         if modo == ModoFundo.WALLPAPER:
-                            w.aplicar_wallpaper(nova.wallpaper)  # type: ignore[attr-defined]
+                            # auto por tema se wallpaper vazio
+                            wall = nova.wallpaper
+                            if not wall:
+                                # tenta resolver via store do viewmodel
+                                try:
+                                    wall = store.wallpaper_efetivo(nova)  # type: ignore[attr-defined]
+                                except Exception:
+                                    wall = nova.wallpaper
+                            w.aplicar_wallpaper(wall)  # type: ignore[attr-defined]
                         else:
                             w.aplicar_wallpaper(None)  # type: ignore[attr-defined]
                 # sync tema dos containers após troca
@@ -372,9 +380,11 @@ class GymFluxMainWindow(QMainWindow):
         self._cached_wallpaper_size: Any = None
         from gymflux.ui.config_store import ModoFundo
 
-        cfg_wall = ctx.config_vm.config.wallpaper
-        cfg_modo = getattr(ctx.config_vm.config, "fundo_modo", ModoFundo.WALLPAPER)
+        cfg = ctx.config_vm.config
+        cfg_modo = getattr(cfg, "fundo_modo", ModoFundo.WALLPAPER)
         if cfg_modo == ModoFundo.WALLPAPER:
+            # wallpaper vazio => auto por tema
+            cfg_wall = ctx.config_vm.store.wallpaper_efetivo(cfg)  # type: ignore[attr-defined]
             self.aplicar_wallpaper(cfg_wall)
         else:
             self.aplicar_wallpaper(None)

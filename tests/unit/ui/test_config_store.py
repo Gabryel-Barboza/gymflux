@@ -62,14 +62,12 @@ def test_store_corrompido_volta_aos_padroes(tmp_path):
     caminho = tmp_path / "cfg.json"
     caminho.write_text("{json quebrado", encoding="utf-8")
     loaded = ConfigStore(caminho).load()
-    # wallpaper default pode estar setado se assets existir
+    # wallpaper vazio = auto por tema (None), não preenche default
     expected = UiConfig()
-    expected.wallpaper = ConfigStore(caminho)._default_wallpaper()
     assert loaded == expected
     caminho.write_text(json.dumps(["lista", "nao", "dict"]), encoding="utf-8")
     loaded2 = ConfigStore(caminho).load()
     expected2 = UiConfig()
-    expected2.wallpaper = ConfigStore(caminho)._default_wallpaper()
     assert loaded2 == expected2
 
 

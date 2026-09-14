@@ -273,30 +273,28 @@ class DashboardView(QWidget):
         self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- logs / giros lado a lado — QFrame hugging tabela (borda cola no conteudo) --
-        # empurra containers para baixo, sem centro vertical
+        # -- logs / giros — Giros hugging e Acessos expansível full-width no fim da tela --
         layout.addStretch(1)
+        # Giros sozinho no topo da área inferior (lado a lado antigo agora só giros)
         hmid = QHBoxLayout()
         hmid.setSpacing(12)
-        hmid.setAlignment(Qt.AlignmentFlag.AlignBottom)
+        hmid.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        # Acessos de hoje expansível full-width no fim da tela
         frame_log = QFrame()
         frame_log.setObjectName("CatracaFrameLog")
         frame_log.setStyleSheet(
             "QFrame#CatracaFrameLog { border: 1px solid #2A3138; "
             "border-radius: 8px; padding: 6px; }"
         )
-        frame_log.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        frame_log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         lay_log = QVBoxLayout(frame_log)
         lay_log.setContentsMargins(6, 6, 6, 6)
         lay_log.setSpacing(6)
         lay_log.setAlignment(Qt.AlignmentFlag.AlignTop)
-        # header expansível com seta
+        # header expansível com seta — texto branco no escuro para contraste
         self.btn_toggle_log = QPushButton("▶ Acessos de hoje")
         self.btn_toggle_log.setCheckable(True)
         self.btn_toggle_log.setChecked(False)
-        self.btn_toggle_log.setStyleSheet(
-            "QPushButton { font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; }"  # noqa: E501
-        )
         self.btn_toggle_log.setCursor(Qt.CursorShape.PointingHandCursor)
         lay_log.addWidget(self.btn_toggle_log)
         lbl_log = QLabel("Acessos de hoje")
@@ -317,10 +315,9 @@ class DashboardView(QWidget):
         self.tbl_log.setMinimumHeight(tbl_h)
         self.tbl_log.setVisible(False)
         lay_log.addWidget(self.tbl_log)
-        # frame hugging: colapsado inicialmente
+        # frame hugging: colapsado inicialmente — full-width no fim da tela
         frame_log.setMaximumHeight(30 + 12)
         frame_log.setMinimumHeight(30 + 12)
-        hmid.addWidget(frame_log, 3)
         self.frame_log = frame_log
         self._log_expandido = False
         self.btn_toggle_log.toggled.connect(self._toggle_acessos_log)
@@ -347,8 +344,12 @@ class DashboardView(QWidget):
         lay_giros.addWidget(self.lst_giros)
         frame_giros.setMaximumHeight(lst_h + 30 + 12)
         hmid.addWidget(frame_giros, 1)
+        # giros ocupa o espaço da área inferior, mas acessos fica full-width no fim
+        hmid.addStretch(1)
         self.frame_giros = frame_giros
         layout.addLayout(hmid)
+        # Acessos de hoje expansível full-width no fim da tela (clicável)
+        layout.addWidget(frame_log)
 
         # -- wallpaper só atrás dos containers (não no fundo global) --
         # fundo um nível acima do CatracaCentro: DashboardView, não CatracaCentro
@@ -487,7 +488,7 @@ class DashboardView(QWidget):
                         f"QFrame#CatracaCentro {{ border: none; border-radius: 8px; background-color: {painel}; }}"  # noqa: E501
                     )
                 continue
-            # Acessos de hoje: sem wallpaper — sempre sólido
+            # Acessos de hoje: sem wallpaper — sempre sólido, texto branco no escuro
             if base == "CatracaFrameLog":
                 ov = self._overlay_labels.get(frm)
                 if ov is not None:
@@ -495,6 +496,12 @@ class DashboardView(QWidget):
                 frm.setStyleSheet(
                     f"QFrame#CatracaFrameLog {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
                 )
+                # texto do botão expansível — branco no escuro para contraste
+                with contextlib.suppress(Exception):
+                    txt_col = "#F2F5F7" if modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO else "#1A1E22"  # noqa: E501
+                    self.btn_toggle_log.setStyleSheet(
+                        f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
+                    )
                 continue
             # Giros: mantém wallpaper — mais transparente no escuro para ver logo
             if base == "CatracaFrameGiros":

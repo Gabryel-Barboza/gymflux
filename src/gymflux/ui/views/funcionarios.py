@@ -175,8 +175,9 @@ class PerfilFuncionarioDialog(QDialog):
         self._func_id = funcionario_id
         self._read_only = read_only
         self.setWindowTitle(f"Perfil — {func.nome}" + (" (visualização)" if read_only else ""))
-        self.resize(540, 300)
-        root = QHBoxLayout(self)
+        self.resize(580, 320)
+        main = QVBoxLayout(self)
+        top = QHBoxLayout()
         form = QFormLayout()
         self.edt_nome = QLineEdit()
         self.edt_nome.setText(func.nome)
@@ -188,7 +189,6 @@ class PerfilFuncionarioDialog(QDialog):
         senha_atual = getattr(func, "senha", None) or ""
         self.edt_senha.setText(senha_atual)
         if not senha_atual:
-            # fallback tenta extrair do hash? não, deixa vazio
             self.edt_senha.setText("")
         self.edt_senha.setReadOnly(read_only)
         if read_only and not senha_atual:
@@ -205,38 +205,7 @@ class PerfilFuncionarioDialog(QDialog):
         form.addRow("Senha numérica:", self.edt_senha)
         form.addRow("Horários:", self.edt_horarios)
         form.addRow("Dias:", self.edt_dias)
-        if read_only:
-            botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-            botoes.rejected.connect(self.reject)
-            # desabilita edição visualmente
-            self.edt_nome.setStyleSheet("QLineEdit { background: transparent; border: none; }")
-            # alinha à direita
-            h_botoes = QHBoxLayout()
-            h_botoes.addStretch(1)
-            h_botoes.addWidget(botoes)
-            form.addRow(h_botoes)
-        else:
-            botoes = QDialogButtonBox(
-                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
-            )
-            btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
-            if btn_save is not None:
-                btn_save.setText("Salvar")
-                btn_save.setStyleSheet("QPushButton { background-color: #5AC8FA; color: #0F1113;"
-                " border-radius: 6px; padding: 6px 14px; font-weight: bold; }")
-            btn_cancel = botoes.button(QDialogButtonBox.StandardButton.Cancel)
-            if btn_cancel is not None:
-                btn_cancel.setText("Cancelar")
-                btn_cancel.setStyleSheet("QPushButton { background-color: transparent;"
-                " border: 1px solid #5AC8FA; color: #5AC8FA;"
-                " border-radius: 6px; padding: 6px 14px; }")
-            botoes.accepted.connect(self._salvar)
-            botoes.rejected.connect(self.reject)
-            h_botoes = QHBoxLayout()
-            h_botoes.addStretch(1)
-            h_botoes.addWidget(botoes)
-            form.addRow(h_botoes)
-        root.addLayout(form, 1)
+        top.addLayout(form, 1)
         # foto quadrada à direita
         foto_wrap = QVBoxLayout()
         foto_wrap.setContentsMargins(0, 0, 0, 0)
@@ -255,7 +224,8 @@ class PerfilFuncionarioDialog(QDialog):
             self.btn_remover_foto.clicked.connect(self._remover_foto)
             foto_wrap.addWidget(self.btn_remover_foto)
         foto_wrap.addStretch(1)
-        root.addLayout(foto_wrap)
+        top.addLayout(foto_wrap)
+        main.addLayout(top, 1)
         self._aplicar_tema_foto(self._foto_path is not None and Path(self._foto_path).exists())  # type: ignore[arg-type]
         if self._foto_path and Path(self._foto_path).exists():  # type: ignore[arg-type]
             pix = QPixmap(self._foto_path)
@@ -269,6 +239,36 @@ class PerfilFuncionarioDialog(QDialog):
                 y = max(0, (scaled.height() - 120) // 2)
                 cropped = scaled.copy(x, y, 120, 120)
                 self.lbl_foto.setPixmap(cropped)
+        # botões alinhados inferior direito (fora do form, igual alunos)
+        if read_only:
+            botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            botoes.rejected.connect(self.reject)
+            self.edt_nome.setStyleSheet("QLineEdit { background: transparent; border: none; }")
+        else:
+            botoes = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+            )
+            btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
+            if btn_save is not None:
+                btn_save.setText("Salvar")
+                btn_save.setStyleSheet(
+                    "QPushButton { background-color: #5AC8FA; color: #0F1113;"
+                    " border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
+                )
+            btn_cancel = botoes.button(QDialogButtonBox.StandardButton.Cancel)
+            if btn_cancel is not None:
+                btn_cancel.setText("Cancelar")
+                btn_cancel.setStyleSheet(
+                    "QPushButton { background-color: transparent;"
+                    " border: 1px solid #5AC8FA; color: #5AC8FA;"
+                    " border-radius: 6px; padding: 6px 14px; }"
+                )
+            botoes.accepted.connect(self._salvar)
+            botoes.rejected.connect(self.reject)
+        h_botoes = QHBoxLayout()
+        h_botoes.addStretch(1)
+        h_botoes.addWidget(botoes)
+        main.addLayout(h_botoes)
 
     def _detectar_tema(self):  # type: ignore[no-untyped-def]
         from gymflux.ui.theme import ModoTema
