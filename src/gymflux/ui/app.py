@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QStyle,
+    QSystemTrayIcon,
     QTabWidget,
 )
 from sqlalchemy.orm import Session
@@ -407,6 +408,111 @@ class GymFluxMainWindow(QMainWindow):
             self.aplicar_wallpaper(None)
         self.tabs.raise_()
 
+        # -- bandeja (tray) — catraca segue viva em thread daemon mesmo com hide() --
+        self.tray: QSystemTrayIcon | None = None
+        self._tray_available = False
+        try:
+            self._tray_available = QSystemTrayIcon.isSystemTrayAvailable()
+        except Exception:
+            self._tray_available = False
+        if self._tray_available:
+            try:
+                from pathlib import Path
+
+                from PySide6.QtGui import QAction, QIcon
+
+                icon_path = Path("src/gymflux/ui/assets/wallpaper-preto.png")
+                icon = QIcon(str(icon_path)) if icon_path.exists() else QIcon()
+                if icon.isNull():
+                    # fallback para ícone do tema (sempre existe)
+                    icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+
+                self.tray = QSystemTrayIcon(icon, self)
+                self.tray.setToolTip("GymFlux — catraca ativa")
+
+                from PySide6.QtWidgets import QMenu
+
+                menu = QMenu()
+                act_abrir = QAction("Abrir GymFlux", self)
+                act_abrir.triggered.connect(self._tray_abrir)  # type: ignore[attr-defined]
+                act_sair = QAction("Sair totalmente", self)
+                act_sair.triggered.connect(QApplication.quit)  # type: ignore[attr-defined]
+                menu.addAction(act_abrir)
+                menu.addAction(act_sair)
+                self.tray.setContextMenu(menu)
+
+                # DoubleClick reabre — show() só após hide() conforme tarefa
+                self.tray.activated.connect(self._on_tray_activated)  # type: ignore[attr-defined]
+            except Exception as e:
+                logger.warning(f"[UI] falha ao criar tray: {e}")
+                self.tray = None
+                self._tray_available = False
+
+    def _tray_abrir(self) -> None:  # type: ignore[no-untyped-def]
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason) -> None:  # type: ignore[no-untyped-def]
+        try:
+            if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+                self._tray_abrir()
+        except Exception:
+            pass
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        # Fallback Linux: sem tray disponível → fecha normal
+        tray_visible = False
+        try:
+            tray_visible = self.tray is not None and self.tray.isVisible()
+        except Exception:
+            tray_visible = False
+        tray_disp = False
+        try:
+            tray_disp = QSystemTrayIcon.isSystemTrayAvailable()
+        except Exception:
+            tray_disp = False
+
+        should_minimize = False
+        if self._tray_available and self.tray is not None:
+            should_minimize = tray_visible or tray_disp
+        # isVisible() é False antes de show(); tray_disp cobre o caso
+        if should_minimize:
+            event.ignore()
+            self.hide()
+            # tray.show() só após hide() conforme tarefa
+            try:
+                if self.tray is not None and not self.tray.isVisible():
+                    self.tray.show()
+            except Exception:
+                pass
+            try:
+                if self.tray is not None:
+                    self.tray.showMessage(
+                        "GymFlux",
+                        "Rodando em segundo plano — catraca ativa",
+                        QSystemTrayIcon.MessageIcon.Information,
+                        2000,
+                    )
+            except Exception:
+                pass
+        else:
+            if not tray_disp:
+                logger.warning("Tray indisponível — fechando")
+            # garante não deixar ícone órfão e libera hardware
+            try:
+                if self.tray is not None:
+                    self.tray.hide()
+            except Exception:
+                pass
+            # driver segue em thread daemon, mas desconecta na saída total
+            try:
+                if hasattr(self, "ctx") and hasattr(self.ctx, "bridge"):
+                    self.ctx.bridge.driver.desconectar()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            event.accept()
+
     def _aplicar_tema_icones(self, tema) -> None:  # type: ignore[no-untyped-def]
         is_claro = tema == ModoTema.CLARO or str(tema).upper() == "CLARO"
         for i, base in enumerate(self._base_icons):
@@ -487,5 +593,12 @@ def run(argv: list[str] | None = None) -> int:
         logger.warning(f"[UI] falha ao conectar catraca: {e}")
     win = build_window(ctx)
     app.aboutToQuit.connect(ctx.close)
+    # não deixar ícone órfão na bandeja
+    with contextlib.suppress(Exception):
+        app.aboutToQuit.connect(
+            lambda: win.tray.hide()  # type: ignore[union-attr]
+            if getattr(win, "tray", None) is not None
+            else None
+        )
     win.show()
     return app.exec()

@@ -665,20 +665,15 @@ class DashboardView(QWidget):
             self.lbl_giros_titulo.setStyleSheet(pill)
         else:
             self.tbl_log.setStyleSheet("")
-            is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
-            if is_escuro:
-                # giros com fundo preto no escuro
-                self.lst_giros.setStyleSheet(
-                    "QListWidget { background-color: #0F1113; color: #F2F5F7;"
-                    " border: 1px solid #2A3138; }"
-                )
-                self.lbl_giros_titulo.setStyleSheet(
-                    "font-weight: bold; border: none; color: #F2F5F7;"
-                    " background: transparent;"
-                )
-            else:
-                self.lst_giros.setStyleSheet("")
-                self.lbl_giros_titulo.setStyleSheet("font-weight: bold; border: none;")
+            # Giros sempre preto (pedido) — mesmo no claro e mesmo sem wallpaper
+            self.lst_giros.setStyleSheet(
+                "QListWidget { background-color: #0F1113; color: #F2F5F7;"
+                " border: 1px solid #2A3138; }"
+            )
+            self.lbl_giros_titulo.setStyleSheet(
+                "font-weight: bold; border: none; color: #F2F5F7;"
+                " background: transparent;"
+            )
             self.lbl_log_titulo.setStyleSheet("font-weight: bold; border: none;")
 
     def sync_tema(self) -> None:
