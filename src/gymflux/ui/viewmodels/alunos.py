@@ -109,6 +109,7 @@ class AlunosViewModel:
             observacoes=(observacoes.strip() or None) if observacoes else None,
             endereco=(endereco.strip() or None) if endereco else None,
             foto=(foto.strip() or None) if foto else None,
+            created_at=date.today(),
         )
         if senha and senha.strip():
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
