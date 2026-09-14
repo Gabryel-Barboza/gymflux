@@ -933,6 +933,32 @@ class DashboardView(QWidget):
             x = 8
         if y < 0:
             y = 8
+        # se janela em 2º plano (hide()), mostra SÓ o tray (toast interno invisível)
+        win_hidden = False
+        try:
+            win = self.window()
+            win_hidden = bool(win is not None and win.isHidden())
+        except Exception:
+            win_hidden = False
+        if win_hidden:
+            try:
+                win2 = self.window()
+                if win2 is not None and hasattr(win2, "mostrar_notificacao_tray"):
+                    titulo = "GymFlux"
+                    msg = texto.split(" — ")[0].strip() if " — " in texto else texto.strip()
+                    # fallback: se msg vazia, usa texto completo
+                    if not msg:
+                        msg = texto.strip()
+                    with contextlib.suppress(Exception):
+                        win2.mostrar_notificacao_tray(titulo, msg)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            # mantém labels compat mas não mostra toast interno quando oculto
+            self.lbl_resultado.setText(texto)
+            self.lbl_resultado.setStyleSheet(self._estilo(liberado))
+            self.lbl_verificacao.setText(texto)
+            self.lbl_verificacao.setStyleSheet(self._estilo(liberado))
+            return
         self.toast.move(x, y)
         self.toast.setVisible(True)
         self.toast.raise_()

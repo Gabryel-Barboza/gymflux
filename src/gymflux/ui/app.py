@@ -468,6 +468,21 @@ class GymFluxMainWindow(QMainWindow):
         except Exception:
             pass
 
+    def mostrar_notificacao_tray(self, titulo: str, msg: str) -> None:
+        """Mostra balão do sistema se tray visível (2º plano). Fallback Linux: no-op."""
+        try:
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                return
+        except Exception:
+            return
+        try:
+            if self.tray is not None and self.tray.isVisible():
+                self.tray.showMessage(
+                    titulo, msg, QSystemTrayIcon.MessageIcon.Information, 3000
+                )
+        except Exception:
+            pass
+
     def closeEvent(self, event) -> None:  # type: ignore[override]
         # Fallback Linux: sem tray disponível → fecha normal
         tray_visible = False
@@ -494,16 +509,8 @@ class GymFluxMainWindow(QMainWindow):
                     self.tray.show()
             except Exception:
                 pass
-            try:
-                if self.tray is not None:
-                    self.tray.showMessage(
-                        "GymFlux",
-                        "Rodando em segundo plano — catraca ativa",
-                        QSystemTrayIcon.MessageIcon.Information,
-                        2000,
-                    )
-            except Exception:
-                pass
+            with contextlib.suppress(Exception):
+                self.mostrar_notificacao_tray("GymFlux", "Rodando em segundo plano — catraca ativa")
         else:
             if not tray_disp:
                 logger.warning("Tray indisponível — fechando")
