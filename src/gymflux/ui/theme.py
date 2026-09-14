@@ -17,6 +17,7 @@ from enum import StrEnum
 AZUL = "#5AC8FA"  # primária / botões / seleções (ambos os modos)
 FUNDO = "#0F1113"  # fundo (modo escuro)
 LIMA = "#A3D65C"  # liberado / ok (ambos os modos)
+VERDE_FORTE = "#2ECC71"  # status online no claro — verde forte com texto preto
 VERMELHO = "#E57373"  # negado / erro (ambos os modos)
 TEXTO = "#F2F5F7"  # texto (modo escuro)
 
@@ -122,7 +123,7 @@ def estilo_resultado(liberado: bool | None, modo: ModoTema | str = ModoTema.ESCU
 def cores_indicador(ok: bool, modo: ModoTema | str = ModoTema.ESCURO) -> tuple[str, str | None]:
     """(texto, fundo|None) p/ indicador Online com contraste nos dois modos."""
     if modo_de(modo) == ModoTema.CLARO:
-        return (TINTA_SOBRE_ACENTO, LIMA if ok else VERMELHO)
+        return (TINTA_SOBRE_ACENTO, VERDE_FORTE if ok else VERMELHO)
     return (LIMA if ok else VERMELHO, None)
 
 

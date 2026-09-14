@@ -165,3 +165,56 @@ class CaixaViewModel:
         else:  # fallback: chama pagamento repo direto se existir
             raise RuntimeError("Repositório de pagamentos sem remover()")
         self._commit()
+
+    def marcar_como_pago(
+        self, pagamento_id: str, data_pagamento: date | None = None
+    ) -> Pagamento:
+        """Marca pendente como pago (data de hoje por padrão) + commit."""
+        from dataclasses import replace
+
+        repo = getattr(self.pagamentos, "repo", None)
+        orig: Pagamento | None = None
+        if repo is not None and hasattr(repo, "buscar_por_id"):
+            orig = repo.buscar_por_id(pagamento_id)  # type: ignore[attr-defined]
+        if orig is None:
+            # fallback via listagem
+            for p, _n in self.por_mes(None):
+                if p.id == pagamento_id:
+                    orig = p
+                    break
+        if orig is None:
+            raise ValueError(f"Pagamento id={pagamento_id} não encontrado")
+        if orig.pago:
+            return orig
+        novo = replace(orig, data_pagamento=data_pagamento or date.today())
+        if repo is not None and hasattr(repo, "salvar"):
+            repo.salvar(novo)  # type: ignore[attr-defined]
+        else:
+            raise RuntimeError("Repositório de pagamentos sem salvar()")
+        self._commit()
+        return novo
+
+    def desmarcar_pago(self, pagamento_id: str) -> Pagamento:
+        """Volta pago para pendente + commit."""
+        from dataclasses import replace
+
+        repo = getattr(self.pagamentos, "repo", None)
+        orig: Pagamento | None = None
+        if repo is not None and hasattr(repo, "buscar_por_id"):
+            orig = repo.buscar_por_id(pagamento_id)  # type: ignore[attr-defined]
+        if orig is None:
+            for p, _n in self.por_mes(None):
+                if p.id == pagamento_id:
+                    orig = p
+                    break
+        if orig is None:
+            raise ValueError(f"Pagamento id={pagamento_id} não encontrado")
+        if not orig.pago:
+            return orig
+        novo = replace(orig, data_pagamento=None)
+        if repo is not None and hasattr(repo, "salvar"):
+            repo.salvar(novo)  # type: ignore[attr-defined]
+        else:
+            raise RuntimeError("Repositório de pagamentos sem salvar()")
+        self._commit()
+        return novo

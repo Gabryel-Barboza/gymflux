@@ -37,22 +37,118 @@ LINHAS_MAX_TABELA = 8
 WALLPAPER_SCALE = 0.60  # zoom out — afastar da tela
 
 
+def _linhas_amigaveis(status: dict[str, Any]) -> list[tuple[str, str]]:
+    """Converte status técnico em linhas fáceis de ler."""
+    get = status.get
+    linhas: list[tuple[str, str]] = []
+    online = bool(get("online", False))
+    linhas.append(("Conexão", "Conectada" if online else "Desconectada"))
+    bloq = get("bloqueada", True)
+    if bloq is True:
+        linhas.append(("Catraca", "Travada — aguardando liberação"))
+    elif bloq is False:
+        linhas.append(("Catraca", "Liberada para passar"))
+    giros = get("contador_giros", get("Giros", None))
+    if giros is not None:
+        try:
+            n = int(giros)  # type: ignore[arg-type]
+            linhas.append(("Passagens de hoje", f"{n}"))
+        except Exception:
+            linhas.append(("Passagens de hoje", str(giros)))
+    fw = get("firmware", get("versao", None))
+    if fw:
+        linhas.append(("Versão do equipamento", str(fw)))
+    ultima = get("ultima_liberacao", None)
+    if ultima is not None:
+        linhas.append(("Última liberação", str(ultima)))
+    porta = get("porta", None)
+    if porta not in (None, "", "?"):
+        linhas.append(("Porta", f"Porta {porta}"))
+    mock = get("mock", None)
+    if mock is True:
+        linhas.append(("Modo", "Demonstração — sem equipamento"))
+    elif mock is False:
+        linhas.append(("Modo", "Equipamento real"))
+    driver = get("driver", None)
+    if driver and str(driver) not in ("?", "—"):
+        nome = str(driver)
+        if "Mock" in nome:
+            nome = "Demonstração"
+        elif "Real" in nome or "Henry" in nome:
+            nome = "Henry 7x"
+        linhas.append(("Tipo de conexão", nome))
+    for chave in ("ultimo_erro", "ultimo_erro_txt", "ultima_comunicacao", "erro"):
+        val = get(chave, None)
+        if val in (None, "", 0, "0"):
+            continue
+        if chave == "ultimo_erro":
+            linhas.append(("Último problema", f"Código {val}"))
+        elif chave == "ultimo_erro_txt":
+            linhas.append(("Detalhe do problema", str(val)))
+        elif chave == "ultima_comunicacao":
+            linhas.append(("Última conversa com a catraca", str(val)))
+        elif chave == "erro":
+            linhas.append(("Atenção", str(val)))
+    portas = get("portas", None)
+    if portas:
+        if isinstance(portas, list):
+            linhas.append(("Portas disponíveis", ", ".join(map(str, portas))))
+        else:
+            linhas.append(("Portas disponíveis", str(portas)))
+    dll = get("dll", None)
+    if dll:
+        linhas.append(("Programa da catraca", str(dll).split("\\")[-1]))
+    # qualquer outra chave técnica que sobrou, mostra de forma simples
+    conhecidas = {
+        "online",
+        "bloqueada",
+        "contador_giros",
+        "Giros",
+        "firmware",
+        "versao",
+        "ultima_liberacao",
+        "porta",
+        "mock",
+        "driver",
+        "ultimo_erro",
+        "ultimo_erro_txt",
+        "ultima_comunicacao",
+        "erro",
+        "portas",
+        "dll",
+        "card_id",
+    }
+    for k in sorted(status.keys()):
+        if k in conhecidas:
+            continue
+        rotulo = str(k).replace("_", " ").capitalize()
+        linhas.append((rotulo, str(status[k])))
+    return linhas
+
+
 class DetalhesDialog(QDialog):
     def __init__(self, status: dict[str, Any], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Detalhes da catraca")
-        self.resize(420, 320)
+        self.resize(440, 320)
         lay = QVBoxLayout(self)
-        tbl = QTableWidget(len(status), 2)
-        tbl.setHorizontalHeaderLabels(["Campo", "Valor"])
+        intro = QLabel("Como está a catraca agora:")
+        intro.setStyleSheet("font-weight: bold; background: transparent; border: none;")
+        lay.addWidget(intro)
+        linhas = _linhas_amigaveis(status)
+        tbl = QTableWidget(len(linhas), 2)
+        tbl.setHorizontalHeaderLabels(["Informação", "Situação"])
         tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         tbl.verticalHeader().setVisible(False)
         tbl.horizontalHeader().setStretchLastSection(True)
-        for row, (k, v) in enumerate(sorted(status.items())):
-            tbl.setItem(row, 0, QTableWidgetItem(str(k)))
-            tbl.setItem(row, 1, QTableWidgetItem(str(v)))
+        for row, (k, v) in enumerate(linhas):
+            tbl.setItem(row, 0, QTableWidgetItem(k))
+            tbl.setItem(row, 1, QTableWidgetItem(v))
         lay.addWidget(tbl)
         botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        btn = botoes.button(QDialogButtonBox.StandardButton.Close)
+        if btn is not None:
+            btn.setText("Fechar")
         botoes.rejected.connect(self.reject)
         botoes.accepted.connect(self.accept)
         lay.addWidget(botoes)
@@ -168,9 +264,8 @@ class DashboardView(QWidget):
         )
         self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.status_pill, 0)
-        hstatus.addStretch(1)
         hstatus.addWidget(self.btn_detalhes)
-        layout.addWidget(header)
+        hstatus.addStretch(1)
         self.header = header
 
         # tabela detalhada oculta (compat)
@@ -200,9 +295,8 @@ class DashboardView(QWidget):
             "QFrame#CatracaCentro { border: none; border-radius: 8px; background: transparent; }"
         )
         huni = QHBoxLayout(centro)
-        huni.setContentsMargins(12, 12, 12, 12)
+        huni.setContentsMargins(8, 6, 8, 6)
         huni.setSpacing(12)
-        huni.addStretch(1)
         self.edt_unico = QLineEdit()
         self.edt_unico.setPlaceholderText("CPF ou senha")
         self.edt_unico.setClearButtonEnabled(True)
@@ -230,8 +324,13 @@ class DashboardView(QWidget):
         )
         huni.addWidget(self.edt_unico)
         huni.addWidget(self.btn_liberar)
-        layout.addWidget(centro)
         self.centro = centro
+        # mesma linha: status-detalhes --- input-liberar
+        topo = QHBoxLayout()
+        topo.setSpacing(12)
+        topo.addWidget(header, 1)
+        topo.addWidget(centro, 0)
+        layout.addLayout(topo)
 
         # compat antigos (ocultos)
         self.edt_aluno = QLineEdit()

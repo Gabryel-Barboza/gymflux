@@ -19,6 +19,7 @@ from gymflux.ui.theme import (
     TEXTO_CLARO,
     TEXTO_SUAVE,
     TINTA_SOBRE_ACENTO,
+    VERDE_FORTE,
     VERMELHO,
     ModoTema,
     contraste,
@@ -99,7 +100,7 @@ def test_estilo_resultado_modo_claro_usa_selos():
 def test_cores_indicador_online():
     assert cores_indicador(True) == (LIMA, None)
     assert cores_indicador(False) == (VERMELHO, None)
-    assert cores_indicador(True, ModoTema.CLARO) == (TINTA_SOBRE_ACENTO, LIMA)
+    assert cores_indicador(True, ModoTema.CLARO) == (TINTA_SOBRE_ACENTO, VERDE_FORTE)
     assert cores_indicador(False, "CLARO") == (TINTA_SOBRE_ACENTO, VERMELHO)
 
 
@@ -116,7 +117,7 @@ def test_contraste_minimo_texto_fundo():
     assert contraste(AZUL, FUNDO) >= 4.5
     assert contraste(TEXTO_CLARO, FUNDO_CLARO) >= 4.5
     # texto sobre preenchimento de acento: >= 4.5
-    for preenchimento in (AZUL, LIMA, VERMELHO):
+    for preenchimento in (AZUL, LIMA, VERMELHO, VERDE_FORTE):
         assert contraste(TINTA_SOBRE_ACENTO, preenchimento) >= 4.5
     # botões desabilitados: >= 3.0 documentado (WCAG isenta desabilitado)
     assert contraste(TEXTO_SUAVE, BORDA) >= 4.5

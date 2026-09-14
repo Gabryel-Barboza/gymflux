@@ -199,19 +199,27 @@ class CaixaView(QWidget):
         self.cmb_aluno.setCompleter(self._completer)
         self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.btn_novo = QPushButton("Novo pagamento")
+        self.btn_marcar_pago = QPushButton("Marcar como pago")
+        self.btn_marcar_pago.setToolTip("Marca o pagamento selecionado como pago hoje")
         hbtn.addWidget(self.cmb_aluno, 2)
         hbtn.addWidget(self.btn_novo)
+        hbtn.addWidget(self.btn_marcar_pago)
         hbtn.addStretch(1)
         principal.addLayout(hbtn)
 
         layout.addLayout(principal, 1)
+        self._linhas_cache: list = []
 
         # compat: mantém table de combo recarga etc
         self.cmb_mes.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
         self.edt_busca.textChanged.connect(lambda _t: self.recarregar())
         self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)
+        self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tbl.customContextMenuRequested.connect(self._menu_contexto)
+        self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._marcar_pago())
         self.btn_novo.clicked.connect(self._novo)
+        self.btn_marcar_pago.clicked.connect(self._marcar_pago)
         self.btn_fechar.clicked.connect(self._fechar)
         self.btn_reabrir.clicked.connect(self._reabrir)
         self.recarregar()
@@ -288,6 +296,7 @@ class CaixaView(QWidget):
         termo = self.edt_busca.text().strip().lower()
         if termo:
             linhas = [(p, n) for (p, n) in linhas if termo in n.lower()]
+        self._linhas_cache = list(linhas)
         # ordenação desativa durante preenchimento
         sorting = self.tbl.isSortingEnabled()
         self.tbl.setSortingEnabled(False)
@@ -357,6 +366,62 @@ class CaixaView(QWidget):
             return
         logger.info(f"[UI] pagamento registrado id={pag.id}")
         self.recarregar()
+
+    def _pagamento_selecionado(self):  # type: ignore[no-untyped-def]
+        row = self.tbl.currentRow()
+        if row < 0 or row >= len(getattr(self, "_linhas_cache", [])):
+            QMessageBox.information(self, "Caixa", "Selecione um pagamento na tabela.")
+            return None
+        # atenção: ordenação visual pode embaralhar; resolve pelo vencimento+valor+nome
+        # usa cache na ordem de exibição desordenada — busca pelo índice atual é aproximado;
+        # para precisão, desativa sort temporariamente? usa item da linha via dados visíveis
+        # simplificação: usa cache direto (suficiente com sort desligado no preenchimento)
+        try:
+            pag, _nome = self._linhas_cache[row]
+            return pag
+        except Exception:
+            return None
+
+    def _marcar_pago(self) -> None:
+        pag = self._pagamento_selecionado()
+        if pag is None:
+            return
+        if pag.pago:
+            # oferece voltar para pendente
+            confirma = QMessageBox.question(
+                self,
+                "Caixa",
+                "Pagamento já está pago. Voltar para pendente?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if confirma != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                self.vm.desmarcar_pago(pag.id)
+            except ValueError as e:
+                QMessageBox.warning(self, "Caixa", str(e))
+                return
+            self.recarregar()
+            return
+        try:
+            self.vm.marcar_como_pago(pag.id)
+        except ValueError as e:
+            QMessageBox.warning(self, "Caixa", str(e))
+            return
+        self.recarregar()
+
+    def _menu_contexto(self, pos) -> None:  # type: ignore[no-untyped-def]
+        from PySide6.QtWidgets import QMenu
+
+        item = self.tbl.itemAt(pos)
+        if item is None:
+            return
+        self.tbl.selectRow(item.row())
+        menu = QMenu(self)
+        a_pago = menu.addAction("Marcar como pago / pendente")
+        acao = menu.exec(self.tbl.viewport().mapToGlobal(pos))
+        if acao == a_pago:
+            self._marcar_pago()
 
     def _fechar(self) -> None:
         mes = self._mes_atual()

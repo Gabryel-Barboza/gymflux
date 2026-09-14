@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import replace as _replace_pag
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -386,6 +387,8 @@ class PerfilAlunoDialog(QDialog):
         lay_pag.addWidget(self.tbl_pag, 1)
         hb = QHBoxLayout()
         self.btn_novo_pag = QPushButton("Novo pagamento")
+        self.btn_pago_pag = QPushButton("Marcar como pago")
+        self.btn_pago_pag.setToolTip("Marca o pagamento selecionado como pago hoje")
         self.btn_excluir_pag = QToolButton()
         self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
         self.btn_excluir_pag.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
@@ -395,6 +398,7 @@ class PerfilAlunoDialog(QDialog):
         )
         self.btn_excluir_pag.setMaximumWidth(32)
         hb.addWidget(self.btn_novo_pag)
+        hb.addWidget(self.btn_pago_pag)
         hb.addWidget(self.btn_excluir_pag)
         hb.addStretch(1)
         lay_pag.addLayout(hb)
@@ -443,6 +447,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_liberar.clicked.connect(self._liberar)
         self.btn_excluir_mat.clicked.connect(self._excluir_matricula)
         self.btn_excluir_pag.clicked.connect(self._excluir_pagamento)
+        self.btn_pago_pag.clicked.connect(self._marcar_pago)
         self.tbl_mat.customContextMenuRequested.connect(self._menu_mat)
         self.tbl_pag.customContextMenuRequested.connect(self._menu_pag)
         self.tbl_pag.cellChanged.connect(self._vencimento_editado)
@@ -691,12 +696,57 @@ class PerfilAlunoDialog(QDialog):
             return
         self.tbl_pag.selectRow(item.row())
         menu = QMenu(self)
+        a_pago = menu.addAction("Marcar como pago / pendente")
         a_exc = menu.addAction(
             self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
         )
         acao = menu.exec(self.tbl_pag.viewport().mapToGlobal(pos))
-        if acao == a_exc:
+        if acao == a_pago:
+            self._marcar_pago()
+        elif acao == a_exc:
             self._excluir_pagamento()
+
+    def _marcar_pago(self) -> None:
+        row = self.tbl_pag.currentRow()
+        if row < 0 or row >= len(self._pagamentos_cache):
+            QMessageBox.information(self, "Perfil", "Selecione um pagamento.")
+            return
+        pag = self._pagamentos_cache[row]
+        try:
+            if hasattr(self._pagamentos, "marcar_como_pago"):
+                if pag.pago:
+                    self._pagamentos.desmarcar_pago(pag.id)  # type: ignore[attr-defined]
+                else:
+                    self._pagamentos.marcar_como_pago(pag.id)  # type: ignore[attr-defined]
+            else:
+                # fallback genérico via repo direto (memória/SQL)
+                repo = None
+                if hasattr(self._pagamentos, "pagamentos"):
+                    inner = self._pagamentos.pagamentos  # type: ignore[attr-defined]
+                    repo = getattr(inner, "repo", None)
+                elif hasattr(self._pagamentos, "repo"):
+                    repo = self._pagamentos.repo  # type: ignore[attr-defined]
+                elif hasattr(self._pagamentos, "buscar_por_id"):
+                    repo = self._pagamentos  # type: ignore[assignment]
+                if repo is None or not hasattr(repo, "salvar"):
+                    raise RuntimeError("Repositório sem salvar()")
+                orig = repo.buscar_por_id(pag.id)  # type: ignore[attr-defined]
+                if orig is None:
+                    raise ValueError("Pagamento não encontrado")
+                novo = _replace_pag(
+                    orig, data_pagamento=None if orig.pago else date.today()
+                )
+                repo.salvar(novo)  # type: ignore[attr-defined]
+                commit = getattr(self._pagamentos, "commit", None) or getattr(
+                    self._vm, "commit", None
+                )
+                if callable(commit):
+                    with contextlib.suppress(Exception):
+                        commit()  # type: ignore[misc]
+        except (ValueError, RuntimeError) as e:
+            QMessageBox.warning(self, "Perfil", str(e))
+            return
+        self._recarregar_pagamentos()
 
     def _novo_pagamento(self) -> None:
         aluno = self._vm.alunos.buscar(self._aluno_id)
