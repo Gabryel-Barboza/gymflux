@@ -86,13 +86,15 @@ class RegraAcesso:
         if matricula.expirada_em(agora):
             return DecisaoAcesso.negado(
                 MotivoNegado.MATRICULA_EXPIRADA,
-                f"Matrícula expirada em {matricula.vigencia.fim.isoformat()}",
+                f"Matrícula expirada em {matricula.vigencia.fim.strftime('%d/%m/%Y')}",
             )
         if not matricula.vigente_em(agora):
             # antes do inicio ou outro caso de não vigência
+            ini_br = matricula.vigencia.inicio.strftime("%d/%m/%Y")
+            fim_br = matricula.vigencia.fim.strftime("%d/%m/%Y")
             return DecisaoAcesso.negado(
                 MotivoNegado.MATRICULA_EXPIRADA,
-                f"Fora da vigência {matricula.vigencia.inicio}..{matricula.vigencia.fim}",
+                f"Fora da vigência {ini_br}..{fim_br}",
             )
 
         # RB01 — adimplência / tolerância

@@ -104,3 +104,22 @@ def test_dias_customizado():
     _aluno(alunos, "a1")
     _entrada(logs, "a1", ha_dias=40)
     assert aplicar_inatividade(alunos, logs, dias=30, ref=HOJE) == 1
+
+
+def test_nunca_entrou_com_created_at_recente_mantem_ativo():
+    alunos, logs = _repos()
+    a = Aluno(id="a1", nome="Aluno a1", created_at=HOJE)
+    a.definir_senha("1234")
+    alunos.salvar(a)
+    # sem logs, mas created_at é hoje (<90d) → mantém ativo
+    assert aplicar_inatividade(alunos, logs, ref=HOJE) == 0
+    assert alunos.buscar_por_id("a1").status == StatusAluno.ATIVO  # type: ignore[union-attr]
+
+
+def test_nunca_entrou_com_created_at_antigo_inativa():
+    alunos, logs = _repos()
+    a = Aluno(id="a1", nome="Aluno a1", created_at=HOJE - timedelta(days=91))
+    a.definir_senha("1234")
+    alunos.salvar(a)
+    assert aplicar_inatividade(alunos, logs, ref=HOJE) == 1
+    assert alunos.buscar_por_id("a1").status == StatusAluno.INATIVO  # type: ignore[union-attr]

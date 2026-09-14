@@ -79,7 +79,7 @@ class _AlunoForm(QWidget):
         self.edt_cpf = QLineEdit()
         self.edt_cpf.setPlaceholderText("somente números (opcional)")
         self.edt_nasc = QLineEdit()
-        self.edt_nasc.setPlaceholderText("AAAA-MM-DD (opcional)")
+        self.edt_nasc.setPlaceholderText("DD/MM/AAAA (opcional)")
         self.edt_tel = QLineEdit()
         self.edt_email = QLineEdit()
         self.edt_endereco = QLineEdit()
@@ -236,9 +236,11 @@ class _AlunoForm(QWidget):
             )
 
     def preencher(self, aluno: Aluno) -> None:
+        from gymflux.ui.formatters import fmt_br
+
         self.edt_nome.setText(aluno.nome)
         self.edt_cpf.setText(aluno.cpf or "")
-        self.edt_nasc.setText(aluno.data_nasc.isoformat() if aluno.data_nasc else "")
+        self.edt_nasc.setText(fmt_br(aluno.data_nasc) if aluno.data_nasc else "")
         self.edt_tel.setText(aluno.telefone or "")
         self.edt_email.setText(aluno.email or "")
         self.edt_endereco.setText(aluno.endereco or "")
@@ -475,9 +477,11 @@ class PerfilAlunoDialog(QDialog):
         self._matriculas_cache = mats_com_id  # type: ignore[assignment]
         self.tbl_mat.blockSignals(True)
         try:
+            from gymflux.ui.formatters import fmt_br
+
             self.tbl_mat.setRowCount(len(mats_com_id))
             for row, (_mid, m) in enumerate(mats_com_id):
-                vig = f"{m.vigencia.inicio.isoformat()} → {m.vigencia.fim.isoformat()}"  # type: ignore[attr-defined]
+                vig = f"{fmt_br(m.vigencia.inicio)} → {fmt_br(m.vigencia.fim)}"  # type: ignore[attr-defined]
                 self.tbl_mat.setItem(row, 0, QTableWidgetItem(m.plano.nome))  # type: ignore[attr-defined]
                 self.tbl_mat.setItem(row, 1, QTableWidgetItem(vig))
         finally:
@@ -557,13 +561,17 @@ class PerfilAlunoDialog(QDialog):
     def _recarregar_frequencia(self) -> None:
         if self._frequencia is None:
             return
+        from gymflux.ui.formatters import fmt_br
+
         linhas = self._frequencia.resumo_por_dia(self._aluno_id)
         self.tbl_freq.setRowCount(len(linhas))
         for row, (dia, entradas, saidas) in enumerate(linhas):
-            for col, v in enumerate((dia.isoformat(), str(entradas), str(saidas))):
+            for col, v in enumerate((fmt_br(dia), str(entradas), str(saidas))):
                 self.tbl_freq.setItem(row, col, QTableWidgetItem(v))
 
     def _recarregar_pagamentos(self) -> None:
+        from gymflux.ui.formatters import fmt_br
+
         pags = sorted(
             self._pagamentos.do_aluno(self._aluno_id),
             key=lambda p: p.data_vencimento,
@@ -575,9 +583,9 @@ class PerfilAlunoDialog(QDialog):
             self.tbl_pag.setRowCount(len(pags))
             for row, p in enumerate(pags):
                 vals = (
-                    p.data_vencimento.isoformat(),
+                    fmt_br(p.data_vencimento),
                     f"{Decimal(str(p.valor)):.2f}",
-                    p.data_pagamento.isoformat() if p.data_pagamento else "—",
+                    fmt_br(p.data_pagamento) if p.data_pagamento else "—",
                     str(p.forma) if p.forma else "—",
                 )
                 for col, v in enumerate(vals):
@@ -602,9 +610,11 @@ class PerfilAlunoDialog(QDialog):
             return
         texto = item.text().strip()
         try:
-            novo = date.fromisoformat(texto)
+            from gymflux.ui.formatters import parse_br
+
+            novo = parse_br(texto)
         except ValueError:
-            QMessageBox.warning(self, "Perfil", "Vencimento inválido (use AAAA-MM-DD).")
+            QMessageBox.warning(self, "Perfil", "Vencimento inválido (use DD/MM/AAAA).")
             self._recarregar_pagamentos()
             return
         # atualiza via repo diretamente (mantém id/valor/pago)
@@ -715,14 +725,61 @@ class PerfilAlunoDialog(QDialog):
             QMessageBox.information(self, "Perfil", "Selecione um pagamento.")
             return
         pag = self._pagamentos_cache[row]
-        try:
-            if hasattr(self._pagamentos, "marcar_como_pago"):
-                if pag.pago:
+        # pago -> oferece voltar para pendente
+        if pag.pago:
+            confirma = QMessageBox.question(
+                self,
+                "Perfil",
+                "Pagamento já está pago. Voltar para pendente?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if confirma != QMessageBox.StandardButton.Yes:
+                return
+            try:
+                if hasattr(self._pagamentos, "desmarcar_pago"):
                     self._pagamentos.desmarcar_pago(pag.id)  # type: ignore[attr-defined]
                 else:
-                    self._pagamentos.marcar_como_pago(pag.id)  # type: ignore[attr-defined]
+                    # fallback repo
+                    repo = None
+                    if hasattr(self._pagamentos, "pagamentos"):
+                        inner = self._pagamentos.pagamentos  # type: ignore[attr-defined]
+                        repo = getattr(inner, "repo", None)
+                    elif hasattr(self._pagamentos, "repo"):
+                        repo = self._pagamentos.repo  # type: ignore[attr-defined]
+                    elif hasattr(self._pagamentos, "buscar_por_id"):
+                        repo = self._pagamentos  # type: ignore[assignment]
+                    if repo is None or not hasattr(repo, "salvar"):
+                        raise RuntimeError("Repositório sem salvar()")
+                    orig = repo.buscar_por_id(pag.id)  # type: ignore[attr-defined]
+                    if orig is None:
+                        raise ValueError("Pagamento não encontrado")
+                    novo = _replace_pag(orig, data_pagamento=None)
+                    repo.salvar(novo)  # type: ignore[attr-defined]
+                    commit = getattr(self._pagamentos, "commit", None) or getattr(
+                        self._vm, "commit", None
+                    )
+                    if callable(commit):
+                        with contextlib.suppress(Exception):
+                            commit()  # type: ignore[misc]
+            except (ValueError, RuntimeError) as e:
+                QMessageBox.warning(self, "Perfil", str(e))
+                return
+            self._recarregar_pagamentos()
+            return
+        # pendente -> dialog forma + data (igual Caixa)
+        try:
+            from gymflux.ui.views.caixa import MarcarPagoDialog
+
+            dlg = MarcarPagoDialog(self)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            forma = dlg.forma()
+            data_pag = dlg.data_pagamento()
+            if hasattr(self._pagamentos, "marcar_como_pago"):
+                self._pagamentos.marcar_como_pago(  # type: ignore[attr-defined]
+                    pag.id, data_pagamento=data_pag, forma=forma
+                )
             else:
-                # fallback genérico via repo direto (memória/SQL)
                 repo = None
                 if hasattr(self._pagamentos, "pagamentos"):
                     inner = self._pagamentos.pagamentos  # type: ignore[attr-defined]
@@ -736,9 +793,7 @@ class PerfilAlunoDialog(QDialog):
                 orig = repo.buscar_por_id(pag.id)  # type: ignore[attr-defined]
                 if orig is None:
                     raise ValueError("Pagamento não encontrado")
-                novo = _replace_pag(
-                    orig, data_pagamento=None if orig.pago else date.today()
-                )
+                novo = _replace_pag(orig, data_pagamento=data_pag, forma=forma)
                 repo.salvar(novo)  # type: ignore[attr-defined]
                 commit = getattr(self._pagamentos, "commit", None) or getattr(
                     self._vm, "commit", None
@@ -775,6 +830,8 @@ class PerfilAlunoDialog(QDialog):
         self._recarregar_pagamentos()
 
     def _salvar(self) -> None:
+        from gymflux.ui.formatters import parse_br
+
         d = self.form.dados()
         if not d["nome"].strip():
             QMessageBox.warning(self, "Perfil", "Nome é obrigatório.")
@@ -782,9 +839,9 @@ class PerfilAlunoDialog(QDialog):
         nasc: date | None = None
         if d["data_nasc"]:
             try:
-                nasc = date.fromisoformat(d["data_nasc"])
+                nasc = parse_br(d["data_nasc"])
             except ValueError:
-                QMessageBox.warning(self, "Perfil", "Nascimento inválido (use AAAA-MM-DD).")
+                QMessageBox.warning(self, "Perfil", "Nascimento inválido (use DD/MM/AAAA).")
                 return
         try:
             status = StatusAluno(d["status"])
@@ -852,6 +909,7 @@ class MatricularDialog(QDialog):
             self.cmb_plano.addItem(plano_nome, plano_id)
         self.dat_inicio = QDateEdit(QDate.currentDate())
         self.dat_inicio.setCalendarPopup(True)
+        self.dat_inicio.setDisplayFormat("dd/MM/yyyy")
         form.addRow("Plano:", self.cmb_plano)
         form.addRow("Início:", self.dat_inicio)
         botoes = QDialogButtonBox(
@@ -1310,12 +1368,14 @@ class AlunosView(QWidget):
         if not d["nome"].strip():
             QMessageBox.warning(self, "Alunos", "Nome é obrigatório.")
             return
+        from gymflux.ui.formatters import parse_br
+
         nasc: date | None = None
         if d["data_nasc"]:
             try:
-                nasc = date.fromisoformat(d["data_nasc"])
+                nasc = parse_br(d["data_nasc"])
             except ValueError:
-                QMessageBox.warning(self, "Alunos", "Nascimento inválido (use AAAA-MM-DD).")
+                QMessageBox.warning(self, "Alunos", "Nascimento inválido (use DD/MM/AAAA).")
                 return
         foto_src = d.get("foto", "")
         foto_dst = None

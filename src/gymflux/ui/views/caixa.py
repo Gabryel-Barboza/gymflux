@@ -58,7 +58,7 @@ class NovoPagamentoDialog(QDialog):
         self.chk_pago = QCheckBox("Pago hoje")
         self.chk_pago.setChecked(True)
         self.edt_comp = QLineEdit()
-        self.edt_comp.setPlaceholderText("AAAA-MM (opcional)")
+        self.edt_comp.setPlaceholderText("MM/AAAA (opcional)")
         form.addRow("Valor (R$)*:", self.spn_valor)
         form.addRow("Forma*:", self.cmb_forma)
         form.addRow(self.chk_pago)
@@ -113,11 +113,27 @@ class NovoPagamentoDialog(QDialog):
         return v
 
     def vencimento(self) -> date:
-        # sem campo: usa hoje; se competência informada, usa 1º dia do mês
+        # sem campo: usa hoje; se competência informada, usa dia 10 do mês
         comp = self.edt_comp.text().strip()
         if comp:
             try:
+                from gymflux.ui.formatters import parse_br_competencia
+
+                comp_norm = parse_br_competencia(comp)
+                if comp_norm:
+                    y, m = comp_norm.split("-")
+                    return date(int(y), int(m), 10)
+            except Exception:
+                pass
+            # fallback YYYY-MM
+            try:
                 y, m = comp.split("-")
+                return date(int(y), int(m), 10)
+            except Exception:
+                pass
+            # fallback MM/AAAA
+            try:
+                m, y = comp.split("/")
                 return date(int(y), int(m), 10)
             except Exception:
                 pass
@@ -139,7 +155,7 @@ class MarcarPagoDialog(QDialog):
             self.cmb_forma.setCurrentIndex(idx)
         self.dat_pag = QDateEdit(QDate.currentDate())
         self.dat_pag.setCalendarPopup(True)
-        self.dat_pag.setDisplayFormat("yyyy-MM-dd")
+        self.dat_pag.setDisplayFormat("dd/MM/yyyy")
         form.addRow("Forma*:", self.cmb_forma)
         form.addRow("Data pagamento*:", self.dat_pag)
         botoes = QDialogButtonBox(
@@ -295,7 +311,13 @@ class CaixaView(QWidget):
             self.cmb_mes.clear()
             self.cmb_mes.addItem("Todos", None)
             for m in meses:
-                self.cmb_mes.addItem(m, m)
+                # exibe MM/AAAA mas guarda YYYY-MM
+                try:
+                    y, mo = m.split("-")
+                    label = f"{mo}/{y}"
+                except Exception:
+                    label = m
+                self.cmb_mes.addItem(label, m)
             if mes_atual is not None:
                 idx = self.cmb_mes.findData(mes_atual)
                 if idx >= 0:
@@ -360,13 +382,26 @@ class CaixaView(QWidget):
                 sit = f"ATRASADO {p.dias_atraso(hoje)}d"
             else:
                 sit = "PENDENTE"
+            # datas BR
+            from gymflux.ui.formatters import fmt_br
+
+            def _comp_br(comp: str | None) -> str:
+                if not comp or comp == "—":
+                    return "—"
+                # YYYY-MM -> MM/AAAA
+                try:
+                    y, m = comp.split("-")
+                    return f"{m}/{y}"
+                except Exception:
+                    return comp
+
             vals = (
                 nome,
                 f"{Decimal(str(p.valor)):.2f}",
-                p.data_vencimento.isoformat(),
+                fmt_br(p.data_vencimento),
                 sit,
                 str(p.forma) if p.forma else "—",
-                p.competencia or "—",
+                _comp_br(p.competencia),
             )
             for col, v in enumerate(vals):
                 item = QTableWidgetItem(v)

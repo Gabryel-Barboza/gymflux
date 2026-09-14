@@ -94,4 +94,4 @@ def test_perfil_mostra_frequencia_outros_dias(qtbot, ctx: AppContext):
     qtbot.addWidget(dlg)
     assert dlg.tbl_freq.rowCount() == 1  # só ontem; hoje fica no dashboard
     assert dlg.tbl_freq.item(0, 0) is not None
-    assert dlg.tbl_freq.item(0, 0).text() == ontem.isoformat()  # type: ignore[union-attr]
+    assert dlg.tbl_freq.item(0, 0).text() == ontem.strftime("%d/%m/%Y")  # type: ignore[union-attr]

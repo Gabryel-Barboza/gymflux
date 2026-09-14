@@ -53,6 +53,7 @@ class FrequenciaView(QWidget):
         self.chk_dia.setChecked(True)
         self.dat_dia = QDateEdit(QDate.currentDate())
         self.dat_dia.setCalendarPopup(True)
+        self.dat_dia.setDisplayFormat("dd/MM/yyyy")
         filtros.addWidget(self.chk_dia)
         filtros.addWidget(self.dat_dia)
         filtros.addStretch(1)
@@ -134,7 +135,12 @@ class FrequenciaView(QWidget):
             self.cmb_mes.clear()
             self.cmb_mes.addItem("Todos", None)
             for m in self.vm.meses_disponiveis():
-                self.cmb_mes.addItem(m, m)
+                try:
+                    y, mo = m.split("-")
+                    label = f"{mo}/{y}"
+                except Exception:
+                    label = m
+                self.cmb_mes.addItem(label, m)
             if mes_atual is not None:
                 idx = self.cmb_mes.findData(mes_atual)
                 if idx >= 0:
