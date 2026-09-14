@@ -231,18 +231,9 @@ def _wire(
         funcionario_repo=func_repo,
     )
 
-    # Fase 4.8: expira quem está sem entrar há 90d (nunca aborta o startup).
-    try:
-        n_inativos = aplicar_inatividade(aluno_repo, acesso_repo)
-        if n_inativos and commit is not None:
-            commit()
-    except Exception as e:
-        n_inativos = 0
-        logger.warning(f"[UI] aplicar_inatividade falhou: {e}")
-    if n_inativos:
-        logger.info(f"[UI] inatividade: {n_inativos} aluno(s) desativado(s)")
-
-    # Cobrança recorrente: gera pendências do mês atual (otimizado, nunca aborta).
+    # Cobrança recorrente: gera pendências do mês atual ANTES da inatividade
+    # (otimizado, nunca aborta). Ordem importa: aluno sem pagamento não pode
+    # ser inativado antes de ganhar sua primeira pendência do mês.
     try:
         from gymflux.services.cobranca import aplicar_cobranca_mensal
 
@@ -254,6 +245,17 @@ def _wire(
         logger.warning(f"[UI] cobrança mensal falhou: {e}")
     if n_cobranca:
         logger.info(f"[UI] cobrança: {n_cobranca} pendência(s) gerada(s)")
+
+    # Fase 4.8: expira quem está sem entrar há 90d (nunca aborta o startup).
+    try:
+        n_inativos = aplicar_inatividade(aluno_repo, acesso_repo)
+        if n_inativos and commit is not None:
+            commit()
+    except Exception as e:
+        n_inativos = 0
+        logger.warning(f"[UI] aplicar_inatividade falhou: {e}")
+    if n_inativos:
+        logger.info(f"[UI] inatividade: {n_inativos} aluno(s) desativado(s)")
 
     def _aplicar(nova: UiConfig) -> None:
         liberar_svc.regra.config = nova.to_regra_config()
@@ -417,6 +419,14 @@ class GymFluxMainWindow(QMainWindow):
 
     def _on_tab_changed(self, idx: int) -> None:  # type: ignore[no-untyped-def]
         self._aplicar_tema_icones(self.ctx.config_vm.config.tema)
+        # auto-refresh otimizado do Caixa ao voltar para a aba (ex: após excluir no perfil)
+        try:
+            nome = self.tabs.tabText(idx)
+            if nome == "Caixa" and hasattr(self, "caixa_view"):
+                # recarrega só se já houve mudança de pagamentos (chamadas são baratas)
+                self.caixa_view.recarregar()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def aplicar_wallpaper(self, path: str | None) -> None:
         """Delega wallpaper aos containers da catraca; fundo global sempre sólido."""

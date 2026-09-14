@@ -416,7 +416,7 @@ class DashboardView(QWidget):
         # frame hugging: colapsado inicialmente
         frame_log.setMaximumHeight(30 + 12)
         frame_log.setMinimumHeight(30 + 12)
-        hmid.addWidget(frame_log, 3)
+        hmid.addWidget(frame_log, 3, Qt.AlignmentFlag.AlignBottom)
         self.frame_log = frame_log
         self._log_expandido = False
         self.btn_toggle_log.toggled.connect(self._toggle_acessos_log)
@@ -442,7 +442,7 @@ class DashboardView(QWidget):
         self.lst_giros.setMinimumHeight(lst_h)
         lay_giros.addWidget(self.lst_giros)
         frame_giros.setMaximumHeight(lst_h + 30 + 12)
-        hmid.addWidget(frame_giros, 1)
+        hmid.addWidget(frame_giros, 1, Qt.AlignmentFlag.AlignBottom)
         self.frame_giros = frame_giros
         layout.addLayout(hmid)
 
@@ -609,7 +609,7 @@ class DashboardView(QWidget):
                         f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
                     )
                 continue
-            # Giros: mantém wallpaper — overlay harmônico com fundo branco no claro
+            # Giros: fundo preto — overlay quase opaco no escuro, harmônico no claro
             if base == "CatracaFrameGiros":
                 if wallpaper_ativo:
                     ov = self._overlay_labels.get(frm)
@@ -618,7 +618,7 @@ class DashboardView(QWidget):
                         if is_claro:
                             ov.setStyleSheet("background-color: rgba(255,255,255, 165); border-radius: 8px;")  # noqa: E501 claro
                         else:
-                            ov.setStyleSheet("background-color: rgba(0, 0, 0, 50); border-radius: 8px;")  # noqa: E501
+                            ov.setStyleSheet("background-color: rgba(0, 0, 0, 200); border-radius: 8px;")  # noqa: E501
                         ov.setGeometry(frm.rect())
                         ov.show()
                         ov.lower()
@@ -638,7 +638,7 @@ class DashboardView(QWidget):
                     if ov is not None:
                         ov.hide()
                     frm.setStyleSheet(
-                        f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
+                        "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; border-radius: 8px; background-color: #0F1113; padding: 6px; }"  # noqa: E501
                     )
         # tabelas: modo claro precisa destaque sobre wallpaper escuro
         self._aplicar_estilo_tabelas(wallpaper_ativo)
@@ -665,9 +665,21 @@ class DashboardView(QWidget):
             self.lbl_giros_titulo.setStyleSheet(pill)
         else:
             self.tbl_log.setStyleSheet("")
-            self.lst_giros.setStyleSheet("")
+            is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+            if is_escuro:
+                # giros com fundo preto no escuro
+                self.lst_giros.setStyleSheet(
+                    "QListWidget { background-color: #0F1113; color: #F2F5F7;"
+                    " border: 1px solid #2A3138; }"
+                )
+                self.lbl_giros_titulo.setStyleSheet(
+                    "font-weight: bold; border: none; color: #F2F5F7;"
+                    " background: transparent;"
+                )
+            else:
+                self.lst_giros.setStyleSheet("")
+                self.lbl_giros_titulo.setStyleSheet("font-weight: bold; border: none;")
             self.lbl_log_titulo.setStyleSheet("font-weight: bold; border: none;")
-            self.lbl_giros_titulo.setStyleSheet("font-weight: bold; border: none;")
 
     def sync_tema(self) -> None:
         """Reaplica fundo dos containers após troca de tema."""

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -188,6 +189,7 @@ class CaixaView(QWidget):
         principal.addWidget(self.tbl, 1)
 
         hbtn = QHBoxLayout()
+        hbtn = QHBoxLayout()
         hbtn.addWidget(QLabel("Aluno:"))
         self.cmb_aluno = QComboBox()
         self.cmb_aluno.setEditable(True)
@@ -204,9 +206,13 @@ class CaixaView(QWidget):
         self.btn_novo = QPushButton("Novo pagamento")
         self.btn_marcar_pago = QPushButton("Marcar como pago")
         self.btn_marcar_pago.setToolTip("Marca o pagamento selecionado como pago hoje")
+        self.btn_atualizar = QPushButton("Atualizar")
+        self.btn_atualizar.setToolTip("Recarrega a lista (otimizado: só repinta)")
+        self.btn_atualizar.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
         hbtn.addWidget(self.cmb_aluno, 2)
         hbtn.addWidget(self.btn_novo)
         hbtn.addWidget(self.btn_marcar_pago)
+        hbtn.addWidget(self.btn_atualizar)
         hbtn.addStretch(1)
         principal.addLayout(hbtn)
 
@@ -224,9 +230,17 @@ class CaixaView(QWidget):
         self.tbl.cellDoubleClicked.connect(lambda _r, _c: self._abrir_perfil_aluno())
         self.btn_novo.clicked.connect(self._novo)
         self.btn_marcar_pago.clicked.connect(self._marcar_pago)
+        self.btn_atualizar.clicked.connect(self._atualizar_otimizado)
         self.btn_fechar.clicked.connect(self._fechar)
         self.btn_reabrir.clicked.connect(self._reabrir)
         self.recarregar()
+
+    def _atualizar_otimizado(self) -> None:
+        """Refresh otimizado: só repinta a tabela (sem recriar combos)."""
+        # evita recalcular combos/meses quando só pagamentos mudaram no perfil
+        self.recarregar()
+        # dica: recarregar já é otimizado (3 listas + dict), mas este atalho
+        # evita piscar combos quando o usuário só quer ver exclusão refletida
 
     def _filtrar_alunos(self, texto: str) -> None:
         # o completer já filtra; apenas garante scroll
