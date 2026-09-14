@@ -435,13 +435,13 @@ class GymFluxMainWindow(QMainWindow):
                 menu = QMenu()
                 act_abrir = QAction("Abrir GymFlux", self)
                 act_abrir.triggered.connect(self._tray_abrir)  # type: ignore[attr-defined]
-                act_sair = QAction("Sair totalmente", self)
+                act_sair = QAction("Sair", self)
                 act_sair.triggered.connect(QApplication.quit)  # type: ignore[attr-defined]
                 menu.addAction(act_abrir)
                 menu.addAction(act_sair)
                 self.tray.setContextMenu(menu)
 
-                # DoubleClick reabre — show() só após hide() conforme tarefa
+                # DoubleClick reabre (Linux: Trigger) — show() só após hide() conforme tarefa
                 self.tray.activated.connect(self._on_tray_activated)  # type: ignore[attr-defined]
             except Exception as e:
                 logger.warning(f"[UI] falha ao criar tray: {e}")
@@ -455,7 +455,11 @@ class GymFluxMainWindow(QMainWindow):
 
     def _on_tray_activated(self, reason) -> None:  # type: ignore[no-untyped-def]
         try:
-            if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            # Linux não emite DoubleClick confiável; Trigger (clique simples) também reabre
+            if reason in (
+                QSystemTrayIcon.ActivationReason.DoubleClick,
+                QSystemTrayIcon.ActivationReason.Trigger,
+            ):
                 self._tray_abrir()
         except Exception:
             pass

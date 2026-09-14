@@ -46,6 +46,9 @@ def test_config_alternar_tema_aplica_sem_restart(qtbot, ctx: AppContext, tmp_pat
     qtbot.addWidget(view)
     # isola o arquivo p/ não sujar data/
     ctx.config_vm.store = ConfigStore(tmp_path / "gymflux_config.json")
+    # garante estado inicial escuro independente do data/gymflux_config.json do host
+    view.cmb_tema.setCurrentIndex(view.cmb_tema.findData(ModoTema.ESCURO))
+    view._salvar()
     assert view.cmb_tema.currentData() == ModoTema.ESCURO
 
     view.cmb_tema.setCurrentIndex(view.cmb_tema.findData(ModoTema.CLARO))
