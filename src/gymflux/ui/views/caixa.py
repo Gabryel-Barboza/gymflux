@@ -49,7 +49,8 @@ class NovoPagamentoDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Novo pagamento — {aluno_nome}")
-        self.setMaximumWidth(420)
+        self.setMinimumWidth(560)
+        self.setMaximumWidth(620)
         form = QFormLayout(self)
         self.spn_valor = QDoubleSpinBox()
         self.spn_valor.setRange(0.01, 100000.0)
@@ -64,11 +65,21 @@ class NovoPagamentoDialog(QDialog):
         self.chk_pago = QCheckBox("Pago hoje")
         self.chk_pago.setChecked(True)
         self.edt_comp = QLineEdit()
-        self.edt_comp.setPlaceholderText("MM/AAAA (opcional)")
-        form.addRow("Valor (R$)*:", self.spn_valor)
-        form.addRow("Forma*:", self.cmb_forma)
+        self.edt_comp.setPlaceholderText("AAAA-MM (ex: 2026-09)")
+        # linha valor + forma lado a lado, alinhados
+        h_valor_forma = QHBoxLayout()
+        h_valor_forma.setContentsMargins(0, 0, 0, 0)
+        h_valor_forma.setSpacing(12)
+        h_valor_forma.addWidget(QLabel("Valor (R$)*:"))
+        h_valor_forma.addWidget(self.spn_valor, 1)
+        h_valor_forma.addWidget(QLabel("Forma*:"))
+        h_valor_forma.addWidget(self.cmb_forma, 1)
+        # container para HBox esticar
+        w_valor_forma = QWidget()
+        w_valor_forma.setLayout(h_valor_forma)
+        form.addRow(w_valor_forma)
         form.addRow(self.chk_pago)
-        form.addRow("Competência:", self.edt_comp)
+        form.addRow("Competência (AAAA-MM):", self.edt_comp)
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )

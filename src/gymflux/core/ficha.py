@@ -8,13 +8,23 @@ from datetime import date
 from typing import Any
 
 MEDIDAS_CHAVES: tuple[str, ...] = (
-    "braco",
+    "braco_esq",
+    "braco_dir",
     "peito",
     "cintura",
     "quadril",
-    "coxa",
-    "panturrilha",
+    "coxa_esq",
+    "coxa_dir",
+    "panturrilha_esq",
+    "panturrilha_dir",
 )
+
+# compat: antigas chaves sem lado → mapeia para ambos os lados ao ler
+_MEDIDAS_LEGADO_MAP: dict[str, tuple[str, ...]] = {
+    "braco": ("braco_esq", "braco_dir"),
+    "coxa": ("coxa_esq", "coxa_dir"),
+    "panturrilha": ("panturrilha_esq", "panturrilha_dir"),
+}
 
 
 def _validar_positivo(nome: str, valor: float | None) -> None:
@@ -46,7 +56,16 @@ def _normalizar_medidas(valor: Any) -> dict[str, float]:
         out: dict[str, float] = {}
         for k, v in valor.items():
             key = str(k).strip().lower()
-            if key in MEDIDAS_CHAVES:
+            # compat legado: braco/coxa/panturrilha sem lado → espelha para ambos
+            if key in _MEDIDAS_LEGADO_MAP:
+                for t in _MEDIDAS_LEGADO_MAP[key]:
+                    try:
+                        fv = float(v)
+                        if fv > 0:
+                            out.setdefault(t, fv)
+                    except (TypeError, ValueError):
+                        continue
+            elif key in MEDIDAS_CHAVES:
                 try:
                     fv = float(v)
                     if fv > 0:
@@ -58,19 +77,30 @@ def _normalizar_medidas(valor: Any) -> dict[str, float]:
 
 
 def _formatar_medidas(medidas: dict[str, float]) -> str:
-    """Texto legível: 'Braço 30cm · Peito 95cm · Cintura 80cm'."""
+    """Texto legível: 'Braço Esq 30cm · Peito 95cm · Cintura 80cm'."""
     if not medidas:
         return "—"
+    # labels legíveis com esquerda/direita
+    _labels = {
+        "braco_esq": "Braço Esq",
+        "braco_dir": "Braço Dir",
+        "peito": "Peito",
+        "cintura": "Cintura",
+        "quadril": "Quadril",
+        "coxa_esq": "Coxa Esq",
+        "coxa_dir": "Coxa Dir",
+        "panturrilha_esq": "Panturrilha Esq",
+        "panturrilha_dir": "Panturrilha Dir",
+        "braco": "Braço",  # legado
+        "coxa": "Coxa",
+        "panturrilha": "Panturrilha",
+    }
     ordem = [k for k in MEDIDAS_CHAVES if k in medidas]
-    # mantém ordem definida, depois extras
     extras = [k for k in medidas if k not in MEDIDAS_CHAVES]
     ordem.extend(extras)
     partes = []
     for k in ordem:
-        label = k.capitalize()
-        # braco → Braço
-        if k == "braco":
-            label = "Braço"
+        label = _labels.get(k, k.replace("_", " ").title())
         partes.append(f"{label} {medidas[k]:g}cm")
     return " · ".join(partes)
 

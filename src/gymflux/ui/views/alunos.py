@@ -502,11 +502,15 @@ class PerfilAlunoDialog(QDialog):
         grid_ficha.addWidget(self.spn_altura, 0, 5)
         grid_ficha.addWidget(QLabel("Gordura:"), 0, 6)
         grid_ficha.addWidget(self.spn_gordura, 0, 7)
-        # medidas em fileiras (grade 3x4)
-        self.spn_braco = QDoubleSpinBox()
-        self.spn_braco.setRange(0, 200)
-        self.spn_braco.setSuffix(" cm")
-        self.spn_braco.setSpecialValueText("—")
+        # medidas em fileiras — bilateral para correção de assimetria
+        self.spn_braco_esq = QDoubleSpinBox()
+        self.spn_braco_esq.setRange(0, 200)
+        self.spn_braco_esq.setSuffix(" cm")
+        self.spn_braco_esq.setSpecialValueText("—")
+        self.spn_braco_dir = QDoubleSpinBox()
+        self.spn_braco_dir.setRange(0, 200)
+        self.spn_braco_dir.setSuffix(" cm")
+        self.spn_braco_dir.setSpecialValueText("—")
         self.spn_peito = QDoubleSpinBox()
         self.spn_peito.setRange(0, 300)
         self.spn_peito.setSuffix(" cm")
@@ -519,26 +523,44 @@ class PerfilAlunoDialog(QDialog):
         self.spn_quadril.setRange(0, 300)
         self.spn_quadril.setSuffix(" cm")
         self.spn_quadril.setSpecialValueText("—")
-        self.spn_coxa = QDoubleSpinBox()
-        self.spn_coxa.setRange(0, 200)
-        self.spn_coxa.setSuffix(" cm")
-        self.spn_coxa.setSpecialValueText("—")
-        self.spn_pant = QDoubleSpinBox()
-        self.spn_pant.setRange(0, 100)
-        self.spn_pant.setSuffix(" cm")
-        self.spn_pant.setSpecialValueText("—")
-        grid_ficha.addWidget(QLabel("Braço:"), 1, 0)
-        grid_ficha.addWidget(self.spn_braco, 1, 1)
-        grid_ficha.addWidget(QLabel("Peito:"), 1, 2)
-        grid_ficha.addWidget(self.spn_peito, 1, 3)
-        grid_ficha.addWidget(QLabel("Cintura:"), 1, 4)
-        grid_ficha.addWidget(self.spn_cintura, 1, 5)
-        grid_ficha.addWidget(QLabel("Quadril:"), 1, 6)
-        grid_ficha.addWidget(self.spn_quadril, 1, 7)
-        grid_ficha.addWidget(QLabel("Coxa:"), 2, 0)
-        grid_ficha.addWidget(self.spn_coxa, 2, 1)
-        grid_ficha.addWidget(QLabel("Panturrilha:"), 2, 2)
-        grid_ficha.addWidget(self.spn_pant, 2, 3)
+        self.spn_coxa_esq = QDoubleSpinBox()
+        self.spn_coxa_esq.setRange(0, 200)
+        self.spn_coxa_esq.setSuffix(" cm")
+        self.spn_coxa_esq.setSpecialValueText("—")
+        self.spn_coxa_dir = QDoubleSpinBox()
+        self.spn_coxa_dir.setRange(0, 200)
+        self.spn_coxa_dir.setSuffix(" cm")
+        self.spn_coxa_dir.setSpecialValueText("—")
+        self.spn_pant_esq = QDoubleSpinBox()
+        self.spn_pant_esq.setRange(0, 100)
+        self.spn_pant_esq.setSuffix(" cm")
+        self.spn_pant_esq.setSpecialValueText("—")
+        self.spn_pant_dir = QDoubleSpinBox()
+        self.spn_pant_dir.setRange(0, 100)
+        self.spn_pant_dir.setSuffix(" cm")
+        self.spn_pant_dir.setSpecialValueText("—")
+        # compat: mantém spn_braco/coxa/pant antigos apontando para Esq (para testes legados)
+        self.spn_braco = self.spn_braco_esq
+        self.spn_coxa = self.spn_coxa_esq
+        self.spn_pant = self.spn_pant_esq
+        grid_ficha.addWidget(QLabel("Braço Esq:"), 1, 0)
+        grid_ficha.addWidget(self.spn_braco_esq, 1, 1)
+        grid_ficha.addWidget(QLabel("Braço Dir:"), 1, 2)
+        grid_ficha.addWidget(self.spn_braco_dir, 1, 3)
+        grid_ficha.addWidget(QLabel("Peito:"), 1, 4)
+        grid_ficha.addWidget(self.spn_peito, 1, 5)
+        grid_ficha.addWidget(QLabel("Cintura:"), 1, 6)
+        grid_ficha.addWidget(self.spn_cintura, 1, 7)
+        grid_ficha.addWidget(QLabel("Quadril:"), 2, 0)
+        grid_ficha.addWidget(self.spn_quadril, 2, 1)
+        grid_ficha.addWidget(QLabel("Coxa Esq:"), 2, 2)
+        grid_ficha.addWidget(self.spn_coxa_esq, 2, 3)
+        grid_ficha.addWidget(QLabel("Coxa Dir:"), 2, 4)
+        grid_ficha.addWidget(self.spn_coxa_dir, 2, 5)
+        grid_ficha.addWidget(QLabel("Pant. Esq:"), 2, 6)
+        grid_ficha.addWidget(self.spn_pant_esq, 2, 7)
+        grid_ficha.addWidget(QLabel("Pant. Dir:"), 3, 0)
+        grid_ficha.addWidget(self.spn_pant_dir, 3, 1)
         lay_ficha.addLayout(grid_ficha)
         # saúde — QTextEdit para textos longos legíveis
         self.txt_problemas = QTextEdit()
@@ -1035,12 +1057,15 @@ class PerfilAlunoDialog(QDialog):
                 self.spn_peso,
                 self.spn_altura,
                 self.spn_gordura,
-                self.spn_braco,
+                self.spn_braco_esq,
+                self.spn_braco_dir,
                 self.spn_peito,
                 self.spn_cintura,
                 self.spn_quadril,
-                self.spn_coxa,
-                self.spn_pant,
+                self.spn_coxa_esq,
+                self.spn_coxa_dir,
+                self.spn_pant_esq,
+                self.spn_pant_dir,
             ):
                 sp.setValue(0)
             self.txt_problemas.clear()
@@ -1079,12 +1104,25 @@ class PerfilAlunoDialog(QDialog):
                 v = getattr(ava, attr, None)
                 sp.setValue(float(v) if v is not None else 0)
             medidas = getattr(ava, "medidas", {}) or {}
-            self.spn_braco.setValue(float(medidas.get("braco", 0) or 0))
+            # compat legado: se só "braco" existir, espelha para ambos
+            if "braco" in medidas and "braco_esq" not in medidas:
+                medidas["braco_esq"] = medidas["braco"]
+                medidas["braco_dir"] = medidas["braco"]
+            if "coxa" in medidas and "coxa_esq" not in medidas:
+                medidas["coxa_esq"] = medidas["coxa"]
+                medidas["coxa_dir"] = medidas["coxa"]
+            if "panturrilha" in medidas and "panturrilha_esq" not in medidas:
+                medidas["panturrilha_esq"] = medidas["panturrilha"]
+                medidas["panturrilha_dir"] = medidas["panturrilha"]
+            self.spn_braco_esq.setValue(float(medidas.get("braco_esq", 0) or 0))
+            self.spn_braco_dir.setValue(float(medidas.get("braco_dir", 0) or 0))
             self.spn_peito.setValue(float(medidas.get("peito", 0) or 0))
             self.spn_cintura.setValue(float(medidas.get("cintura", 0) or 0))
             self.spn_quadril.setValue(float(medidas.get("quadril", 0) or 0))
-            self.spn_coxa.setValue(float(medidas.get("coxa", 0) or 0))
-            self.spn_pant.setValue(float(medidas.get("panturrilha", 0) or 0))
+            self.spn_coxa_esq.setValue(float(medidas.get("coxa_esq", 0) or 0))
+            self.spn_coxa_dir.setValue(float(medidas.get("coxa_dir", 0) or 0))
+            self.spn_pant_esq.setValue(float(medidas.get("panturrilha_esq", 0) or 0))
+            self.spn_pant_dir.setValue(float(medidas.get("panturrilha_dir", 0) or 0))
             self.txt_problemas.setPlainText(getattr(ava, "problemas_saude", "") or "")
             self.txt_restricoes.setPlainText(getattr(ava, "restricoes", "") or "")
             self.txt_medicamentos.setPlainText(getattr(ava, "medicamentos", "") or "")
@@ -1100,18 +1138,24 @@ class PerfilAlunoDialog(QDialog):
             qd = self.dat_ficha.date()
             data = date(qd.year(), qd.month(), qd.day())
             medidas = {}
-            if self.spn_braco.value() > 0:
-                medidas["braco"] = float(self.spn_braco.value())
+            if self.spn_braco_esq.value() > 0:
+                medidas["braco_esq"] = float(self.spn_braco_esq.value())
+            if self.spn_braco_dir.value() > 0:
+                medidas["braco_dir"] = float(self.spn_braco_dir.value())
             if self.spn_peito.value() > 0:
                 medidas["peito"] = float(self.spn_peito.value())
             if self.spn_cintura.value() > 0:
                 medidas["cintura"] = float(self.spn_cintura.value())
             if self.spn_quadril.value() > 0:
                 medidas["quadril"] = float(self.spn_quadril.value())
-            if self.spn_coxa.value() > 0:
-                medidas["coxa"] = float(self.spn_coxa.value())
-            if self.spn_pant.value() > 0:
-                medidas["panturrilha"] = float(self.spn_pant.value())
+            if self.spn_coxa_esq.value() > 0:
+                medidas["coxa_esq"] = float(self.spn_coxa_esq.value())
+            if self.spn_coxa_dir.value() > 0:
+                medidas["coxa_dir"] = float(self.spn_coxa_dir.value())
+            if self.spn_pant_esq.value() > 0:
+                medidas["panturrilha_esq"] = float(self.spn_pant_esq.value())
+            if self.spn_pant_dir.value() > 0:
+                medidas["panturrilha_dir"] = float(self.spn_pant_dir.value())
             peso = float(self.spn_peso.value()) if self.spn_peso.value() > 0 else None
             altura = float(self.spn_altura.value()) if self.spn_altura.value() > 0 else None
             gordura = float(self.spn_gordura.value()) if self.spn_gordura.value() > 0 else None
