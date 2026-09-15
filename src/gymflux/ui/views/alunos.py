@@ -41,9 +41,18 @@ from PySide6.QtWidgets import (
 
 from gymflux.core.aluno import Aluno, StatusAluno
 from gymflux.core.pagamento import FormaPagamento, Pagamento
+from gymflux.ui.config_store import CADASTRO_CAMPOS, ConfigStore
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflux.ui.views.caixa import NovoPagamentoDialog
+
+
+def _obrigatorios_atual() -> dict[str, bool]:
+    """Lê UiConfig atual do disco; fallback tudo False."""
+    try:
+        return ConfigStore().load().cadastro_obrigatorios
+    except Exception:
+        return dict.fromkeys(CADASTRO_CAMPOS, False)  # type: ignore[arg-type]
 
 
 class PagamentosProto(Protocol):
@@ -99,19 +108,25 @@ class _AlunoForm(QWidget):
         for st in StatusAluno:
             self.cmb_status.addItem(st.value, st)
         # linha 0: Nome* | CPF
-        grid.addWidget(QLabel("Nome*:"), 0, 0)
+        self.lbl_nome = QLabel("Nome*:")
+        self.lbl_cpf = QLabel("CPF:")
+        grid.addWidget(self.lbl_nome, 0, 0)
         grid.addWidget(self.edt_nome, 0, 1)
-        grid.addWidget(QLabel("CPF:"), 0, 2)
+        grid.addWidget(self.lbl_cpf, 0, 2)
         grid.addWidget(self.edt_cpf, 0, 3)
         # linha 1: Nascimento | Telefone
-        grid.addWidget(QLabel("Nascimento:"), 1, 0)
+        self.lbl_nasc = QLabel("Nascimento:")
+        self.lbl_tel = QLabel("Telefone:")
+        grid.addWidget(self.lbl_nasc, 1, 0)
         grid.addWidget(self.edt_nasc, 1, 1)
-        grid.addWidget(QLabel("Telefone:"), 1, 2)
+        grid.addWidget(self.lbl_tel, 1, 2)
         grid.addWidget(self.edt_tel, 1, 3)
         # linha 2: E-mail | Endereço
-        grid.addWidget(QLabel("E-mail:"), 2, 0)
+        self.lbl_email = QLabel("E-mail:")
+        self.lbl_end = QLabel("Endereço:")
+        grid.addWidget(self.lbl_email, 2, 0)
         grid.addWidget(self.edt_email, 2, 1)
-        grid.addWidget(QLabel("Endereço:"), 2, 2)
+        grid.addWidget(self.lbl_end, 2, 2)
         grid.addWidget(self.edt_endereco, 2, 3)
         # linha 3: Senha | Status
         grid.addWidget(QLabel("Senha numérica:"), 3, 0)
@@ -270,9 +285,34 @@ class _AlunoForm(QWidget):
             "foto": self._foto_path or "",
         }
 
+    def aplicar_obrigatorios(self, config: object | dict | None) -> None:
+        """Atualiza '*' dos labels conforme UiConfig.cadastro_obrigatorios."""
+        obr: dict[str, bool] = {}
+        try:
+            if config is None:
+                obr = {}
+            elif isinstance(config, dict):
+                obr = config
+            elif hasattr(config, "cadastro_obrigatorios"):
+                obr = getattr(config, "cadastro_obrigatorios") or {}  # noqa: B009
+            else:
+                # UiConfig direto
+                obr = getattr(config, "cadastro_obrigatorios", {}) or {}  # type: ignore[attr-defined]
+        except Exception:
+            obr = {}
+        # Nome sempre obrigatório no domínio
+        self.lbl_nome.setText("Nome*:")
+        self.lbl_cpf.setText("CPF*:" if obr.get("cpf") else "CPF:")
+        self.lbl_tel.setText("Telefone*:" if obr.get("telefone") else "Telefone:")
+        self.lbl_email.setText("E-mail*:" if obr.get("email") else "E-mail:")
+        self.lbl_nasc.setText("Nascimento*:" if obr.get("data_nasc") else "Nascimento:")
+        self.lbl_end.setText("Endereço*:" if obr.get("endereco") else "Endereço:")
+
 
 class NovoAlunoDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, parent: QWidget | None = None, obrigatorios: dict[str, bool] | None = None
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Novo aluno")
         self.setMaximumWidth(620)
@@ -287,6 +327,12 @@ class NovoAlunoDialog(QDialog):
         self.edt_endereco = self.form.edt_endereco
         self.edt_senha = self.form.edt_senha
         layout.addWidget(self.form)
+        # aplica "*" conforme config atual
+        try:
+            cfg = obrigatorios if obrigatorios is not None else _obrigatorios_atual()
+            self.form.aplicar_obrigatorios(cfg)
+        except Exception:
+            pass
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -336,6 +382,8 @@ class PerfilAlunoDialog(QDialog):
         lay_p = QVBoxLayout(tab_pessoais)
         self.form = _AlunoForm(tab_pessoais)
         self.form.preencher(aluno)
+        with contextlib.suppress(Exception):
+            self.form.aplicar_obrigatorios(_obrigatorios_atual())
         lay_p.addWidget(self.form)
         lay_p.addStretch(1)
         tabs.addTab(tab_pessoais, "Pessoais")
@@ -833,9 +881,6 @@ class PerfilAlunoDialog(QDialog):
         from gymflux.ui.formatters import parse_br
 
         d = self.form.dados()
-        if not d["nome"].strip():
-            QMessageBox.warning(self, "Perfil", "Nome é obrigatório.")
-            return
         nasc: date | None = None
         if d["data_nasc"]:
             try:
@@ -888,6 +933,7 @@ class PerfilAlunoDialog(QDialog):
                 senha=d["senha"],
                 status=status,
                 foto=foto_final,
+                obrigatorios=_obrigatorios_atual(),
             )
         except ValueError as e:
             QMessageBox.warning(self, "Perfil", str(e))
@@ -1361,13 +1407,10 @@ class AlunosView(QWidget):
         self.recarregar()
 
     def _novo(self) -> None:
-        dlg = NovoAlunoDialog(self)
+        dlg = NovoAlunoDialog(self, obrigatorios=_obrigatorios_atual())
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         d = dlg.dados()
-        if not d["nome"].strip():
-            QMessageBox.warning(self, "Alunos", "Nome é obrigatório.")
-            return
         from gymflux.ui.formatters import parse_br
 
         nasc: date | None = None
@@ -1388,6 +1431,7 @@ class AlunosView(QWidget):
                 foto_dst = foto_src
             except Exception:
                 foto_dst = foto_src
+        obrig = _obrigatorios_atual()
         try:
             aluno = self.vm.cadastrar(
                 nome=d["nome"],
@@ -1399,6 +1443,7 @@ class AlunosView(QWidget):
                 endereco=d["endereco"],
                 senha=d["senha"],
                 foto=foto_dst,
+                obrigatorios=obrig,
             )
             # se foto selecionada, copia para pasta definitiva com id
             if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]

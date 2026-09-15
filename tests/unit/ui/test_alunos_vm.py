@@ -191,3 +191,65 @@ def test_alunos_atualizar_erros():
         w["alunos"].atualizar(aluno.id, nome="  ")
     with pytest.raises(ValueError, match="dígitos"):
         w["alunos"].atualizar(aluno.id, nome="Ana", senha="12")
+
+
+def test_cadastrar_obrigatorios_configuraveis():
+    w = _wired()
+    # default None -> só Nome obrigatório, outros opcionais
+    a = w["alunos"].cadastrar(nome="Ana", obrigatorios=None)
+    assert a.nome == "Ana"
+    # Nome sempre obrigatório (domínio)
+    with pytest.raises(ValueError, match="nome não pode ser vazio"):
+        w["alunos"].cadastrar(nome="  ", obrigatorios=None)
+    # cada campo essencial quando marcado
+    for campo, label in [
+        ("cpf", "CPF"),
+        ("telefone", "Telefone"),
+        ("email", "E-mail"),
+        ("data_nasc", "Nascimento"),
+        ("endereco", "Endereço"),
+    ]:
+        kwargs: dict[str, object | None] = {"nome": "Teste", campo: None}
+        # vazio deve falhar
+        with pytest.raises(ValueError, match=label):
+            w["alunos"].cadastrar(**kwargs, obrigatorios={campo: True})  # type: ignore[arg-type]
+        # preenchido deve passar
+        if campo == "cpf":
+            ok_val: object = "11144477735"
+        elif campo == "data_nasc":
+            ok_val = date(1990, 1, 1)
+        else:
+            ok_val = "valor"
+        kwargs_ok = {"nome": "Teste", campo: ok_val}
+        aluno_ok = w["alunos"].cadastrar(**kwargs_ok, obrigatorios={campo: True})  # type: ignore[arg-type]
+        assert aluno_ok.nome == "Teste"
+    # desconhecido ignorado
+    b = w["alunos"].cadastrar(nome="Ok", obrigatorios={"invalido": True, "cpf": False})  # type: ignore[arg-type]
+    assert b.nome == "Ok"
+    # dict vazio / None -> compatível
+    c = w["alunos"].cadastrar(nome="Comp", obrigatorios={})
+    assert c.nome == "Comp"
+
+
+def test_atualizar_obrigatorios_configuraveis():
+    w = _wired()
+    aluno = w["alunos"].cadastrar(nome="Ana")
+    # sem obrigatórios, atualizar sem cpf ok
+    w["alunos"].atualizar(aluno.id, nome="Ana Silva", cpf=None, obrigatorios=None)
+    # com cpf obrigatório, vazio falha
+    with pytest.raises(ValueError, match="CPF"):
+        w["alunos"].atualizar(
+            aluno.id, nome="Ana Silva", cpf="", obrigatorios={"cpf": True}
+        )
+    # preenchido passa
+    w["alunos"].atualizar(
+        aluno.id, nome="Ana Silva", cpf="11144477735", obrigatorios={"cpf": True}
+    )
+    # data_nasc
+    with pytest.raises(ValueError, match="Nascimento"):
+        w["alunos"].atualizar(
+            aluno.id, nome="Ana Silva", data_nasc=None, obrigatorios={"data_nasc": True}
+        )
+    w["alunos"].atualizar(
+        aluno.id, nome="Ana Silva", data_nasc=date(1990, 1, 1), obrigatorios={"data_nasc": True}
+    )

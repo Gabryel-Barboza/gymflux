@@ -75,3 +75,29 @@ def test_config_alternar_tema_aplica_sem_restart(qtbot, ctx: AppContext, tmp_pat
     dash.edt_codigo.setText("0000")
     dash._identificar()
     assert LIMA not in dash.lbl_verificacao.styleSheet()  # negado: sem lima
+
+
+def test_config_cadastro_obrigatorios_salva_e_aplica(qtbot, ctx: AppContext, tmp_path):
+    view = ConfigView(ctx.config_vm)
+    qtbot.addWidget(view)
+    ctx.config_vm.store = ConfigStore(tmp_path / "gymflux_config.json")
+    # default tudo False
+    assert view.chk_cpf_obr.isChecked() is False
+    assert view.chk_email_obr.isChecked() is False
+    # marca CPF e E-mail
+    view.chk_cpf_obr.setChecked(True)
+    view.chk_email_obr.setChecked(True)
+    view.chk_nasc_obr.setChecked(True)
+    view._salvar()
+    assert view.lbl_status.text() == "Configurações salvas e aplicadas."
+    loaded = ConfigStore(tmp_path / "gymflux_config.json").load()
+    assert loaded.cadastro_obrigatorios["cpf"] is True
+    assert loaded.cadastro_obrigatorios["email"] is True
+    assert loaded.cadastro_obrigatorios["data_nasc"] is True
+    assert loaded.cadastro_obrigatorios["telefone"] is False
+    assert loaded.cadastro_obrigatorios["endereco"] is False
+    # desmarca e persiste
+    view.chk_cpf_obr.setChecked(False)
+    view._salvar()
+    loaded2 = ConfigStore(tmp_path / "gymflux_config.json").load()
+    assert loaded2.cadastro_obrigatorios["cpf"] is False

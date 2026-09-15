@@ -6,7 +6,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 from gymflux.core.aluno import Aluno, StatusAluno
 from gymflux.core.plano import Matricula, Plano, Vigencia
@@ -91,6 +91,30 @@ class AlunosViewModel:
                 pass
         return False
 
+    _LABELS_OBR: ClassVar[dict[str, str]] = {
+        "cpf": "CPF",
+        "telefone": "Telefone",
+        "email": "E-mail",
+        "data_nasc": "Nascimento",
+        "endereco": "Endereço",
+    }
+
+    def _validar_obrigatorios(
+        self,
+        obrigatorios: dict[str, bool] | None,
+        dados: dict[str, Any],
+    ) -> None:
+        if not obrigatorios:
+            return
+        for campo, requerido in obrigatorios.items():
+            if not requerido:
+                continue
+            if campo not in self._LABELS_OBR:
+                continue
+            valor = dados.get(campo)
+            if valor is None or (isinstance(valor, str) and not valor.strip()):
+                raise ValueError(f"{self._LABELS_OBR[campo]} é obrigatório")
+
     def cadastrar(
         self,
         *,
@@ -103,9 +127,23 @@ class AlunosViewModel:
         endereco: str | None = None,
         senha: str | None = None,
         foto: str | None = None,
+        obrigatorios: dict[str, bool] | None = None,
     ) -> Aluno:
+        if not nome or not nome.strip():
+            raise ValueError("nome não pode ser vazio")
         if senha and senha.strip() and self._senha_duplicada(senha):
             raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
+        # valida obrigatórios configuráveis (Nome sempre obrigatório no domínio)
+        self._validar_obrigatorios(
+            obrigatorios,
+            {
+                "cpf": cpf,
+                "telefone": telefone,
+                "email": email,
+                "data_nasc": data_nasc,
+                "endereco": endereco,
+            },
+        )
         aluno = Aluno(
             id=f"aluno-{uuid.uuid4().hex[:8]}",
             nome=nome.strip(),
@@ -138,6 +176,7 @@ class AlunosViewModel:
         senha: str | None = None,
         status: StatusAluno | None = None,
         foto: str | None = None,
+        obrigatorios: dict[str, bool] | None = None,
     ) -> Aluno:
         """Atualiza todos os campos editáveis; senha vazia mantém a atual."""
         aluno = self.alunos.buscar(aluno_id)
@@ -145,6 +184,16 @@ class AlunosViewModel:
             raise ValueError(f"Aluno id={aluno_id} não encontrado")
         if not nome or not nome.strip():
             raise ValueError("nome não pode ser vazio")
+        self._validar_obrigatorios(
+            obrigatorios,
+            {
+                "cpf": cpf,
+                "telefone": telefone,
+                "email": email,
+                "data_nasc": data_nasc,
+                "endereco": endereco,
+            },
+        )
         aluno.nome = nome.strip()
         aluno.cpf = (cpf.strip() or None) if cpf else None
         aluno.data_nasc = data_nasc

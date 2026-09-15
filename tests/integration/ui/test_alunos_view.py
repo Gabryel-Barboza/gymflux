@@ -95,3 +95,69 @@ def test_perfil_mostra_frequencia_outros_dias(qtbot, ctx: AppContext):
     assert dlg.tbl_freq.rowCount() == 1  # só ontem; hoje fica no dashboard
     assert dlg.tbl_freq.item(0, 0) is not None
     assert dlg.tbl_freq.item(0, 0).text() == ontem.strftime("%d/%m/%Y")  # type: ignore[union-attr]
+
+
+def test_form_aplica_obrigatorios_asterisco(qtbot):
+    from gymflux.ui.views.alunos import _AlunoForm
+
+    form = _AlunoForm()
+    qtbot.addWidget(form)
+    # default tudo sem *
+    form.aplicar_obrigatorios({})
+    assert form.lbl_cpf.text() == "CPF:"
+    assert form.lbl_nome.text() == "Nome*:"
+    # marca CPF e data_nasc
+    form.aplicar_obrigatorios({"cpf": True, "data_nasc": True})
+    assert form.lbl_cpf.text() == "CPF*:"
+    assert form.lbl_nasc.text() == "Nascimento*:"
+    assert form.lbl_tel.text() == "Telefone:"
+    # via UiConfig persistido
+    from gymflux.ui.config_store import UiConfig
+
+    cfg = UiConfig(cadastro_obrigatorios={"telefone": True, "email": True})
+    form.aplicar_obrigatorios(cfg)
+    assert form.lbl_tel.text() == "Telefone*:"
+    assert form.lbl_email.text() == "E-mail*:"
+    # desconhecido ignorado
+    form.aplicar_obrigatorios({"invalido": True, "cpf": False})
+    assert form.lbl_cpf.text() == "CPF:"
+
+
+def test_novo_dialog_carrega_obrigatorios_do_disco(qtbot, tmp_path, monkeypatch):
+    from gymflux.ui.config_store import ConfigStore
+    from gymflux.ui.views.alunos import NovoAlunoDialog
+
+    cfg_path = tmp_path / "gymflux_config.json"
+    store = ConfigStore(cfg_path)
+    from gymflux.ui.config_store import UiConfig
+
+    store.save(UiConfig(cadastro_obrigatorios={"cpf": True}))
+    monkeypatch.setattr("gymflux.ui.views.alunos.ConfigStore", lambda *a, **kw: store)
+    dlg = NovoAlunoDialog()
+    qtbot.addWidget(dlg)
+    assert dlg.form.lbl_cpf.text() == "CPF*:"
+
+
+def test_perfil_salvar_valida_obrigatorios_via_vm(
+    qtbot, ctx: AppContext, tmp_path, monkeypatch, mocker
+):
+    from gymflux.ui.config_store import ConfigStore, UiConfig
+    from gymflux.ui.views.alunos import PerfilAlunoDialog
+
+    mocker.patch("gymflux.ui.views.alunos.QMessageBox.warning")
+    cfg_path = tmp_path / "gymflux_config.json"
+    store = ConfigStore(cfg_path)
+    store.save(UiConfig(cadastro_obrigatorios={"cpf": True}))
+    monkeypatch.setattr("gymflux.ui.views.alunos.ConfigStore", lambda *a, **kw: store)
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana", cpf="11144477735")
+    dlg = PerfilAlunoDialog(ctx.alunos_vm, ctx.caixa_vm, aluno.id)
+    qtbot.addWidget(dlg)
+    # limpa CPF obrigatório
+    dlg.form.edt_cpf.setText("")
+    # _salvar deve falhar via VM e não aceitar
+    dlg._salvar()
+    assert dlg.result() != 1  # não Accepted
+    # preenche e deve passar
+    dlg.form.edt_cpf.setText("11144477735")
+    dlg._salvar()
+    assert dlg.result() == 1

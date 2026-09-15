@@ -95,3 +95,40 @@ def test_tema_default_e_roundtrip(tmp_path):
     assert UiConfig.from_dict({"tema": "escuro"}).tema == ModoTema.ESCURO
     assert UiConfig.from_dict({"tema": "rosa"}).tema == ModoTema.ESCURO
     assert UiConfig.from_dict({}).tema == ModoTema.ESCURO
+
+
+def test_cadastro_obrigatorios_default_e_persistencia(tmp_path):
+    # default tudo False (compat só Nome)
+    cfg = UiConfig()
+    assert cfg.cadastro_obrigatorios == {
+        "cpf": False,
+        "telefone": False,
+        "email": False,
+        "data_nasc": False,
+        "endereco": False,
+    }
+    # desconhecida filtrada, bool normalizado
+    cfg2 = UiConfig.from_dict(
+        {"cadastro_obrigatorios": {"cpf": True, "telefone": "sim", "invalido": True, "email": 0}}
+    )
+    assert cfg2.cadastro_obrigatorios == {
+        "cpf": True,
+        "telefone": True,
+        "email": False,
+        "data_nasc": False,
+        "endereco": False,
+    }
+    # tipo inválido vira default
+    cfg3 = UiConfig.from_dict({"cadastro_obrigatorios": "nao-dict"})
+    assert cfg3.cadastro_obrigatorios["cpf"] is False
+    # roundtrip JSON
+    store = ConfigStore(tmp_path / "cfg.json")
+    store.save(UiConfig(cadastro_obrigatorios={"cpf": True, "email": True}))
+    lido = store.load()
+    assert lido.cadastro_obrigatorios["cpf"] is True
+    assert lido.cadastro_obrigatorios["email"] is True
+    assert lido.cadastro_obrigatorios["telefone"] is False
+    # ausente no JSON antigo -> default False
+    store2 = ConfigStore(tmp_path / "old.json")
+    store2.caminho.write_text('{"porta_catraca":"COM3"}', encoding="utf-8")
+    assert store2.load().cadastro_obrigatorios["cpf"] is False

@@ -78,6 +78,20 @@ def _as_modo_fundo(valor: Any, default: ModoFundo = ModoFundo.WALLPAPER) -> Modo
         return default
 
 
+CADASTRO_CAMPOS: tuple[str, ...] = ("cpf", "telefone", "email", "data_nasc", "endereco")
+
+
+def _as_cadastro_obrigatorios(valor: Any) -> dict[str, bool]:
+    """Normaliza dict de obrigatórios: só chaves essenciais, bool, default False."""
+    base = dict.fromkeys(CADASTRO_CAMPOS, False)  # type: ignore[arg-type]
+    if not isinstance(valor, dict):
+        return base  # type: ignore[return-value]
+    for k in CADASTRO_CAMPOS:
+        if k in valor:
+            base[k] = _as_bool(valor[k], False)
+    return base
+
+
 @dataclass
 class UiConfig:
     """Ajustes da aba Configurações (valores sempre normalizados)."""
@@ -96,6 +110,10 @@ class UiConfig:
     # Fase 4.14: wallpaper
     wallpaper: str | None = None
     fundo_modo: ModoFundo = ModoFundo.WALLPAPER
+    # Fase 4.14: obrigatoriedade configurável do cadastro
+    cadastro_obrigatorios: dict[str, bool] = field(
+        default_factory=lambda: dict.fromkeys(CADASTRO_CAMPOS, False)  # type: ignore[arg-type]
+    )
 
     def __post_init__(self) -> None:
         self.bloquear_entrada = _as_bool(self.bloquear_entrada)
@@ -120,6 +138,7 @@ class UiConfig:
         if self.fundo_modo == ModoFundo.WALLPAPER and not self.wallpaper:
             # mantém wallpaper default se possível, senão solido
             pass
+        self.cadastro_obrigatorios = _as_cadastro_obrigatorios(self.cadastro_obrigatorios)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

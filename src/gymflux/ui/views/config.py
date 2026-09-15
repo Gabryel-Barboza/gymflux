@@ -108,6 +108,29 @@ class ConfigView(QWidget):
         form_pers.addRow(lbl_wall, hwall)
         layout.addWidget(grp_pers)
 
+        # -- Categoria: Cadastro (obrigatoriedade configurável) -----------------
+        grp_cadastro = QGroupBox("Cadastro")
+        form_cad = QFormLayout(grp_cadastro)
+        self.chk_cpf_obr = QCheckBox("CPF obrigatório")
+        self.chk_tel_obr = QCheckBox("Telefone obrigatório")
+        self.chk_email_obr = QCheckBox("E-mail obrigatório")
+        self.chk_nasc_obr = QCheckBox("Nascimento obrigatório")
+        self.chk_end_obr = QCheckBox("Endereço obrigatório")
+        for chk in (
+            self.chk_cpf_obr,
+            self.chk_tel_obr,
+            self.chk_email_obr,
+            self.chk_nasc_obr,
+            self.chk_end_obr,
+        ):
+            chk.setToolTip("Se marcado, o campo passa a ser obrigatório no cadastro")
+        form_cad.addRow(self.chk_cpf_obr)
+        form_cad.addRow(self.chk_tel_obr)
+        form_cad.addRow(self.chk_email_obr)
+        form_cad.addRow(self.chk_nasc_obr)
+        form_cad.addRow(self.chk_end_obr)
+        layout.addWidget(grp_cadastro)
+
         # -- Categoria: Regras / Operação ---------------------------------------
         grp_regras = QGroupBox("Regras")
         form_regras = QFormLayout(grp_regras)
@@ -218,6 +241,13 @@ class ConfigView(QWidget):
         self.edt_wallpaper.setText(cfg.wallpaper or "")
         idx_f = self.cmb_fundo.findData(cfg.fundo_modo)
         self.cmb_fundo.setCurrentIndex(idx_f if idx_f >= 0 else 1)
+        # cadastro obrigatórios
+        obr = getattr(cfg, "cadastro_obrigatorios", {}) or {}
+        self.chk_cpf_obr.setChecked(bool(obr.get("cpf", False)))
+        self.chk_tel_obr.setChecked(bool(obr.get("telefone", False)))
+        self.chk_email_obr.setChecked(bool(obr.get("email", False)))
+        self.chk_nasc_obr.setChecked(bool(obr.get("data_nasc", False)))
+        self.chk_end_obr.setChecked(bool(obr.get("endereco", False)))
         self._atualizar_fundo_estado()
 
     def _escolher_wallpaper(self) -> None:
@@ -262,6 +292,13 @@ class ConfigView(QWidget):
             saida_modo=self.cmb_saida_modo.currentData() or ModoAcesso.LIVRE,
             wallpaper=wall,
             fundo_modo=fundo,
+            cadastro_obrigatorios={
+                "cpf": self.chk_cpf_obr.isChecked(),
+                "telefone": self.chk_tel_obr.isChecked(),
+                "email": self.chk_email_obr.isChecked(),
+                "data_nasc": self.chk_nasc_obr.isChecked(),
+                "endereco": self.chk_end_obr.isChecked(),
+            },
         )
         # normaliza enum caso venha str
         if isinstance(cfg.entrada_modo, str):
