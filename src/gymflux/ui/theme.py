@@ -304,8 +304,8 @@ QCheckBox {{
     spacing: 6px;
 }}
 QCheckBox::indicator {{
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border: 1px solid {borda};
     border-radius: 4px;
     background-color: {painel};
