@@ -22,12 +22,12 @@ class Funcionario:
     horarios: str | None = None
     dias: str | None = None
     foto: str | None = None
-    # senha em texto para exibição no perfil (decisão dono — exibir igual aluno)
+    # senha em texto para exibição no perfil
     senha: str | None = None
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():
-            raise ValueError("nome não pode ser vazio")
+            raise ValueError("Nome não pode ser vazio.")
 
     def definir_senha(self, senha: str) -> None:
         """Define senha numérica (4-8 dígitos); armazena hash e texto para exibição."""

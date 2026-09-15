@@ -42,7 +42,7 @@ def validar_senha_numerica(senha: str) -> str:
     digitos = senha.strip()
     if not digitos.isdigit() or not SENHA_MIN_DIGITOS <= len(digitos) <= SENHA_MAX_DIGITOS:
         raise ValueError(
-            f"senha deve ter {SENHA_MIN_DIGITOS}-{SENHA_MAX_DIGITOS} dígitos numéricos"
+            f"Senha deve ter {SENHA_MIN_DIGITOS}-{SENHA_MAX_DIGITOS} dígitos numéricos."
         )
     return digitos
 
@@ -82,7 +82,7 @@ class Aluno:
 
     - `bloqueado_manual` sobrepõe qualquer liberação (RB03).
     - `status == BLOQUEADO` também é bloqueio manual (compat).
-    - `senha` é o PIN de catraca em TEXTO (4-8 dígitos, estilo SCA).
+    - `senha` é o PIN de catraca em TEXTO (4-8 dígitos).
 
     Decisão do dono (Fase 4.8, risco aceito): sem hash — quem lê o DB vê
     os PINs. O PIN não é segredo criptográfico, é credencial operacional
@@ -107,11 +107,11 @@ class Aluno:
 
     def __post_init__(self) -> None:
         if not self.nome or not self.nome.strip():
-            raise ValueError("nome não pode ser vazio")
+            raise ValueError("Nome não pode ser vazio.")
         if self.cpf is not None:
             cpf_digits = "".join(c for c in self.cpf if c.isdigit())
             if cpf_digits and len(cpf_digits) != 11:
-                raise ValueError("CPF deve ter 11 dígitos quando informado")
+                raise ValueError("CPF deve ter 11 dígitos quando informado.")
 
     @property
     def esta_bloqueado(self) -> bool:
@@ -136,7 +136,7 @@ class Aluno:
         if self.status == StatusAluno.INATIVO:
             self.status = StatusAluno.ATIVO
 
-    # -- credencial estilo SCA (PIN numérico em texto — decisão dono Fase 4.8)
+    # -- credencial (PIN numérico em texto)
     def definir_senha(self, senha: str) -> None:
         """Define PIN numérico (4-8 dígitos); armazena em texto (ver docstring)."""
         self.senha = validar_senha_numerica(senha)

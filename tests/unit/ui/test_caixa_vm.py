@@ -88,7 +88,7 @@ def test_fechar_bloqueia_registro_e_selo():
     assert fechamento.fechado_em is not None
     assert vm.mes_fechado("2026-09") is True
     assert vm.fechado_em("2026-09") == fechamento.fechado_em
-    with pytest.raises(ValueError, match="FECHADO"):
+    with pytest.raises(ValueError, match="fechado"):
         vm.registrar(
             aluno_id=aluno_id,
             valor="10.00",

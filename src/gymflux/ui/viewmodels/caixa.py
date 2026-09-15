@@ -87,7 +87,7 @@ class CaixaViewModel:
     def fechar_mes(self, mes: str, agora: datetime | None = None) -> FechamentoCaixa:
         mes_ok = validar_mes(mes)
         if self.mes_fechado(mes_ok):
-            raise ValueError(f"Caixa de {mes_ok} já está fechado")
+            raise ValueError(f"Caixa de {mes_ok} já está fechado.")
         recebido, _pendente, _total = self.totais_mes(mes_ok)
         fechamento = FechamentoCaixa(
             id=f"fec-{uuid.uuid4().hex[:8]}",
@@ -104,7 +104,7 @@ class CaixaViewModel:
         mes_ok = validar_mes(mes)
         fech = self.fechamentos.buscar_por_mes(mes_ok)
         if fech is None:
-            raise ValueError(f"Caixa de {mes_ok} não está fechado")
+            raise ValueError(f"Caixa de {mes_ok} não está fechado.")
         self.fechamentos.remover(fech.id)
         self._commit()
 
@@ -125,23 +125,23 @@ class CaixaViewModel:
             validar_mes(comp)
         mes = comp or data_vencimento.strftime("%Y-%m")
         if self.mes_fechado(mes):
-            raise ValueError(f"Caixa de {mes} está FECHADO — registro bloqueado")
+            raise ValueError(f"Caixa de {mes} está fechado — registro bloqueado.")
         if self.alunos.buscar(aluno_id) is None:
-            raise ValueError(f"Aluno id={aluno_id} não encontrado")
+            raise ValueError(f"Aluno id={aluno_id} não encontrado.")
         # valida valor >0 e forma: None => PIX, só vazio/"-" é erro
         texto_valor = str(valor).strip()
         if not texto_valor or texto_valor == "-":
-            raise ValueError("Valor é obrigatório e deve ser > 0")
+            raise ValueError("Valor é obrigatório e deve ser maior que 0.")
         try:
             dec = Decimal(texto_valor)
         except Exception as exc:
-            raise ValueError("Valor inválido") from exc
+            raise ValueError("Valor inválido.") from exc
         if dec <= Decimal("0"):
-            raise ValueError("Valor deve ser > 0")
+            raise ValueError("Valor deve ser maior que 0.")
         if forma is None:
             forma = FormaPagamento.PIX
         elif isinstance(forma, str) and (not forma.strip() or forma.strip() == "—"):
-            raise ValueError("Forma de pagamento é obrigatória")
+            raise ValueError("Forma de pagamento é obrigatória.")
         result = self.pagamentos.registrar_rapido(
             id=f"pag-{uuid.uuid4().hex[:8]}",
             aluno_id=aluno_id,
@@ -186,7 +186,7 @@ class CaixaViewModel:
                     orig = p
                     break
         if orig is None:
-            raise ValueError(f"Pagamento id={pagamento_id} não encontrado")
+            raise ValueError(f"Pagamento id={pagamento_id} não encontrado.")
         if orig.pago:
             return orig
         novo = replace(
@@ -215,7 +215,7 @@ class CaixaViewModel:
                     orig = p
                     break
         if orig is None:
-            raise ValueError(f"Pagamento id={pagamento_id} não encontrado")
+            raise ValueError(f"Pagamento id={pagamento_id} não encontrado.")
         if not orig.pago:
             return orig
         novo = replace(orig, data_pagamento=None)

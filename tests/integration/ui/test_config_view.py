@@ -64,7 +64,7 @@ def test_config_alternar_tema_aplica_sem_restart(qtbot, ctx: AppContext, tmp_pat
     assert isinstance(dash, DashboardView)
     dash.edt_codigo.setText("0000")
     dash._identificar()
-    assert "NEGADO" in dash.lbl_verificacao.text()
+    assert "Negado" in dash.lbl_verificacao.text()
     assert VERMELHO in dash.lbl_verificacao.styleSheet()
 
     # volta p/ escuro sem restart
@@ -78,9 +78,10 @@ def test_config_alternar_tema_aplica_sem_restart(qtbot, ctx: AppContext, tmp_pat
 
 
 def test_config_cadastro_obrigatorios_salva_e_aplica(qtbot, ctx: AppContext, tmp_path):
+    ctx.config_vm.store = ConfigStore(tmp_path / "gymflux_config.json")
+    ctx.config_vm.recarregar()
     view = ConfigView(ctx.config_vm)
     qtbot.addWidget(view)
-    ctx.config_vm.store = ConfigStore(tmp_path / "gymflux_config.json")
     # default tudo False
     assert view.chk_cpf_obr.isChecked() is False
     assert view.chk_email_obr.isChecked() is False

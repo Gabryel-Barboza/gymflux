@@ -113,7 +113,7 @@ class AlunosViewModel:
                 continue
             valor = dados.get(campo)
             if valor is None or (isinstance(valor, str) and not valor.strip()):
-                raise ValueError(f"{self._LABELS_OBR[campo]} é obrigatório")
+                raise ValueError(f"{self._LABELS_OBR[campo]} é obrigatório.")
 
     def cadastrar(
         self,
@@ -130,9 +130,9 @@ class AlunosViewModel:
         obrigatorios: dict[str, bool] | None = None,
     ) -> Aluno:
         if not nome or not nome.strip():
-            raise ValueError("nome não pode ser vazio")
+            raise ValueError("Nome não pode ser vazio.")
         if senha and senha.strip() and self._senha_duplicada(senha):
-            raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
+            raise ValueError("Senha já cadastrada para outro aluno ou funcionário.")
         # valida obrigatórios configuráveis (Nome sempre obrigatório no domínio)
         self._validar_obrigatorios(
             obrigatorios,
@@ -181,9 +181,9 @@ class AlunosViewModel:
         """Atualiza todos os campos editáveis; senha vazia mantém a atual."""
         aluno = self.alunos.buscar(aluno_id)
         if aluno is None:
-            raise ValueError(f"Aluno id={aluno_id} não encontrado")
+            raise ValueError(f"Aluno id={aluno_id} não encontrado.")
         if not nome or not nome.strip():
-            raise ValueError("nome não pode ser vazio")
+            raise ValueError("Nome não pode ser vazio.")
         self._validar_obrigatorios(
             obrigatorios,
             {
@@ -203,7 +203,7 @@ class AlunosViewModel:
         aluno.endereco = (endereco.strip() or None) if endereco else None
         if senha and senha.strip():
             if self._senha_duplicada(senha, ignore_aluno_id=aluno_id):
-                raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
+                raise ValueError("Senha já cadastrada para outro aluno ou funcionário.")
             aluno.definir_senha(senha)  # ValueError se fora de 4-8 dígitos
         if status is not None:
             aluno.status = status

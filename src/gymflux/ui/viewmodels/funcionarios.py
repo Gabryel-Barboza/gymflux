@@ -69,8 +69,10 @@ class FuncionariosViewModel:
         dias: str | None = None,
         foto: str | None = None,
     ) -> Funcionario:
+        if not nome or not nome.strip():
+            raise ValueError("Nome não pode ser vazio.")
         if senha and senha.strip() and self._senha_duplicada(senha):
-            raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
+            raise ValueError("Senha já cadastrada para outro aluno ou funcionário.")
         func = Funcionario(
             id=f"func-{uuid.uuid4().hex[:8]}",
             nome=nome.strip(),
@@ -95,13 +97,13 @@ class FuncionariosViewModel:
     ) -> Funcionario:
         func = self.repo.buscar_por_id(funcionario_id)
         if func is None:
-            raise ValueError(f"Funcionário id={funcionario_id} não encontrado")
+            raise ValueError(f"Funcionário id={funcionario_id} não encontrado.")
         if not nome or not nome.strip():
-            raise ValueError("nome não pode ser vazio")
+            raise ValueError("Nome não pode ser vazio.")
         func.nome = nome.strip()
         if senha and senha.strip():
             if self._senha_duplicada(senha, ignore_func_id=funcionario_id):
-                raise ValueError("Senha já cadastrada para outro aluno ou funcionário")
+                raise ValueError("Senha já cadastrada para outro aluno ou funcionário.")
             func.definir_senha(senha)  # vazia mantém o hash atual
         if horarios is not None:
             func.horarios = horarios.strip() or None
@@ -116,7 +118,7 @@ class FuncionariosViewModel:
     def definir_ativo(self, funcionario_id: str, ativo: bool) -> Funcionario:
         func = self.repo.buscar_por_id(funcionario_id)
         if func is None:
-            raise ValueError(f"Funcionário id={funcionario_id} não encontrado")
+            raise ValueError(f"Funcionário id={funcionario_id} não encontrado.")
         func.ativo = ativo
         self.repo.salvar(func)
         self._commit()

@@ -187,7 +187,7 @@ def test_alunos_atualizar_erros():
     aluno = w["alunos"].cadastrar(nome="Ana")
     with pytest.raises(ValueError, match="não encontrado"):
         w["alunos"].atualizar("inexistente", nome="X")
-    with pytest.raises(ValueError, match="nome não pode ser vazio"):
+    with pytest.raises(ValueError, match="Nome não pode ser vazio"):
         w["alunos"].atualizar(aluno.id, nome="  ")
     with pytest.raises(ValueError, match="dígitos"):
         w["alunos"].atualizar(aluno.id, nome="Ana", senha="12")
@@ -199,7 +199,7 @@ def test_cadastrar_obrigatorios_configuraveis():
     a = w["alunos"].cadastrar(nome="Ana", obrigatorios=None)
     assert a.nome == "Ana"
     # Nome sempre obrigatório (domínio)
-    with pytest.raises(ValueError, match="nome não pode ser vazio"):
+    with pytest.raises(ValueError, match="Nome não pode ser vazio"):
         w["alunos"].cadastrar(nome="  ", obrigatorios=None)
     # cada campo essencial quando marcado
     for campo, label in [

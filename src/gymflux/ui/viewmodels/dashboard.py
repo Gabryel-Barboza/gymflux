@@ -300,7 +300,11 @@ class DashboardViewModel:
     @staticmethod
     def resume_decisao(d: DecisaoAcesso) -> str:
         if d.liberado:
-            return f"LIBERADO — {d.detalhes or 'catraca liberada'}"
-        motivo = str(d.motivo) if d.motivo else "negado"
+            detalhe = d.detalhes or "Catraca liberada"
+            # garante capitalização
+            detalhe_cap = detalhe[:1].upper() + detalhe[1:] if detalhe else detalhe
+            return f"Liberado — {detalhe_cap}"
+        motivo = str(d.motivo) if d.motivo else "Negado"
+        motivo_cap = motivo[:1].upper() + motivo[1:] if motivo else motivo
         extra = f" ({d.detalhes})" if d.detalhes else ""
-        return f"NEGADO — {motivo}{extra}"
+        return f"Negado — {motivo_cap}{extra}"

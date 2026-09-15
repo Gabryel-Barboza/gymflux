@@ -1021,7 +1021,7 @@ class DashboardView(QWidget):
         try:
             decisao, aluno = self.vm.liberar_catraca_unico(codigo)
         except (ValueError, RuntimeError) as e:
-            self._mostrar_toast(f"NÃO IDENTIFICADO — {e}", None)
+            self._mostrar_toast(f"Não identificado — {e}", None)
             return
         # funcionario tem prioridade — aluno None mas decisao com detalhes "Funcionário — Nome"
         nome = None
@@ -1034,13 +1034,14 @@ class DashboardView(QWidget):
             except Exception:
                 nome = "Funcionário"
         else:
-            nome = "NÃO IDENTIFICADO"
+            nome = "Não identificado"
         if decisao.liberado:
-            self._mostrar_toast(f"{nome} — LIBERADO", True)
+            self._mostrar_toast(f"{nome} — Liberado", True)
         else:
-            motivo = str(decisao.motivo) if decisao.motivo else "negado"
+            motivo = str(decisao.motivo) if decisao.motivo else "Negado"
+            motivo_cap = motivo[:1].upper() + motivo[1:] if motivo else motivo
             extra = f" ({decisao.detalhes})" if decisao.detalhes else ""
-            self._mostrar_toast(f"{nome} — NEGADO · {motivo}{extra}", False)
+            self._mostrar_toast(f"{nome} — Negado · {motivo_cap}{extra}", False)
         self.edt_unico.clear()
         self.edt_codigo.clear()
         self.edt_aluno.clear()
@@ -1055,12 +1056,12 @@ class DashboardView(QWidget):
     def _identificar(self) -> None:
         codigo = self.edt_codigo.text() or self.edt_unico.text()
         if not codigo.strip():
-            self._mostrar_toast("NÃO IDENTIFICADO — informe o código", None)
+            self._mostrar_toast("Não identificado — informe o código.", None)
             return
         try:
             decisao, aluno = self.vm.identificar_acesso(codigo, "TECLADO")
         except (ValueError, RuntimeError) as e:
-            self._mostrar_toast(f"NÃO IDENTIFICADO — {e}", None)
+            self._mostrar_toast(f"Não identificado — {e}", None)
             return
         nome = None
         if aluno is not None:
@@ -1071,13 +1072,14 @@ class DashboardView(QWidget):
             except Exception:
                 nome = "Funcionário"
         else:
-            nome = "NÃO IDENTIFICADO"
+            nome = "Não identificado"
         if decisao.liberado:
-            self._mostrar_toast(f"{nome} — LIBERADO", True)
+            self._mostrar_toast(f"{nome} — Liberado", True)
         else:
-            motivo = str(decisao.motivo) if decisao.motivo else "negado"
+            motivo = str(decisao.motivo) if decisao.motivo else "Negado"
+            motivo_cap = motivo[:1].upper() + motivo[1:] if motivo else motivo
             extra = f" ({decisao.detalhes})" if decisao.detalhes else ""
-            self._mostrar_toast(f"{nome} — NEGADO · {motivo}{extra}", False)
+            self._mostrar_toast(f"{nome} — Negado · {motivo_cap}{extra}", False)
         self.edt_codigo.clear()
         self.edt_unico.clear()
         self._refresh_status()

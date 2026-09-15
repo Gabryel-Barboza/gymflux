@@ -57,7 +57,7 @@ def test_fluxo_completo_pela_ui_cadastra_e_libera(dash: DashboardView, ctx: AppC
 
     dash.edt_aluno.setText(aluno.id)
     dash._liberar("ENTRADA")
-    assert dash.lbl_resultado.text().startswith("LIBERADO")
+    assert dash.lbl_resultado.text().startswith("Liberado")
     assert dash.tbl_log.rowCount() == 1
     item_nome = dash.tbl_log.item(0, 1)
     assert item_nome is not None
@@ -68,7 +68,7 @@ def test_dashboard_negado_mostra_motivo(dash: DashboardView, ctx: AppContext):
     aluno = ctx.alunos_vm.cadastrar(nome="Sem Pagar", cpf="22255588846")
     dash.edt_aluno.setText(aluno.id)
     dash._liberar("ENTRADA")
-    assert dash.lbl_resultado.text().startswith("NEGADO")
+    assert dash.lbl_resultado.text().startswith("Negado")
 
 
 def test_dashboard_painel_verificacao_senha(dash: DashboardView, ctx: AppContext):
@@ -76,12 +76,12 @@ def test_dashboard_painel_verificacao_senha(dash: DashboardView, ctx: AppContext
 
     dash.edt_codigo.setText("1234")
     dash._identificar()
-    assert dash.lbl_verificacao.text() == "Ana Silva — LIBERADO"
+    assert dash.lbl_verificacao.text() == "Ana Silva — Liberado"
     assert dash.edt_codigo.text() == ""
 
     dash.edt_codigo.setText("0000")
     dash._identificar()
-    assert dash.lbl_verificacao.text().startswith("NÃO IDENTIFICADO — NEGADO")
+    assert dash.lbl_verificacao.text().startswith("Não identificado — Negado")
 
 
 def test_dashboard_enxuto_alturas_e_icones(dash: DashboardView):
@@ -107,7 +107,7 @@ def test_painel_senha_curta_e_direcao_bloqueada(dash: DashboardView, ctx: AppCon
     dash.edt_codigo.setText("1234")
     dash._identificar()
     assert "SENHA_CURTA" in dash.lbl_verificacao.text()
-    assert "NEGADO" in dash.lbl_verificacao.text()
+    assert "Negado" in dash.lbl_verificacao.text()
 
     ctx.dashboard_vm.ui_config.senha_min_digitos = 4
     ctx.dashboard_vm.ui_config.bloquear_entrada = True
@@ -121,8 +121,8 @@ def test_resultado_liberado_verde_negado_vermelho(dash: DashboardView, ctx: AppC
 
     aluno = ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735")
     dash.edt_aluno.setText(aluno.id)
-    dash._liberar("ENTRADA")  # sem matrícula => NEGADO
-    assert dash.lbl_resultado.text().startswith("NEGADO")
+    dash._liberar("ENTRADA")  # sem matrícula => Negado
+    assert dash.lbl_resultado.text().startswith("Negado")
     assert VERMELHO in dash.lbl_resultado.styleSheet()
 
     plano = ctx.planos_vm.salvar(nome="Mensal", tipo=TipoPlano.MENSAL, valor=Decimal("99.90"))
@@ -131,7 +131,7 @@ def test_resultado_liberado_verde_negado_vermelho(dash: DashboardView, ctx: AppC
         aluno_id=aluno.id, valor=Decimal("99.90"), data_vencimento=date.today(), pago=True
     )
     dash._liberar("ENTRADA")
-    assert dash.lbl_resultado.text().startswith("LIBERADO")
+    assert dash.lbl_resultado.text().startswith("Liberado")
     assert LIMA in dash.lbl_resultado.styleSheet()
 
 

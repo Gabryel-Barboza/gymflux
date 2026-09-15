@@ -89,7 +89,7 @@ def test_fluxo_recepcao_completo_libera():
     logs = w["dashboard"].ultimas_tentativas()
     assert len(logs) == 1
     assert logs[0].resultado == ResultadoAcesso.LIBERADO
-    assert "LIBERADO" in DashboardViewModel.resume_decisao(decisao)
+    assert "Liberado" in DashboardViewModel.resume_decisao(decisao)
 
 
 def test_dashboard_negado_sem_pagamento_nao_aciona():
@@ -100,7 +100,7 @@ def test_dashboard_negado_sem_pagamento_nao_aciona():
     decisao = w["dashboard"].liberar_entrada(aluno.id)
     assert decisao.liberado is False
     assert w["driver"].status()["bloqueada"] is True
-    assert "NEGADO" in DashboardViewModel.resume_decisao(decisao)
+    assert "Negado" in DashboardViewModel.resume_decisao(decisao)
 
 
 def test_dashboard_saida_e_giro():
