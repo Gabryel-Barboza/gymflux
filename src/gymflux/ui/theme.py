@@ -303,6 +303,21 @@ QCheckBox {{
     color: {texto};
     spacing: 6px;
 }}
+QCheckBox::indicator {{
+    width: 18px;
+    height: 18px;
+    border: 1px solid {borda};
+    border-radius: 4px;
+    background-color: {painel};
+}}
+QCheckBox::indicator:checked {{
+    background-color: {AZUL};
+    border: 1px solid {AZUL};
+}}
+QCheckBox::indicator:unchecked:disabled {{
+    background-color: {fundo};
+    border: 1px solid {borda};
+}}
 QDialog {{
     background-color: {fundo};
 }}
