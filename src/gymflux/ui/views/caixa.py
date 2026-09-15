@@ -40,7 +40,13 @@ class NovoPagamentoDialog(QDialog):
 
     FORMAS: ClassVar[list[str]] = [f.value for f in FormaPagamento]
 
-    def __init__(self, aluno_nome: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        aluno_nome: str,
+        parent: QWidget | None = None,
+        dia_base: int | None = None,
+        vencimento_default: date | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Novo pagamento — {aluno_nome}")
         self.setMaximumWidth(420)
@@ -70,9 +76,19 @@ class NovoPagamentoDialog(QDialog):
         botoes.accepted.connect(self._on_accept)
         botoes.rejected.connect(self.reject)
         form.addRow(botoes)
-        # compat: mantém dat_venc para código legado que chama .vencimento()
-        # mas não exibe; vencimento será hoje ou derivado da competência
-        self._vencimento_default = date.today()
+        # Fase 4.15: default ancorado no dia da matrícula (ou hoje)
+        if vencimento_default is not None:
+            self._vencimento_default = vencimento_default
+        elif dia_base is not None:
+            try:
+                from gymflux.core.plano import vencimento_no_mes
+
+                hoje = date.today()
+                self._vencimento_default = vencimento_no_mes(hoje.year, hoje.month, dia_base)
+            except Exception:
+                self._vencimento_default = date.today()
+        else:
+            self._vencimento_default = date.today()
         # validação reativa (bloqueia Ok)
         self.spn_valor.valueChanged.connect(lambda _v: self._atualizar_ok())
         self.cmb_forma.currentTextChanged.connect(lambda _t: self._atualizar_ok())
@@ -179,9 +195,15 @@ class CaixaView(QWidget):
     # duplo-clique redireciona para o aluno (perfil na aba Pagamentos)
     aluno_perfil_solicitado = Signal(str)
 
-    def __init__(self, vm: CaixaViewModel, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        vm: CaixaViewModel,
+        parent: QWidget | None = None,
+        dia_base_provider: object | None = None,
+    ) -> None:
         super().__init__(parent)
         self.vm = vm
+        self._dia_base_provider = dia_base_provider
         layout = QHBoxLayout(self)
 
         # -- sidebar esquerda --------------------------------------------------
@@ -258,7 +280,9 @@ class CaixaView(QWidget):
         self.btn_marcar_pago.setToolTip("Marca o pagamento selecionado como pago hoje")
         self.btn_atualizar = QPushButton("Atualizar")
         self.btn_atualizar.setToolTip("Recarrega a lista (otimizado: só repinta)")
-        self.btn_atualizar.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
+        self.btn_atualizar.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+        )
         hbtn.addWidget(self.cmb_aluno, 2)
         hbtn.addWidget(self.btn_novo)
         hbtn.addWidget(self.btn_marcar_pago)
@@ -444,7 +468,14 @@ class CaixaView(QWidget):
             QMessageBox.information(self, "Caixa", "Cadastre um aluno primeiro.")
             return
         nome = self.cmb_aluno.currentText() or str(aluno_id)
-        dlg = NovoPagamentoDialog(nome, self)
+        dia_base = None
+        try:
+            provider = getattr(self, "_dia_base_provider", None)
+            if callable(provider):
+                dia_base = provider(str(aluno_id))  # type: ignore[operator]
+        except Exception:
+            dia_base = None
+        dlg = NovoPagamentoDialog(nome, self, dia_base=dia_base)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:

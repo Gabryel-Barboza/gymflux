@@ -1,18 +1,19 @@
-"""Cobrança recorrente — gera pendências mensais automaticamente (startup).
+"""Cobrança recorrente — vencimento ancorado no dia da matrícula (Fase 4.15).
 
 Regra operacional (NÃO é RB01-RB05): para cada aluno ATIVO com matrícula
-ativa e vigente, se o mês atual (competência ``YYYY-MM``) ainda não tem
-pagamento e o intervalo do plano já venceu desde o último vencimento,
-cria um ``Pagamento`` pendente (``data_pagamento=None``) com
-``valor=plano.valor``, ``vencimento=dia 10`` e ``competencia=YYYY-MM``.
+ativa e vigente, o vencimento do mês é ``vencimento_no_mes(hoje.ano,
+hoje.mês, dia_base)`` onde ``dia_base = mat.vigencia.inicio.day``
+(com clamp via ``calendar.monthrange``: dia 31 em fev → 28/29). Se
+``venc_mes > hoje``, ainda não venceu este mês → pula. Se a
+competência ``venc_mes YYYY-MM`` já tem pagamento ou o ciclo
+``(venc_mes - ultimo_venc).days < duracao`` não venceu, pula. Senão
+cria ``Pagamento`` pendente com ``vencimento=venc_mes`` e
+``competencia=venc_mes``.
 
-Exemplo do dono: plano MENSAL (30d) com último pagamento mês passado
-→ este mês ganha um pendente. Plano ANUAL (365d) pago mês passado
-→ não gera nada este mês.
+Ex: matrícula dia 10 trimestral paga em Set → Out/Nov pulam, Dez gera;
+matrícula dia 31 em Jan → venc fev 28 (clamp).
 
-Otimizado para o startup: 3 listagens (alunos, matrículas, pagamentos)
-+ agrupamento em memória, sem N+1 e sem commit próprio (padrão Fase 4.1:
-quem chama commita). Nunca aborta a varredura por causa de um aluno.
+Otimizado para startup: 3 listagens + agrupamento em memória, sem N+1.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from loguru import logger
 
 from gymflux.core.aluno import Aluno
 from gymflux.core.pagamento import Pagamento
-from gymflux.core.plano import Matricula
+from gymflux.core.plano import Matricula, vencimento_no_mes
 
 
 class _AlunoRepoProto(Protocol):
@@ -45,10 +46,6 @@ def _competencia(ref: date) -> str:
     return ref.strftime("%Y-%m")
 
 
-def _vencimento_competencia(ref: date, dia: int = 10) -> date:
-    return date(ref.year, ref.month, dia)
-
-
 def _mes_de(p: Pagamento) -> str:
     return p.competencia or p.data_vencimento.strftime("%Y-%m")
 
@@ -61,8 +58,6 @@ def aplicar_cobranca_mensal(
 ) -> int:
     """Varre alunos e cria pendências do mês atual. Retorna qtd criada."""
     hoje = ref or date.today()
-    comp_atual = _competencia(hoje)
-    venc_atual = _vencimento_competencia(hoje)
 
     try:
         alunos = aluno_repo.listar()
@@ -98,36 +93,38 @@ def aplicar_cobranca_mensal(
             if not aluno.esta_ativo:
                 continue
             mats = mats_por_aluno.get(aluno.id, [])
-            # só matrículas ativas e vigentes no mês atual (original)
-            # evita cobrar mensalmente quem tem plano trimestral/anual expirado
-            # ou ainda não vigente — respeita vigência + duracao
             vigentes = [m for m in mats if m.ativa and m.vigencia.contem(hoje)]
             if not vigentes:
                 continue
-            # usa a vigência mais recente como referência de plano/valor
             mat = max(vigentes, key=lambda m: m.vigencia.inicio)
-            if comp_atual in comps_por_aluno.get(aluno.id, set()):
+            # vencimento ancorado no dia da matrícula
+            try:
+                venc_mes = vencimento_no_mes(hoje.year, hoje.month, mat.vigencia.inicio.day)
+            except ValueError:
+                continue
+            if venc_mes > hoje:
+                continue
+            comp_venc = _competencia(venc_mes)
+            if comp_venc in comps_por_aluno.get(aluno.id, set()):
                 continue
             duracao = max(1, int(mat.plano.duracao_dias))
             ult = ultimo_venc.get(aluno.id)
-            # só gera se o ciclo do plano já virou desde o último vencimento
-            if ult is not None and (hoje - ult).days < duracao:
+            if ult is not None and (venc_mes - ult).days < duracao:
                 continue
-            # sem pagamentos anteriores: gera para o mês atual (primeira cobrança)
             novo = Pagamento(
                 id=f"pag-{uuid.uuid4().hex[:8]}",
                 aluno_id=aluno.id,
                 valor=mat.plano.valor,
-                data_vencimento=venc_atual,
+                data_vencimento=venc_mes,
                 data_pagamento=None,
                 forma=None,
-                competencia=comp_atual,
+                competencia=comp_venc,
             )
             pagamento_repo.salvar(novo)
             criados += 1
             logger.info(
-                f"[Cobrança] pendente {comp_atual} aluno={aluno.id} "
-                f"plano={mat.plano.nome} valor={mat.plano.valor}"
+                f"[Cobrança] pendente {comp_venc} aluno={aluno.id} "
+                f"plano={mat.plano.nome} venc={venc_mes} valor={mat.plano.valor}"
             )
         except Exception as e:
             logger.warning(f"[Cobrança] aluno {aluno.id} pulado ({e})")

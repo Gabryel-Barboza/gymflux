@@ -119,7 +119,8 @@ def test_matricular_gera_primeiro_pagamento():
     pag = pags[0]
     assert pag.competencia == "2026-09"
     assert pag.valor == Decimal("99.90")
-    assert pag.data_vencimento == date(2026, 9, 10)
+    # Fase 4.15: vencimento = data de início (ancorado na matrícula), não dia 10
+    assert pag.data_vencimento == date(2026, 9, 15)
     assert pag.data_pagamento is None
 
 
@@ -238,13 +239,9 @@ def test_atualizar_obrigatorios_configuraveis():
     w["alunos"].atualizar(aluno.id, nome="Ana Silva", cpf=None, obrigatorios=None)
     # com cpf obrigatório, vazio falha
     with pytest.raises(ValueError, match="CPF"):
-        w["alunos"].atualizar(
-            aluno.id, nome="Ana Silva", cpf="", obrigatorios={"cpf": True}
-        )
+        w["alunos"].atualizar(aluno.id, nome="Ana Silva", cpf="", obrigatorios={"cpf": True})
     # preenchido passa
-    w["alunos"].atualizar(
-        aluno.id, nome="Ana Silva", cpf="11144477735", obrigatorios={"cpf": True}
-    )
+    w["alunos"].atualizar(aluno.id, nome="Ana Silva", cpf="11144477735", obrigatorios={"cpf": True})
     # data_nasc
     with pytest.raises(ValueError, match="Nascimento"):
         w["alunos"].atualizar(

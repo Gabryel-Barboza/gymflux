@@ -2,10 +2,27 @@
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from enum import StrEnum
+
+
+def vencimento_no_mes(ano: int, mes: int, dia_base: int) -> date:
+    """Dia de vencimento ancorado no dia da matrícula, com clamp no fim do mês.
+
+    Ex: dia_base 31 em fev 2026 → 28, fev 2024 bissexto → 29, abr → 30.
+    Valores de dia_base <1 clampam para 1; mes fora 1..12 levanta ValueError
+    via ``calendar.monthrange``/``date``.
+    Texto legível: ``Vencimento dia 31 em fevereiro cai no dia 28``.
+    """
+    if not 1 <= mes <= 12:
+        raise ValueError("mês deve ser 1..12")
+    dia = max(1, int(dia_base))
+    ultimo = calendar.monthrange(ano, mes)[1]
+    dia_clamp = min(dia, ultimo)
+    return date(ano, mes, dia_clamp)
 
 
 class TipoPlano(StrEnum):

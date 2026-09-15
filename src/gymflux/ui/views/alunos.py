@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QDateEdit,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -45,6 +46,11 @@ from gymflux.ui.config_store import CADASTRO_CAMPOS, ConfigStore
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflux.ui.views.caixa import NovoPagamentoDialog
+
+try:
+    from gymflux.ui.viewmodels.ficha import FichaViewModel
+except ImportError:
+    FichaViewModel = None  # type: ignore[misc,assignment]
 
 
 def _obrigatorios_atual() -> dict[str, bool]:
@@ -220,7 +226,7 @@ class _AlunoForm(QWidget):
             if isinstance(app, QApplication):
                 ss = app.styleSheet()
             if "#E8EDF1" in ss:
-                    tema = ModoTema.CLARO
+                tema = ModoTema.CLARO
         except Exception:
             pass
         return tema
@@ -359,6 +365,7 @@ class PerfilAlunoDialog(QDialog):
         frequencia_vm: FrequenciaViewModel | None = None,
         dashboard_vm: object | None = None,
         aba_inicial: int = 0,
+        ficha_vm: object | None = None,
     ) -> None:
         super().__init__(parent)
         aluno = alunos_vm.alunos.buscar(aluno_id)
@@ -371,6 +378,9 @@ class PerfilAlunoDialog(QDialog):
         self._dashboard_vm = dashboard_vm
         self._pagamentos_cache: list[Pagamento] = []
         self._matriculas_cache: list[tuple[str, object]] = []  # (id, Matricula)
+        self._ficha_vm = ficha_vm
+        self._ficha_cache: list[object] = []
+        self._ficha_edit_id: str | None = None
         self.setWindowTitle(f"Perfil — {aluno.nome}")
         self.resize(640, 520)
         self.setMaximumWidth(700)
@@ -455,6 +465,118 @@ class PerfilAlunoDialog(QDialog):
         lay_pag.addLayout(hb)
         tabs.addTab(tab_pag, "Pagamentos")
 
+        # aba 5: Ficha (avaliação física + saúde)
+        tab_ficha = QWidget()
+        lay_ficha = QVBoxLayout(tab_ficha)
+        # histórico no topo (lista clicável)
+        self.lst_ficha = QListWidget()
+        self.lst_ficha.setMaximumHeight(90)
+        self.lst_ficha.setToolTip("Histórico — clique para carregar no formulário")
+        lay_ficha.addWidget(QLabel("Histórico de avaliações (clique para editar):"))
+        lay_ficha.addWidget(self.lst_ficha)
+        # form em grade
+        grid_ficha = QGridLayout()
+        self.dat_ficha = QDateEdit(QDate.currentDate())
+        self.dat_ficha.setCalendarPopup(True)
+        self.dat_ficha.setDisplayFormat("dd/MM/yyyy")
+        self.spn_peso = QDoubleSpinBox()
+        self.spn_peso.setRange(0, 500)
+        self.spn_peso.setDecimals(1)
+        self.spn_peso.setSuffix(" kg")
+        self.spn_peso.setSpecialValueText("—")
+        self.spn_altura = QDoubleSpinBox()
+        self.spn_altura.setRange(0, 300)
+        self.spn_altura.setDecimals(1)
+        self.spn_altura.setSuffix(" cm")
+        self.spn_altura.setSpecialValueText("—")
+        self.spn_gordura = QDoubleSpinBox()
+        self.spn_gordura.setRange(0, 100)
+        self.spn_gordura.setDecimals(1)
+        self.spn_gordura.setSuffix(" %")
+        self.spn_gordura.setSpecialValueText("—")
+        grid_ficha.addWidget(QLabel("Data:"), 0, 0)
+        grid_ficha.addWidget(self.dat_ficha, 0, 1)
+        grid_ficha.addWidget(QLabel("Peso:"), 0, 2)
+        grid_ficha.addWidget(self.spn_peso, 0, 3)
+        grid_ficha.addWidget(QLabel("Altura:"), 0, 4)
+        grid_ficha.addWidget(self.spn_altura, 0, 5)
+        grid_ficha.addWidget(QLabel("Gordura:"), 0, 6)
+        grid_ficha.addWidget(self.spn_gordura, 0, 7)
+        # medidas em fileiras (grade 3x4)
+        self.spn_braco = QDoubleSpinBox()
+        self.spn_braco.setRange(0, 200)
+        self.spn_braco.setSuffix(" cm")
+        self.spn_braco.setSpecialValueText("—")
+        self.spn_peito = QDoubleSpinBox()
+        self.spn_peito.setRange(0, 300)
+        self.spn_peito.setSuffix(" cm")
+        self.spn_peito.setSpecialValueText("—")
+        self.spn_cintura = QDoubleSpinBox()
+        self.spn_cintura.setRange(0, 300)
+        self.spn_cintura.setSuffix(" cm")
+        self.spn_cintura.setSpecialValueText("—")
+        self.spn_quadril = QDoubleSpinBox()
+        self.spn_quadril.setRange(0, 300)
+        self.spn_quadril.setSuffix(" cm")
+        self.spn_quadril.setSpecialValueText("—")
+        self.spn_coxa = QDoubleSpinBox()
+        self.spn_coxa.setRange(0, 200)
+        self.spn_coxa.setSuffix(" cm")
+        self.spn_coxa.setSpecialValueText("—")
+        self.spn_pant = QDoubleSpinBox()
+        self.spn_pant.setRange(0, 100)
+        self.spn_pant.setSuffix(" cm")
+        self.spn_pant.setSpecialValueText("—")
+        grid_ficha.addWidget(QLabel("Braço:"), 1, 0)
+        grid_ficha.addWidget(self.spn_braco, 1, 1)
+        grid_ficha.addWidget(QLabel("Peito:"), 1, 2)
+        grid_ficha.addWidget(self.spn_peito, 1, 3)
+        grid_ficha.addWidget(QLabel("Cintura:"), 1, 4)
+        grid_ficha.addWidget(self.spn_cintura, 1, 5)
+        grid_ficha.addWidget(QLabel("Quadril:"), 1, 6)
+        grid_ficha.addWidget(self.spn_quadril, 1, 7)
+        grid_ficha.addWidget(QLabel("Coxa:"), 2, 0)
+        grid_ficha.addWidget(self.spn_coxa, 2, 1)
+        grid_ficha.addWidget(QLabel("Panturrilha:"), 2, 2)
+        grid_ficha.addWidget(self.spn_pant, 2, 3)
+        lay_ficha.addLayout(grid_ficha)
+        # saúde — QTextEdit para textos longos legíveis
+        self.txt_problemas = QTextEdit()
+        self.txt_problemas.setPlaceholderText("Problemas de saúde (ex: hipertensão, diabetes)")
+        self.txt_problemas.setMaximumHeight(60)
+        self.txt_restricoes = QTextEdit()
+        self.txt_restricoes.setPlaceholderText("Restrições / limitações (ex: joelho)")
+        self.txt_restricoes.setMaximumHeight(60)
+        self.txt_medicamentos = QTextEdit()
+        self.txt_medicamentos.setPlaceholderText("Medicamentos em uso")
+        self.txt_medicamentos.setMaximumHeight(60)
+        self.txt_contato = QLineEdit()
+        self.txt_contato.setPlaceholderText("Contato de emergência — nome e telefone")
+        lay_ficha.addWidget(QLabel("Problemas de saúde:"))
+        lay_ficha.addWidget(self.txt_problemas)
+        lay_ficha.addWidget(QLabel("Restrições:"))
+        lay_ficha.addWidget(self.txt_restricoes)
+        lay_ficha.addWidget(QLabel("Medicamentos:"))
+        lay_ficha.addWidget(self.txt_medicamentos)
+        lay_ficha.addWidget(QLabel("Contato de emergência:"))
+        lay_ficha.addWidget(self.txt_contato)
+        hficha = QHBoxLayout()
+        self.btn_ficha_nova = QPushButton("Nova avaliação")
+        self.btn_ficha_nova.setToolTip("Limpa o formulário para nova avaliação")
+        self.btn_ficha_salvar = QPushButton("Salvar ficha")
+        self.btn_ficha_salvar.setToolTip("Salva avaliação física + saúde")
+        self.btn_ficha_excluir = QToolButton()
+        self.btn_ficha_excluir.setToolTip("Excluir avaliação selecionada")
+        self.btn_ficha_excluir.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)
+        )
+        hficha.addWidget(self.btn_ficha_nova)
+        hficha.addWidget(self.btn_ficha_salvar)
+        hficha.addWidget(self.btn_ficha_excluir)
+        hficha.addStretch(1)
+        lay_ficha.addLayout(hficha)
+        tabs.addTab(tab_ficha, "Ficha")
+
         layout.addWidget(tabs, 1)
 
         # botão Liberar (extra, fora das abas)
@@ -502,9 +624,15 @@ class PerfilAlunoDialog(QDialog):
         self.tbl_mat.customContextMenuRequested.connect(self._menu_mat)
         self.tbl_pag.customContextMenuRequested.connect(self._menu_pag)
         self.tbl_pag.cellChanged.connect(self._vencimento_editado)
+        # ficha
+        self.btn_ficha_nova.clicked.connect(self._ficha_nova)
+        self.btn_ficha_salvar.clicked.connect(self._ficha_salvar)
+        self.btn_ficha_excluir.clicked.connect(self._ficha_excluir)
+        self.lst_ficha.itemClicked.connect(self._ficha_carregar)
         self._recarregar_pagamentos()
         self._recarregar_frequencia()
         self._recarregar_matriculas()
+        self._recarregar_ficha()
         if 0 <= aba_inicial < tabs.count():
             tabs.setCurrentIndex(aba_inicial)
 
@@ -877,6 +1005,165 @@ class PerfilAlunoDialog(QDialog):
             return
         self._recarregar_pagamentos()
 
+    # -- ficha (Fase 4.15) ----------------------------------------------------
+    def _recarregar_ficha(self) -> None:
+        if not hasattr(self, "lst_ficha"):
+            return
+        self.lst_ficha.clear()
+        self._ficha_cache = []
+        if self._ficha_vm is None:
+            return
+        try:
+            lst = self._ficha_vm.listar_por_aluno(self._aluno_id)  # type: ignore[attr-defined]
+        except Exception:
+            lst = []
+        self._ficha_cache = list(lst)
+        for ava in lst:
+            try:
+                txt = ava.resumo_fisico()  # type: ignore[attr-defined]
+            except Exception:
+                txt = f"{getattr(ava, 'data', '')} — {getattr(ava, 'id', '')}"
+            item = QListWidgetItem(txt)
+            item.setData(Qt.ItemDataRole.UserRole, getattr(ava, "id", None))
+            self.lst_ficha.addItem(item)
+
+    def _ficha_nova(self) -> None:
+        self._ficha_edit_id = None
+        try:
+            self.dat_ficha.setDate(QDate.currentDate())
+            for sp in (
+                self.spn_peso,
+                self.spn_altura,
+                self.spn_gordura,
+                self.spn_braco,
+                self.spn_peito,
+                self.spn_cintura,
+                self.spn_quadril,
+                self.spn_coxa,
+                self.spn_pant,
+            ):
+                sp.setValue(0)
+            self.txt_problemas.clear()
+            self.txt_restricoes.clear()
+            self.txt_medicamentos.clear()
+            self.txt_contato.clear()
+        except Exception:
+            pass
+
+    def _ficha_carregar(self, item: QListWidgetItem) -> None:
+        fid = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if not fid:
+            return
+        ava = None
+        for a in getattr(self, "_ficha_cache", []):
+            if getattr(a, "id", None) == fid:
+                ava = a
+                break
+        if ava is None and self._ficha_vm is not None:
+            try:
+                ava = self._ficha_vm.buscar(fid)  # type: ignore[attr-defined]
+            except Exception:
+                ava = None
+        if ava is None:
+            return
+        self._ficha_edit_id = fid
+        try:
+            d = getattr(ava, "data", None)
+            if isinstance(d, date):
+                self.dat_ficha.setDate(QDate(d.year, d.month, d.day))
+            for attr, sp in [
+                ("peso_kg", self.spn_peso),
+                ("altura_cm", self.spn_altura),
+                ("gordura_pct", self.spn_gordura),
+            ]:
+                v = getattr(ava, attr, None)
+                sp.setValue(float(v) if v is not None else 0)
+            medidas = getattr(ava, "medidas", {}) or {}
+            self.spn_braco.setValue(float(medidas.get("braco", 0) or 0))
+            self.spn_peito.setValue(float(medidas.get("peito", 0) or 0))
+            self.spn_cintura.setValue(float(medidas.get("cintura", 0) or 0))
+            self.spn_quadril.setValue(float(medidas.get("quadril", 0) or 0))
+            self.spn_coxa.setValue(float(medidas.get("coxa", 0) or 0))
+            self.spn_pant.setValue(float(medidas.get("panturrilha", 0) or 0))
+            self.txt_problemas.setPlainText(getattr(ava, "problemas_saude", "") or "")
+            self.txt_restricoes.setPlainText(getattr(ava, "restricoes", "") or "")
+            self.txt_medicamentos.setPlainText(getattr(ava, "medicamentos", "") or "")
+            self.txt_contato.setText(getattr(ava, "contato_emergencia", "") or "")
+        except Exception as e:
+            logger.warning(f"[Ficha] carregar falhou {e}")
+
+    def _ficha_salvar(self) -> None:
+        if self._ficha_vm is None:
+            QMessageBox.information(self, "Ficha", "Módulo de ficha indisponível.")
+            return
+        try:
+            qd = self.dat_ficha.date()
+            data = date(qd.year(), qd.month(), qd.day())
+            medidas = {}
+            if self.spn_braco.value() > 0:
+                medidas["braco"] = float(self.spn_braco.value())
+            if self.spn_peito.value() > 0:
+                medidas["peito"] = float(self.spn_peito.value())
+            if self.spn_cintura.value() > 0:
+                medidas["cintura"] = float(self.spn_cintura.value())
+            if self.spn_quadril.value() > 0:
+                medidas["quadril"] = float(self.spn_quadril.value())
+            if self.spn_coxa.value() > 0:
+                medidas["coxa"] = float(self.spn_coxa.value())
+            if self.spn_pant.value() > 0:
+                medidas["panturrilha"] = float(self.spn_pant.value())
+            peso = float(self.spn_peso.value()) if self.spn_peso.value() > 0 else None
+            altura = float(self.spn_altura.value()) if self.spn_altura.value() > 0 else None
+            gordura = float(self.spn_gordura.value()) if self.spn_gordura.value() > 0 else None
+            self._ficha_vm.salvar(  # type: ignore[attr-defined]
+                aluno_id=self._aluno_id,
+                data=data,
+                peso_kg=peso,
+                altura_cm=altura,
+                gordura_pct=gordura,
+                medidas=medidas,
+                problemas_saude=self.txt_problemas.toPlainText() or None,
+                restricoes=self.txt_restricoes.toPlainText() or None,
+                medicamentos=self.txt_medicamentos.toPlainText() or None,
+                contato_emergencia=self.txt_contato.text() or None,
+                avaliacao_id=self._ficha_edit_id,
+            )
+            self._ficha_edit_id = None
+            self._recarregar_ficha()
+            QMessageBox.information(self, "Ficha", "Ficha salva com sucesso.")
+        except ValueError as e:
+            QMessageBox.warning(self, "Ficha", str(e))
+        except Exception as e:
+            QMessageBox.warning(self, "Ficha", f"Erro ao salvar ficha: {e}")
+
+    def _ficha_excluir(self) -> None:
+        if self._ficha_vm is None:
+            return
+        item = self.lst_ficha.currentItem()
+        if item is None:
+            QMessageBox.information(self, "Ficha", "Selecione uma avaliação no histórico.")
+            return
+        fid = item.data(Qt.ItemDataRole.UserRole)
+        if not fid:
+            return
+        confirma = QMessageBox.question(
+            self,
+            "Excluir ficha",
+            "Excluir avaliação selecionada?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirma != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self._ficha_vm.remover(fid)  # type: ignore[attr-defined]
+        except Exception as e:
+            QMessageBox.warning(self, "Ficha", str(e))
+            return
+        if self._ficha_edit_id == fid:
+            self._ficha_edit_id = None
+            self._ficha_nova()
+        self._recarregar_ficha()
+
     def _salvar(self) -> None:
         from gymflux.ui.formatters import parse_br
 
@@ -900,7 +1187,11 @@ class PerfilAlunoDialog(QDialog):
         foto_atual = getattr(aluno_atual, "foto", None) if aluno_atual else None
         if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
             # se já é o caminho definitivo, mantém
-            if foto_atual and Path(foto_src).resolve() == Path(foto_atual).resolve() if Path(foto_atual).exists() else False:  # type: ignore[arg-type]  # noqa: E501
+            if (
+                foto_atual and Path(foto_src).resolve() == Path(foto_atual).resolve()  # type: ignore[arg-type]
+                if Path(foto_atual).exists()  # type: ignore[arg-type]
+                else False
+            ):
                 foto_final = foto_atual
             else:
                 try:
@@ -983,12 +1274,14 @@ class AlunosView(QWidget):
         parent: QWidget | None = None,
         frequencia_vm: FrequenciaViewModel | None = None,
         dashboard_vm: object | None = None,
+        ficha_vm: object | None = None,
     ) -> None:
         super().__init__(parent)
         self.vm = vm
         self.pagamentos_vm = pagamentos_vm
         self.frequencia_vm = frequencia_vm
         self.dashboard_vm = dashboard_vm
+        self.ficha_vm = ficha_vm
         layout = QVBoxLayout(self)
 
         hbusca = QHBoxLayout()
@@ -1225,12 +1518,9 @@ class AlunosView(QWidget):
             )
         # textos
         self.lbl_detalhes_nome.setStyleSheet(
-            f"font-weight: bold; font-size: 14px; color: {paleta.texto};"
-            " background: transparent;"
+            f"font-weight: bold; font-size: 14px; color: {paleta.texto}; background: transparent;"
         )
-        self.lbl_detalhes_info.setStyleSheet(
-            f"color: {paleta.suave}; background: transparent;"
-        )
+        self.lbl_detalhes_info.setStyleSheet(f"color: {paleta.suave}; background: transparent;")
         # foto no form (se existir)
         with contextlib.suppress(Exception):
             if hasattr(self, "form") and hasattr(self.form, "lbl_foto"):
@@ -1399,6 +1689,7 @@ class AlunosView(QWidget):
                 frequencia_vm=self.frequencia_vm,
                 dashboard_vm=self.dashboard_vm,
                 aba_inicial=aba_inicial,
+                ficha_vm=getattr(self, "ficha_vm", None),
             )
         except ValueError as e:
             QMessageBox.warning(self, "Alunos", str(e))
@@ -1456,7 +1747,19 @@ class AlunosView(QWidget):
 
                     shutil.copy2(foto_src, dst)
                     # atualiza com caminho definitivo
-                    self.vm.atualizar(aluno.id, nome=aluno.nome, cpf=aluno.cpf, data_nasc=nasc, telefone=aluno.telefone, email=aluno.email, observacoes=aluno.observacoes, endereco=aluno.endereco, senha=d["senha"], status=aluno.status, foto=str(dst))  # noqa: E501
+                    self.vm.atualizar(
+                        aluno.id,
+                        nome=aluno.nome,
+                        cpf=aluno.cpf,
+                        data_nasc=nasc,
+                        telefone=aluno.telefone,
+                        email=aluno.email,
+                        observacoes=aluno.observacoes,
+                        endereco=aluno.endereco,
+                        senha=d["senha"],
+                        status=aluno.status,
+                        foto=str(dst),
+                    )
                 except Exception as e:
                     logger.warning(f"[UI] falha ao copiar foto {e}")
         except ValueError as e:

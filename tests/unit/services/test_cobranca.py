@@ -49,15 +49,14 @@ def _aluno(aluno_id: str = "al-1") -> Aluno:
 
 def _mat(aluno_id: str = "al-1", inicio: date = date(2026, 9, 1)) -> Matricula:
     plano = Plano.criar_mensal()
-    return Matricula(
-        aluno_id=aluno_id, plano=plano, vigencia=Vigencia(inicio, date(2026, 12, 31))
-    )
+    return Matricula(aluno_id=aluno_id, plano=plano, vigencia=Vigencia(inicio, date(2026, 12, 31)))
 
 
 def test_gera_pendente_quando_mes_atual_sem_pagamento() -> None:
     ref = date(2026, 9, 14)
     alunos = _Alunos([_aluno()])
-    mats = _Mats([_mat(inicio=date(2026, 9, 1))])
+    # matrícula dia 10 → vencimento ancorado dia 10
+    mats = _Mats([_mat(inicio=date(2026, 9, 10))])
     pags = _Pags(
         [
             Pagamento(
@@ -76,6 +75,7 @@ def test_gera_pendente_quando_mes_atual_sem_pagamento() -> None:
     assert len(novos) == 1
     assert novos[0].data_pagamento is None
     assert novos[0].valor == Decimal("99.90")
+    assert novos[0].data_vencimento == date(2026, 9, 10)
 
 
 def test_nao_duplica_quando_ja_tem_competencia() -> None:
@@ -141,8 +141,9 @@ def test_trimestral_so_gera_a_cada_90d() -> None:
     ref_out = date(2026, 10, 14)
     ref_dez = date(2026, 12, 20)
     plano_tri = Plano.criar_trimestral()
+    # dia 10 ancorado → venc Out/Dez dia 10
     mat_tri = Matricula(
-        aluno_id="al-1", plano=plano_tri, vigencia=Vigencia(date(2026, 9, 1), date(2026, 12, 31))
+        aluno_id="al-1", plano=plano_tri, vigencia=Vigencia(date(2026, 9, 10), date(2026, 12, 31))
     )
     # último venc em Set
     pag_set = Pagamento(
@@ -180,7 +181,7 @@ def test_matricula_nao_gera_se_ja_tem_competencia() -> None:
 
 
 def test_mensal_gera_no_mes_seguinte_se_vencido() -> None:
-    # mensal pago em Ago, sem pagamento de Set → deve gerar Set
+    # mensal pago em Ago (dia 10), sem pagamento de Set → deve gerar Set dia 10
     ref = date(2026, 9, 14)
     pag_ago = Pagamento(
         id="pag-ago",
@@ -191,7 +192,7 @@ def test_mensal_gera_no_mes_seguinte_se_vencido() -> None:
         competencia="2026-08",
     )
     alunos = _Alunos([_aluno()])
-    mats = _Mats([_mat(inicio=date(2026, 9, 1))])
+    mats = _Mats([_mat(inicio=date(2026, 9, 10))])
     pags = _Pags([pag_ago])
     assert aplicar_cobranca_mensal(alunos, mats, pags, ref=ref) == 1
-    assert any(p.competencia == "2026-09" for p in pags.listar())
+    assert any(p.competencia == "2026-09" and p.data_vencimento.day == 10 for p in pags.listar())

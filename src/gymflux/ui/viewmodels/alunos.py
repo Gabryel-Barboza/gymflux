@@ -299,7 +299,8 @@ class AlunosViewModel:
             )
             if mes == comp:
                 return
-        venc = date(inicio.year, inicio.month, 10)
+        # Fase 4.15: vencimento = data de início (ancorado na matrícula)
+        venc = inicio
         novo = Pagamento(
             id=f"pag-{uuid.uuid4().hex[:8]}",
             aluno_id=aluno_id,

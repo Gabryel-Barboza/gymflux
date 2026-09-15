@@ -62,6 +62,7 @@ class AppContext:
     frequencia_vm: FrequenciaViewModel
     config_vm: ConfigViewModel
     config_store: ConfigStore
+    ficha_vm: Any | None = None
     session: Session | None = None
     commit: Callable[[], None] | None = None
 
@@ -117,6 +118,9 @@ def create_context(use_db: bool = True) -> AppContext:
             from gymflux.infra.db import get_session
             from gymflux.infra.repositories.acesso_log import AcessoLogRepositorySQLAlchemy
             from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+            from gymflux.infra.repositories.avaliacao_fisica import (
+                AvaliacaoFisicaRepositorySQLAlchemy,
+            )
             from gymflux.infra.repositories.fechamento_caixa import (
                 FechamentoCaixaRepositorySQLAlchemy,
             )
@@ -135,6 +139,7 @@ def create_context(use_db: bool = True) -> AppContext:
             acesso_repo: Any = AcessoLogRepositorySQLAlchemy(session)
             fech_repo: Any = FechamentoCaixaRepositorySQLAlchemy(session)
             func_repo: Any = FuncionarioRepositorySQLAlchemy(session)
+            ficha_repo: Any = AvaliacaoFisicaRepositorySQLAlchemy(session)
             commit = _safe_commit(session)
             logger.info("[UI] contexto com SQLite")
             return _wire(
@@ -146,6 +151,7 @@ def create_context(use_db: bool = True) -> AppContext:
                 acesso_repo,
                 fech_repo,
                 func_repo,
+                ficha_repo,
                 ui_config=ui_config,
                 config_store=config_store,
                 session=session,
@@ -155,6 +161,7 @@ def create_context(use_db: bool = True) -> AppContext:
             logger.warning(f"[UI] DB indisponível ({e}) — fallback memória")
 
     from gymflux.infra.repositories.acesso_log import AcessoLogRepositoryMemoria
+    from gymflux.infra.repositories.avaliacao_fisica import AvaliacaoFisicaRepositoryMemoria
     from gymflux.infra.repositories.fechamento_caixa import FechamentoCaixaRepositoryMemoria
     from gymflux.infra.repositories.funcionario import FuncionarioRepositoryMemoria
     from gymflux.infra.repositories.matricula import MatriculaRepositoryMemoria
@@ -172,6 +179,7 @@ def create_context(use_db: bool = True) -> AppContext:
         AcessoLogRepositoryMemoria(),
         FechamentoCaixaRepositoryMemoria(),
         FuncionarioRepositoryMemoria(),
+        AvaliacaoFisicaRepositoryMemoria(),
         ui_config=ui_config,
         config_store=config_store,
     )
@@ -186,6 +194,7 @@ def _wire(
     acesso_repo: Any,
     fech_repo: Any,
     func_repo: Any,
+    ficha_repo: Any | None = None,
     ui_config: UiConfig | None = None,
     config_store: ConfigStore | None = None,
     session: Session | None = None,
@@ -231,6 +240,15 @@ def _wire(
         ui_config=cfg,
         funcionario_repo=func_repo,
     )
+    # Ficha (Fase 4.15)
+    try:
+        from gymflux.ui.viewmodels.ficha import FichaViewModel
+
+        ficha_vm = (
+            FichaViewModel(repo=ficha_repo, commit=commit) if ficha_repo is not None else None
+        )  # type: ignore[arg-type]
+    except Exception:
+        ficha_vm = None
 
     # Cobrança recorrente: gera pendências do mês atual ANTES da inatividade
     # (otimizado, nunca aborta). Ordem importa: aluno sem pagamento não pode
@@ -319,12 +337,11 @@ def _wire(
         ),
         planos_vm=PlanosViewModel(repo=plano_repo, commit=commit),
         caixa_vm=caixa_vm,
-        funcionarios_vm=FuncionariosViewModel(
-            repo=func_repo, commit=commit, aluno_repo=aluno_repo
-        ),
+        funcionarios_vm=FuncionariosViewModel(repo=func_repo, commit=commit, aluno_repo=aluno_repo),
         frequencia_vm=frequencia_vm,
         config_vm=config_vm,
         config_store=store,
+        ficha_vm=ficha_vm,  # type: ignore[assignment]
         session=session,
         commit=commit,
     )
@@ -378,10 +395,33 @@ class GymFluxMainWindow(QMainWindow):
             ctx.caixa_vm,
             frequencia_vm=ctx.frequencia_vm,
             dashboard_vm=ctx.dashboard_vm,
+            ficha_vm=getattr(ctx, "ficha_vm", None),
         )
         tabs.addTab(self.alunos_view, self._base_icons[1], "Alunos")
         tabs.addTab(PlanosView(ctx.planos_vm), self._base_icons[2], "Planos")
         self.caixa_view = CaixaView(ctx.caixa_vm)
+        # Fase 4.15: vencimento ancorado na matrícula para NovoPagamentoDialog
+        try:
+            from datetime import date as _date_caixa
+
+            def _dia_base_caixa(aluno_id: str) -> int | None:  # type: ignore[no-untyped-def]
+                try:
+                    mats = ctx.alunos_vm.matriculas_do_aluno(aluno_id)
+                    # prefere vigente, senão qualquer ativa
+                    cand_vig = [
+                        m for m in mats if m.ativa and m.vigencia.contem(_date_caixa.today())
+                    ]
+                    cands = cand_vig if cand_vig else [m for m in mats if m.ativa]
+                    if not cands:
+                        return None
+                    mat = max(cands, key=lambda m: m.vigencia.inicio)
+                    return int(mat.vigencia.inicio.day)
+                except Exception:
+                    return None
+
+            self.caixa_view._dia_base_provider = _dia_base_caixa  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self.caixa_view.aluno_perfil_solicitado.connect(self._abrir_perfil_pagamentos)
         tabs.addTab(self.caixa_view, self._base_icons[3], "Caixa")
         self.funcionarios_view = FuncionariosView(ctx.funcionarios_vm)
@@ -477,9 +517,7 @@ class GymFluxMainWindow(QMainWindow):
             return
         try:
             if self.tray is not None and self.tray.isVisible():
-                self.tray.showMessage(
-                    titulo, msg, QSystemTrayIcon.MessageIcon.Information, 3000
-                )
+                self.tray.showMessage(titulo, msg, QSystemTrayIcon.MessageIcon.Information, 3000)
         except Exception:
             pass
 
@@ -611,9 +649,11 @@ def run(argv: list[str] | None = None) -> int:
     # não deixar ícone órfão na bandeja
     with contextlib.suppress(Exception):
         app.aboutToQuit.connect(
-            lambda: win.tray.hide()  # type: ignore[union-attr]
-            if getattr(win, "tray", None) is not None
-            else None
+            lambda: (
+                win.tray.hide()  # type: ignore[union-attr]
+                if getattr(win, "tray", None) is not None
+                else None
+            )
         )
     win.show()
     return app.exec()
