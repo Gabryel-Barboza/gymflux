@@ -164,9 +164,7 @@ class NovoFuncionarioDialog(QDialog):
         self.lbl_foto.setPixmap(cropped)
         self._aplicar_tema_foto(True)
 
-    def preencher(
-        self, nome: str, horarios: str | None = None, dias: str | None = None
-    ) -> None:
+    def preencher(self, nome: str, horarios: str | None = None, dias: str | None = None) -> None:
         self.edt_nome.setText(nome)
         self.edt_senha.clear()
         self.edt_senha.setPlaceholderText("")
@@ -365,26 +363,33 @@ class PerfilFuncionarioDialog(QDialog):
         foto_final = None
         func_atual = self._vm.buscar(self._func_id)
         foto_atual = getattr(func_atual, "foto", None) if func_atual else None
-        if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
-            if foto_atual and Path(foto_src).resolve() == Path(foto_atual).resolve() if Path(foto_atual).exists() else False:  # type: ignore[arg-type]  # noqa: E501
-                foto_final = foto_atual
+        foto_src_str = str(foto_src).strip() if foto_src else ""
+        foto_atual_str = str(foto_atual).strip() if foto_atual else ""
+        if foto_src_str and Path(foto_src_str).exists():
+            is_same = False
+            try:
+                if foto_atual_str and Path(foto_atual_str).exists():
+                    is_same = Path(foto_src_str).resolve() == Path(foto_atual_str).resolve()
+            except Exception:
+                is_same = False
+            if is_same:
+                foto_final = foto_atual_str
             else:
                 try:
                     dst_dir = Path("data/fotos/funcionarios")
                     dst_dir.mkdir(parents=True, exist_ok=True)
-                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                    ext = Path(foto_src_str).suffix or ".jpg"
                     dst = dst_dir / f"{self._func_id}{ext}"
                     import shutil
 
-                    shutil.copy2(foto_src, dst)
+                    shutil.copy2(foto_src_str, dst)
                     foto_final = str(dst)
                 except Exception:
-                    foto_final = foto_src
-        elif foto_src is None and foto_atual:
-            # remover foto
+                    foto_final = foto_src_str
+        elif not foto_src_str and foto_atual_str:
             foto_final = None
         else:
-            foto_final = foto_atual
+            foto_final = foto_atual_str or None
         try:
             self._vm.atualizar(
                 self._func_id,
@@ -561,12 +566,9 @@ class FuncionariosView(QWidget):
                 f" background-color: {foto_bg}; }}"
             )
         self.lbl_detalhes_nome.setStyleSheet(
-            f"font-weight: bold; font-size: 14px; color: {paleta.texto};"
-            " background: transparent;"
+            f"font-weight: bold; font-size: 14px; color: {paleta.texto}; background: transparent;"
         )
-        self.lbl_detalhes_info.setStyleSheet(
-            f"color: {paleta.suave}; background: transparent;"
-        )
+        self.lbl_detalhes_info.setStyleSheet(f"color: {paleta.suave}; background: transparent;")
 
     def sincronizar_tema(self, tema) -> None:
         self._aplicar_tema_detalhes(tema)
@@ -605,7 +607,14 @@ class FuncionariosView(QWidget):
                     import shutil
 
                     shutil.copy2(foto_src, dst)
-                    self.vm.atualizar(func.id, nome=func.nome, senha="", horarios=func.horarios, dias=func.dias, foto=str(dst))  # noqa: E501
+                    self.vm.atualizar(
+                        func.id,
+                        nome=func.nome,
+                        senha="",
+                        horarios=func.horarios,
+                        dias=func.dias,
+                        foto=str(dst),
+                    )
                 except Exception:
                     pass
         except ValueError as e:

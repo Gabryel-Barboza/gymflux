@@ -1224,37 +1224,55 @@ class PerfilAlunoDialog(QDialog):
         except ValueError:
             QMessageBox.warning(self, "Perfil", "Status inválido.")
             return
-        foto_src = d.get("foto", "")
+        foto_src = d.get("foto", "") or ""
         foto_final = None
-        # foto pode ser caminho original ou vazio (remover) ou já definitiva
         aluno_atual = self._vm.alunos.buscar(self._aluno_id)
         foto_atual = getattr(aluno_atual, "foto", None) if aluno_atual else None
-        if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
-            # se já é o caminho definitivo, mantém
-            if (
-                foto_atual and Path(foto_src).resolve() == Path(foto_atual).resolve()  # type: ignore[arg-type]
-                if Path(foto_atual).exists()  # type: ignore[arg-type]
-                else False
-            ):
-                foto_final = foto_atual
-            else:
-                try:
-                    dst_dir = Path("data/fotos/alunos")
-                    dst_dir.mkdir(parents=True, exist_ok=True)
-                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
-                    dst = dst_dir / f"{self._aluno_id}{ext}"
-                    import shutil
+        # normaliza: None → "" para evitar Path(None)
+        foto_src_str = str(foto_src).strip() if foto_src else ""
+        foto_atual_str = str(foto_atual).strip() if foto_atual else ""
+        if foto_src_str and Path(foto_src_str).exists():
+            # se já é o caminho definitivo, mantém (compara resolve com segurança)
+            try:
+                is_same = False
+                if foto_atual_str and Path(foto_atual_str).exists():
+                    is_same = Path(foto_src_str).resolve() == Path(foto_atual_str).resolve()
+                if is_same:
+                    foto_final = foto_atual_str
+                else:
+                    raise ValueError("copiar")
+            except Exception as e:
+                if isinstance(e, ValueError) and str(e) == "copiar":
+                    try:
+                        dst_dir = Path("data/fotos/alunos")
+                        dst_dir.mkdir(parents=True, exist_ok=True)
+                        ext = Path(foto_src_str).suffix or ".jpg"
+                        dst = dst_dir / f"{self._aluno_id}{ext}"
+                        import shutil
 
-                    shutil.copy2(foto_src, dst)
-                    foto_final = str(dst)
-                except Exception as e:
-                    logger.warning(f"[UI] falha ao copiar foto {e}")
-                    foto_final = foto_src
-        elif not foto_src:
-            # remover foto se campo vazio e antes tinha
+                        shutil.copy2(foto_src_str, dst)
+                        foto_final = str(dst)
+                    except Exception as e2:
+                        logger.warning(f"[UI] falha ao copiar foto {e2}")
+                        foto_final = foto_src_str
+                else:
+                    # fallback copiar
+                    try:
+                        dst_dir = Path("data/fotos/alunos")
+                        dst_dir.mkdir(parents=True, exist_ok=True)
+                        ext = Path(foto_src_str).suffix or ".jpg"
+                        dst = dst_dir / f"{self._aluno_id}{ext}"
+                        import shutil
+
+                        shutil.copy2(foto_src_str, dst)
+                        foto_final = str(dst)
+                    except Exception as e2:
+                        logger.warning(f"[UI] falha ao copiar foto {e2}")
+                        foto_final = foto_src_str
+        elif not foto_src_str:
             foto_final = None
         else:
-            foto_final = foto_atual
+            foto_final = foto_atual_str or None
         try:
             self._vm.atualizar(
                 self._aluno_id,
@@ -1755,17 +1773,17 @@ class AlunosView(QWidget):
             except ValueError:
                 QMessageBox.warning(self, "Alunos", "Nascimento inválido (use DD/MM/AAAA).")
                 return
-        foto_src = d.get("foto", "")
+        foto_src = d.get("foto", "") or ""
+        foto_src_str = str(foto_src).strip()
         foto_dst = None
-        if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+        if foto_src_str and Path(foto_src_str).exists():
             try:
                 dst_dir = Path("data/fotos/alunos")
                 dst_dir.mkdir(parents=True, exist_ok=True)
-                ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
-                # id ainda não existe, usa temp; após cadastrar copia
-                foto_dst = foto_src
+                ext = Path(foto_src_str).suffix or ".jpg"
+                foto_dst = foto_src_str
             except Exception:
-                foto_dst = foto_src
+                foto_dst = foto_src_str
         obrig = _obrigatorios_atual()
         try:
             aluno = self.vm.cadastrar(
@@ -1781,15 +1799,15 @@ class AlunosView(QWidget):
                 obrigatorios=obrig,
             )
             # se foto selecionada, copia para pasta definitiva com id
-            if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
+            if foto_src_str and Path(foto_src_str).exists():
                 try:
                     dst_dir = Path("data/fotos/alunos")
                     dst_dir.mkdir(parents=True, exist_ok=True)
-                    ext = Path(foto_src).suffix or ".jpg"  # type: ignore[arg-type]
+                    ext = Path(foto_src_str).suffix or ".jpg"
                     dst = dst_dir / f"{aluno.id}{ext}"
                     import shutil
 
-                    shutil.copy2(foto_src, dst)
+                    shutil.copy2(foto_src_str, dst)
                     # atualiza com caminho definitivo
                     self.vm.atualizar(
                         aluno.id,
