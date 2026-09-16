@@ -179,7 +179,7 @@ src/gymflux/       # único
 - [x] Dump PowerShell colado em `docs/DLL_CONTRACT.md:30` (100+ métodos COM).
 - [x] Licença: **Apache-2.0** aceito.
 - [x] Nome: **GymFlux** v1 puro (sem GMS).
-- [ ] Modelo catraca exato? (7x / 7x Plus / Biométrica — confirmar p/ Fase 3).
+- [x] Modelo catraca: **Henry 7x padrão** (dono 2026-09-15, serial sem biométrica acoplada) — commissioning Fase 3 usa valores `csg*`/relé do 7x padrão.
 - [x] Fase 4.1 aplicada (commit no dashboard + nome no log).
 - [x] Fase 4.4 (feedback dono 2026-09-12) ✅: aba Configurações + dashboard enxuto (ver §4).
 - [x] Fase 4.5 (feedback dono 2026-09-12) ✅: perfil editável + Caixa + Planos cards + Funcionários (ver §4).
@@ -187,7 +187,7 @@ src/gymflux/       # único
 - [x] Fase 4.6 (feedback dono 2026-09-12) ✅: click-perfil, log do dia, Frequência global/do aluno, legados de pagamentos removidos (ver §4).
 - [x] Fase 4.6 original (feedback dono) ✅ concluída — ver linha acima; `test_pagamentos_situacao_rb01` saiu com o `PagamentosViewModel` (RB01 segue em `tests/core`).
 - [x] Bandeja ao fechar ✅ (gerente 2026-09-15): `closeEvent` minimiza p/ tray (ícone+menu Abrir/Sair, balão "catraca ativa", `desconectar` só no Sair real); `tests/integration/ui/test_tray.py` verde. Resta (pós-MVP): gateway pagamento (Pix recorrente — falta escolher provedor).
-- [ ] Biometria (dono 2026-09-15): sensor ligado via USB direto no PC → caminho B (SDK Suprema `NBioBSP`/`UFScanner`, match no PC, templates no SQLite). Adiado p/ junto do commissioning Fase 3.
+- [ ] Biometria (dono 2026-09-15): sensor USB direto no PC → caminho B (SDK Suprema `NBioBSP`/`UFScanner`, match no PC, templates no SQLite). Adiado p/ commissioning Fase 3 (dono sem acesso à VM no momento).
 - [ ] Futuro: app multi-catracas Henry7x (TCP/IP, USB, multi-unidades) — arquitetura `Henry7xDriver` por equipamento já prevê.
 - [x] Fase 4.14 (feedback dono 2026-09-15) ✅: campos obrigatórios do cadastro configuráveis na tela Configurações (só essenciais; asterisco dinâmico + validação).
 - [x] Fase 4.7 (feedback dono 2026-09-12) ✅: modo claro + alternância de tema sem restart (ver §4).
@@ -196,9 +196,9 @@ src/gymflux/       # único
 - [x] `cartao_id` duplicado: moot — cartão removido na Fase 4.8 (decisão dono 2026-09-12).
 - [x] Fase 4.8 (feedback dono 2026-09-12) ✅: senha visível no perfil, sem cartão, inatividade 90d (ver §4).
 - [x] Fase 4.9 (feedback dono 2026-09-12) ✅: catraca (status+modal detalhes, toast 4s, log vermelho, CPF/senha + Liberar único, sem Bloquear), alunos (2 botões + contexto, header filtra, perfil em abas + Liberar), modais/planos em grade, caixa (sidebar + stats + combo pesquisável + vencimento só no perfil), config em categorias (LIVRE vs SENHA por direção, default entrada SENHA/saída LIVRE).
-- [ ] Importação SCA: **adiada pelo dono** (retomar quando enviar `.bak`/dump; só há `henry.fdb` demo Henry 2011 no repo).
+- [ ] Importação SCA: **adiada pelo dono** (2026-09-15: sem dump; só há `henry.fdb` demo Henry 2011 no repo).
 - [x] Identidade visual aprovada: azul `#5AC8FA` + preto `#0F1113` + lima suave `#A3D65C` — aplicar como tema QSS na Fase 4.2.
-- [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*`, convenção relé 1=entrada/2=saída).
+- [ ] VM Windows 32-bit: `dump_henry_typelib` + checklist `docs/DLL_CONTRACT.md` §4.1 (layout exato `SComConfig`/`SAcionaCtrl`, valores `csg*` do 7x padrão, convenção relé 1=entrada/2=saída). Dono sem acesso no momento (2026-09-15) — Fase 3/biometria seguem no mock.
 - [x] Fase 4.16 (dono 2026-09-15) ✅: caixa fluido em 7k+ (medido ~2s→53ms/refresh, auditoria gerente) → pushdown SQL + refresh único; horários de funcionário em turnos (manhã/tarde) com boa legibilidade (ver §4).
 - [ ] Nota: `docs/` e `vendor/` são 100% gitignored — atualizações do contrato (§3/§4) e `dumps/` vivem só localmente, não sobem no commit.
 - [x] Correções Fase 2.1 aplicadas (2026-09-11: mypy override, teste duplicado, session_scope, campos não persistidos).
