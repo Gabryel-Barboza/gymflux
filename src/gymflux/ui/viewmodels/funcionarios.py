@@ -60,6 +60,20 @@ class FuncionariosViewModel:
     def buscar(self, funcionario_id: str) -> Funcionario | None:
         return self.repo.buscar_por_id(funcionario_id)
 
+    def _norm_horarios(self, horarios: str | None) -> str | None:
+        if horarios is None:
+            return None
+        txt = horarios.strip()
+        if not txt:
+            return None
+        from gymflux.core.funcionario import format_turnos, parse_turnos
+
+        try:
+            turnos = parse_turnos(txt)
+            return format_turnos(turnos)
+        except ValueError as e:
+            raise ValueError(str(e)) from e
+
     def cadastrar(
         self,
         *,
@@ -73,10 +87,11 @@ class FuncionariosViewModel:
             raise ValueError("Nome não pode ser vazio.")
         if senha and senha.strip() and self._senha_duplicada(senha):
             raise ValueError("Senha já cadastrada para outro aluno ou funcionário.")
+        horarios_norm = self._norm_horarios(horarios)
         func = Funcionario(
             id=f"func-{uuid.uuid4().hex[:8]}",
             nome=nome.strip(),
-            horarios=(horarios.strip() or None) if horarios else None,
+            horarios=horarios_norm,
             dias=(dias.strip() or None) if dias else None,
             foto=(foto.strip() or None) if foto else None,
         )
@@ -106,7 +121,7 @@ class FuncionariosViewModel:
                 raise ValueError("Senha já cadastrada para outro aluno ou funcionário.")
             func.definir_senha(senha)  # vazia mantém o hash atual
         if horarios is not None:
-            func.horarios = horarios.strip() or None
+            func.horarios = self._norm_horarios(horarios)
         if dias is not None:
             func.dias = dias.strip() or None
         if foto is not None:

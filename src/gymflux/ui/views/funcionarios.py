@@ -1,12 +1,13 @@
-"""Tela de funcionários — tabela + duplo-clique + edição completa (replica alunos)."""
+"""Tela de funcionários — tabela + duplo-clique + edição completa (turnos)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtCore import QPoint, QSize, Qt, QTime
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -20,12 +21,143 @@ from PySide6.QtWidgets import (
     QStyle,
     QTableWidget,
     QTableWidgetItem,
+    QTimeEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from gymflux.core.funcionario import format_turnos_compacto, parse_turnos_tolerante
 from gymflux.ui.viewmodels.funcionarios import FuncionariosViewModel
+
+_DIAS_PRESETS = ["Seg-Sex", "Sáb", "Dom", "Seg-Sáb", "Todos", "Personalizado"]
+_PRESET_MAP = {
+    "Seg-Sex": "Seg-Sex",
+    "Sáb": "Sáb",
+    "Dom": "Dom",
+    "Seg-Sáb": "Seg-Sáb",
+    "Todos": "Seg-Dom",
+}
+
+
+def _horarios_text_from_rows(rows: list[dict]) -> str | None:
+    if not rows:
+        return None
+    turnos = []
+    for r in rows:
+        cmb: QComboBox = r["cmb"]
+        edt_custom: QLineEdit = r["edt_custom"]
+        t_ini: QTimeEdit = r["t_ini"]
+        t_fim: QTimeEdit = r["t_fim"]
+        dias_raw = cmb.currentText().strip()
+        if dias_raw == "Personalizado":
+            dias_raw = edt_custom.text().strip()
+            if not dias_raw:
+                continue
+        else:
+            dias_raw = _PRESET_MAP.get(dias_raw, dias_raw)
+        ini = t_ini.time().toString("HH:mm")
+        fim = t_fim.time().toString("HH:mm")
+        # skip empty?
+        if not dias_raw:
+            continue
+        turnos.append(f"{dias_raw} {ini}-{fim}")
+    if not turnos:
+        return None
+    txt = "; ".join(turnos)
+    # valida/normaliza via VM helpers (will raise if inválido)
+    from gymflux.core.funcionario import format_turnos, parse_turnos
+
+    try:
+        parsed = parse_turnos(txt)
+        return format_turnos(parsed)
+    except ValueError:
+        # deixa VM levantar mensagem amigável depois
+        return txt
+
+
+def _create_turno_row(
+    parent: QWidget,
+    dias: str = "Seg-Sex",
+    inicio: str = "08:00",
+    fim: str = "18:00",
+) -> dict:
+    row_widget = QWidget(parent)
+    lay = QHBoxLayout(row_widget)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(6)
+    cmb = QComboBox(row_widget)
+    cmb.addItems(_DIAS_PRESETS)
+    edt_custom = QLineEdit(row_widget)
+    edt_custom.setPlaceholderText("Seg, Qua ...")
+    edt_custom.setVisible(False)
+    edt_custom.setMaximumWidth(110)
+    # seleciona preset ou personalizado
+    if dias in _PRESET_MAP.values() or dias in _PRESET_MAP:
+        # tenta achar preset que mapeia para dias
+        inv = {v: k for k, v in _PRESET_MAP.items()}
+        preset = inv.get(dias, dias)
+        if preset in _DIAS_PRESETS:
+            cmb.setCurrentText(preset)
+        else:
+            cmb.setCurrentText(dias if dias in _DIAS_PRESETS else "Seg-Sex")
+    else:
+        # verifica se dias é um dos presets
+        if dias in _DIAS_PRESETS:
+            cmb.setCurrentText(dias)
+        else:
+            cmb.setCurrentText("Personalizado")
+            edt_custom.setText(dias)
+            edt_custom.setVisible(True)
+    # mapeia Horário preset "Todos" etc
+    if dias == "Seg-Dom":
+        cmb.setCurrentText("Todos")
+
+    def _on_preset_changed(txt: str) -> None:
+        edt_custom.setVisible(txt == "Personalizado")
+
+    cmb.currentTextChanged.connect(_on_preset_changed)
+
+    t_ini = QTimeEdit(row_widget)
+    t_ini.setDisplayFormat("HH:mm")
+    try:
+        h, m = inicio.split(":")
+        t_ini.setTime(QTime(int(h), int(m)))
+    except Exception:
+        t_ini.setTime(QTime(8, 0))
+    t_fim = QTimeEdit(row_widget)
+    t_fim.setDisplayFormat("HH:mm")
+    try:
+        h, m = fim.split(":")
+        t_fim.setTime(QTime(int(h), int(m)))
+    except Exception:
+        t_fim.setTime(QTime(18, 0))
+
+    lay.addWidget(cmb)
+    lay.addWidget(edt_custom)
+    lay.addWidget(t_ini)
+    lay.addWidget(QLabel("—", row_widget))
+    lay.addWidget(t_fim)
+
+    btn_add = QPushButton("+", row_widget)
+    btn_add.setMaximumWidth(28)
+    btn_add.setToolTip("Adicionar turno")
+    btn_remove = QPushButton("−", row_widget)
+    btn_remove.setMaximumWidth(28)
+    btn_remove.setToolTip("Remover turno")
+    lay.addWidget(btn_add)
+    lay.addWidget(btn_remove)
+
+    return {
+        "widget": row_widget,
+        "cmb": cmb,
+        "edt_custom": edt_custom,
+        "t_ini": t_ini,
+        "t_fim": t_fim,
+        "btn_add": btn_add,
+        "btn_remove": btn_remove,
+        "layout": lay,
+    }
 
 
 class NovoFuncionarioDialog(QDialog):
@@ -36,13 +168,8 @@ class NovoFuncionarioDialog(QDialog):
         form = QFormLayout()
         self.edt_nome = QLineEdit()
         self.edt_senha = QLineEdit()
-        # senha visível (texto claro) como no perfil aluno — estilo catraca
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("4 a 8 dígitos")
-        self.edt_horarios = QLineEdit()
-        self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")
-        self.edt_dias = QLineEdit()
-        self.edt_dias.setPlaceholderText("Ex.: Seg-Sex (opcional)")
         # senha com botão ver
         h_senha = QHBoxLayout()
         h_senha.addWidget(self.edt_senha, 1)
@@ -55,21 +182,36 @@ class NovoFuncionarioDialog(QDialog):
                 QLineEdit.EchoMode.Normal if c else QLineEdit.EchoMode.Password
             )
         )
-        # começa visível como nos alunos (Normal)
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.btn_ver_senha.setChecked(True)
         h_senha.addWidget(self.btn_ver_senha)
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica*:", h_senha)
-        form.addRow("Horários:", self.edt_horarios)
-        form.addRow("Dias:", self.edt_dias)
+
+        # editor de turnos
+        form.addRow(QLabel("Turnos ( Dias + Horário ):"))
+        self._turnos_container = QWidget()
+        self._turnos_layout = QVBoxLayout(self._turnos_container)
+        self._turnos_layout.setContentsMargins(0, 0, 0, 0)
+        self._turnos_layout.setSpacing(4)
+        self._turnos_rows: list[dict] = []
+        # uma linha inicial
+        self._add_turno_row()
+        form.addRow(self._turnos_container)
+        # botão adicionar geral
+        self.btn_add_turno = QPushButton("Adicionar turno")
+        self.btn_add_turno.clicked.connect(lambda: self._add_turno_row())
+        form.addRow(self.btn_add_turno)
+
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         form.addRow(botoes)
-        root.addLayout(form, 1)
+        left = QWidget()
+        left.setLayout(form)
+        root.addWidget(left, 1)
         # foto quadrada à direita
         foto_wrap = QVBoxLayout()
         foto_wrap.setContentsMargins(0, 0, 0, 0)
@@ -88,6 +230,73 @@ class NovoFuncionarioDialog(QDialog):
         foto_wrap.addStretch(1)
         root.addLayout(foto_wrap)
         self._aplicar_tema_foto(False)
+
+    def _add_turno_row(
+        self, dias: str = "Seg-Sex", inicio: str = "08:00", fim: str = "12:00"
+    ) -> None:
+        row = _create_turno_row(self._turnos_container, dias=dias, inicio=inicio, fim=fim)
+        row["btn_add"].clicked.connect(lambda: self._add_turno_row())
+        row["btn_remove"].clicked.connect(lambda: self._remove_turno_row(row))
+        self._turnos_layout.addWidget(row["widget"])
+        self._turnos_rows.append(row)
+
+    def _remove_turno_row(self, row: dict) -> None:
+        if len(self._turnos_rows) <= 1:
+            return
+        self._turnos_layout.removeWidget(row["widget"])
+        row["widget"].deleteLater()
+        self._turnos_rows.remove(row)
+
+    def horarios_text(self) -> str | None:
+        return _horarios_text_from_rows(self._turnos_rows)
+
+    # compat: alguns callers antigos leem edt_horarios (agora via turnos)
+    @property
+    def edt_horarios(self):  # type: ignore[no-untyped-def]
+        class _Fake:
+            def __init__(self, dlg):
+                self._dlg = dlg
+
+            def text(self):
+                return self._dlg.horarios_text() or ""
+
+            def setText(self, v):
+                pass
+
+        return _Fake(self)
+
+    @property
+    def edt_dias(self):  # type: ignore[no-untyped-def]
+        class _Fake:
+            def __init__(self, dlg):
+                self._dlg = dlg
+
+            def text(self):
+                return ""
+
+            def setText(self, v):
+                pass
+
+        return _Fake(self)
+
+    def preencher(self, nome: str, horarios: str | None = None, dias: str | None = None) -> None:
+        self.edt_nome.setText(nome)
+        self.edt_senha.clear()
+        self.edt_senha.setPlaceholderText("")
+        # recria turnos a partir de horarios
+        for r in list(self._turnos_rows):
+            self._remove_turno_row(r) if len(self._turnos_rows) > 1 else None
+        # limpa restante
+        for r in list(self._turnos_rows):
+            self._turnos_layout.removeWidget(r["widget"])
+            r["widget"].deleteLater()
+        self._turnos_rows.clear()
+        turnos = parse_turnos_tolerante(horarios, dias)
+        if not turnos:
+            self._add_turno_row()
+        else:
+            for t in turnos:
+                self._add_turno_row(dias=t.dias, inicio=t.inicio, fim=t.fim)
 
     def _detectar_tema(self):  # type: ignore[no-untyped-def]
         from gymflux.ui.theme import ModoTema
@@ -164,16 +373,9 @@ class NovoFuncionarioDialog(QDialog):
         self.lbl_foto.setPixmap(cropped)
         self._aplicar_tema_foto(True)
 
-    def preencher(self, nome: str, horarios: str | None = None, dias: str | None = None) -> None:
-        self.edt_nome.setText(nome)
-        self.edt_senha.clear()
-        self.edt_senha.setPlaceholderText("")
-        self.edt_horarios.setText(horarios or "")
-        self.edt_dias.setText(dias or "")
-
 
 class PerfilFuncionarioDialog(QDialog):
-    """Perfil simples (replica alunos): dados + senha visível + horarios/dias + foto."""
+    """Perfil simples: dados + senha visível + turnos + foto."""
 
     def __init__(
         self,
@@ -190,7 +392,7 @@ class PerfilFuncionarioDialog(QDialog):
         self._func_id = funcionario_id
         self._read_only = read_only
         self.setWindowTitle(f"Perfil — {func.nome}" + (" (visualização)" if read_only else ""))
-        self.resize(580, 320)
+        self.resize(600, 380)
         main = QVBoxLayout(self)
         top = QHBoxLayout()
         form = QFormLayout()
@@ -200,22 +402,30 @@ class PerfilFuncionarioDialog(QDialog):
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("")
-        # exibe senha atual igual outros campos (para saber se esqueceu)
         senha_atual = getattr(func, "senha", None) or ""
         self.edt_senha.setText(senha_atual)
         self.edt_senha.setReadOnly(read_only)
-        self.edt_horarios = QLineEdit()
-        self.edt_horarios.setText(func.horarios or "")
-        self.edt_horarios.setPlaceholderText("Ex.: 08:00-18:00 (opcional)")
-        self.edt_horarios.setReadOnly(read_only)
-        self.edt_dias = QLineEdit()
-        self.edt_dias.setText(func.dias or "")
-        self.edt_dias.setPlaceholderText("Ex.: Seg-Sex (opcional)")
-        self.edt_dias.setReadOnly(read_only)
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica:", self.edt_senha)
-        form.addRow("Horários:", self.edt_horarios)
-        form.addRow("Dias:", self.edt_dias)
+
+        # turnos editor (read_only desabilita)
+        form.addRow(QLabel("Turnos:"))
+        self._turnos_container = QWidget()
+        self._turnos_layout = QVBoxLayout(self._turnos_container)
+        self._turnos_layout.setContentsMargins(0, 0, 0, 0)
+        self._turnos_layout.setSpacing(4)
+        self._turnos_rows: list[dict] = []
+        turnos = parse_turnos_tolerante(func.horarios, func.dias)
+        if not turnos:
+            self._add_turno_row(read_only=read_only)
+        else:
+            for t in turnos:
+                self._add_turno_row(dias=t.dias, inicio=t.inicio, fim=t.fim, read_only=read_only)
+        if not read_only:
+            self.btn_add_turno = QPushButton("Adicionar turno")
+            self.btn_add_turno.clicked.connect(lambda: self._add_turno_row(read_only=False))
+            self._turnos_layout.addWidget(self.btn_add_turno)
+        form.addRow(self._turnos_container)
         top.addLayout(form, 1)
         # foto quadrada à direita
         foto_wrap = QVBoxLayout()
@@ -250,7 +460,7 @@ class PerfilFuncionarioDialog(QDialog):
                 y = max(0, (scaled.height() - 120) // 2)
                 cropped = scaled.copy(x, y, 120, 120)
                 self.lbl_foto.setPixmap(cropped)
-        # botões alinhados inferior direito (fora do form, igual alunos)
+        # botões
         if read_only:
             botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
             botoes.rejected.connect(self.reject)
@@ -280,6 +490,77 @@ class PerfilFuncionarioDialog(QDialog):
         h_botoes.addStretch(1)
         h_botoes.addWidget(botoes)
         main.addLayout(h_botoes)
+
+    def _add_turno_row(
+        self,
+        dias: str = "Seg-Sex",
+        inicio: str = "08:00",
+        fim: str = "12:00",
+        read_only: bool = False,
+    ) -> None:
+        row = _create_turno_row(self._turnos_container, dias=dias, inicio=inicio, fim=fim)
+        if read_only:
+            row["cmb"].setEnabled(False)
+            row["edt_custom"].setReadOnly(True)
+            row["t_ini"].setReadOnly(True)
+            row["t_ini"].setEnabled(False)
+            row["t_fim"].setReadOnly(True)
+            row["t_fim"].setEnabled(False)
+            row["btn_add"].setVisible(False)
+            row["btn_remove"].setVisible(False)
+        else:
+            row["btn_add"].clicked.connect(lambda: self._add_turno_row(read_only=False))
+            row["btn_remove"].clicked.connect(lambda: self._remove_turno_row(row))
+        self._turnos_layout.insertWidget(max(0, len(self._turnos_rows)), row["widget"])
+        self._turnos_rows.append(row)
+        if read_only:
+            for r in self._turnos_rows:
+                r["btn_add"].setVisible(False)
+                r["btn_remove"].setVisible(False)
+
+    def _remove_turno_row(self, row: dict) -> None:
+        if len(self._turnos_rows) <= 1:
+            return
+        self._turnos_layout.removeWidget(row["widget"])
+        row["widget"].deleteLater()
+        self._turnos_rows.remove(row)
+
+    def horarios_text(self) -> str | None:
+        return _horarios_text_from_rows(self._turnos_rows)
+
+    @property
+    def edt_horarios(self):  # type: ignore[no-untyped-def]
+        class _Fake:
+            def __init__(self, dlg):
+                self._dlg = dlg
+
+            def text(self):
+                return self._dlg.horarios_text() or ""
+
+            def setText(self, v):
+                pass
+
+            def setReadOnly(self, v):
+                pass
+
+        return _Fake(self)
+
+    @property
+    def edt_dias(self):  # type: ignore[no-untyped-def]
+        class _Fake:
+            def __init__(self, dlg):
+                self._dlg = dlg
+
+            def text(self):
+                return ""
+
+            def setText(self, v):
+                pass
+
+            def setReadOnly(self, v):
+                pass
+
+        return _Fake(self)
 
     def _detectar_tema(self):  # type: ignore[no-untyped-def]
         from gymflux.ui.theme import ModoTema
@@ -390,13 +671,15 @@ class PerfilFuncionarioDialog(QDialog):
             foto_final = None
         else:
             foto_final = foto_atual_str or None
+        # horarios via turnos editor
+        horarios_txt = self.horarios_text()
         try:
             self._vm.atualizar(
                 self._func_id,
                 nome=self.edt_nome.text(),
                 senha=self.edt_senha.text(),
-                horarios=self.edt_horarios.text(),
-                dias=self.edt_dias.text(),
+                horarios=horarios_txt,
+                dias=None,
                 foto=foto_final,
             )
         except ValueError as e:
@@ -412,7 +695,6 @@ class FuncionariosView(QWidget):
         super().__init__(parent)
         self.vm = vm
         layout = QVBoxLayout(self)
-        # central: tabela + detalhes à direita (igual alunos)
         central = QHBoxLayout()
         central.setSpacing(12)
         self.tbl = QTableWidget(0, len(self.COLUNAS))
@@ -421,8 +703,18 @@ class FuncionariosView(QWidget):
         self.tbl.setColumnHidden(0, True)
         self.tbl.horizontalHeader().setStretchLastSection(True)
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        # legibilidade turnos: wrap + largura fixa + resize mode
+        self.tbl.setWordWrap(True)
+        self.tbl.verticalHeader().setDefaultSectionSize(44)
+        self.tbl.horizontalHeader().setSectionResizeMode(
+            3, self.tbl.horizontalHeader().ResizeMode.Fixed
+        )
+        self.tbl.setColumnWidth(3, 200)
+        self.tbl.horizontalHeader().setSectionResizeMode(
+            4, self.tbl.horizontalHeader().ResizeMode.Fixed
+        )
+        self.tbl.setColumnWidth(4, 90)
         central.addWidget(self.tbl, 3)
-        # detalhes à direita
         from PySide6.QtWidgets import QFrame
 
         self.detalhes_frame = QFrame()
@@ -470,15 +762,28 @@ class FuncionariosView(QWidget):
         funcs = self.vm.listar()
         self.tbl.setRowCount(len(funcs))
         for row, f in enumerate(funcs):
+            horarios_compacto = format_turnos_compacto(f.horarios, f.dias)
+            # tooltip com texto completo
+            tooltip_full = f.horarios or f.dias or "—"
+            if f.horarios and f.dias and f.dias not in f.horarios:
+                tooltip_full = f"{f.horarios} ({f.dias})"
             vals = (
                 f.id,
                 f.nome,
                 "SIM" if f.ativo else "não",
-                f.horarios or "—",
+                horarios_compacto,
                 f.dias or "—",
             )
             for col, v in enumerate(vals):
-                self.tbl.setItem(row, col, QTableWidgetItem(v))
+                item = QTableWidgetItem(v)
+                if col == 3:
+                    item.setToolTip(tooltip_full)
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                    )
+                self.tbl.setItem(row, col, item)
+        # ajusta altura das linhas para wrap
+        self.tbl.resizeRowsToContents()
         self._atualizar_detalhes()
 
     def _atualizar_detalhes(self) -> None:
@@ -516,10 +821,12 @@ class FuncionariosView(QWidget):
             self.lbl_detalhes_foto.clear()
             self.lbl_detalhes_foto.setText("Sem foto")
         self.lbl_detalhes_nome.setText(func.nome)
+        # detalhe com horários compacto + original
+        horarios_linha = format_turnos_compacto(func.horarios, func.dias).replace("\n", " | ")
         info = (
-            f"nome: {func.nome}\n"
+            f"Nome: {func.nome}\n"
             f"Ativo: {'SIM' if func.ativo else 'não'}\n"
-            f"Horários: {func.horarios or '—'}\n"
+            f"Horários: {horarios_linha}\n"
             f"Dias: {func.dias or '—'}"
         )
         self.lbl_detalhes_info.setText(info)
@@ -590,12 +897,13 @@ class FuncionariosView(QWidget):
             return
         foto_src = getattr(dlg, "_foto_path", None)
         foto_dst = foto_src if foto_src and Path(foto_src).exists() else None  # type: ignore[arg-type]
+        horarios_txt = dlg.horarios_text()
         try:
             func = self.vm.cadastrar(
                 nome=dlg.edt_nome.text(),
                 senha=dlg.edt_senha.text(),
-                horarios=dlg.edt_horarios.text(),
-                dias=dlg.edt_dias.text(),
+                horarios=horarios_txt,
+                dias=None,
                 foto=foto_dst,
             )
             if foto_src and Path(foto_src).exists():  # type: ignore[arg-type]
@@ -623,7 +931,6 @@ class FuncionariosView(QWidget):
         self.recarregar()
 
     def _editar(self) -> None:
-        # Editar via perfil editável (distinto de Abrir perfil que é só visualização)
         self._editar_via_perfil()
 
     def _alternar_ativo(self) -> None:
@@ -651,7 +958,6 @@ class FuncionariosView(QWidget):
             return
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
-        # só recarrega se houve edição
         if not read_only:
             self.recarregar()
 
