@@ -212,11 +212,15 @@ class DashboardView(QWidget):
         self.toast_title = QLabel("", self.toast)
         self.toast_title.setWordWrap(True)
         self.toast_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.toast_title.setStyleSheet("border: none; background: transparent; font-weight: bold; font-size: 15px; color: #F2F5F7;")  # noqa: E501
+        self.toast_title.setStyleSheet(
+            "border: none; background: transparent; font-weight: bold; font-size: 15px; color: #F2F5F7;"  # noqa: E501
+        )
         self.toast_sub = QLabel("", self.toast)
         self.toast_sub.setWordWrap(True)
         self.toast_sub.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.toast_sub.setStyleSheet("border: none; background: transparent; font-size: 12px; color: #9AA7B2;")  # noqa: E501
+        self.toast_sub.setStyleSheet(
+            "border: none; background: transparent; font-size: 12px; color: #9AA7B2;"
+        )
         self.toast_sub.setVisible(False)
         txt_wrap.addWidget(self.toast_title)
         txt_wrap.addWidget(self.toast_sub)
@@ -314,13 +318,14 @@ class DashboardView(QWidget):
             _icon_dest = _tint_icon(_icon_base, TINTA_SOBRE_ACENTO)
             self.btn_liberar.setIcon(_icon_dest)
         except Exception:
-            self.btn_liberar.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
+            self.btn_liberar.setIcon(
+                estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+            )
         self.btn_liberar.setIconSize(QSize(22, 22))
         self.btn_liberar.setMinimumHeight(32)
         self.btn_liberar.setMinimumWidth(150)
         self.btn_liberar.setStyleSheet(
-            "font-size: 14px; font-weight: bold; padding: 6px 20px; "
-            "border: 2px solid #5AC8FA;"
+            "font-size: 14px; font-weight: bold; padding: 6px 20px; border: 2px solid #5AC8FA;"
         )
         huni.addWidget(self.edt_unico)
         huni.addWidget(self.btn_liberar)
@@ -432,21 +437,38 @@ class DashboardView(QWidget):
         lay_giros.setContentsMargins(6, 6, 6, 6)
         lay_giros.setSpacing(6)
         lay_giros.setAlignment(Qt.AlignmentFlag.AlignTop)
+        # header expansível igual Acessos — clicável para expandir/colapsar
+        self.btn_toggle_giros = QPushButton("▶ Giros")
+        self.btn_toggle_giros.setCheckable(True)
+        self.btn_toggle_giros.setChecked(False)
+        self.btn_toggle_giros.setCursor(Qt.CursorShape.PointingHandCursor)
+        # título preto legível (igual antes) mas dentro do botão
+        self.btn_toggle_giros.setStyleSheet(
+            "QPushButton { font-weight: bold; border: none; text-align: left; padding: 2px 6px;"
+            " color: #F2F5F7; background-color: #0F1113; border-radius: 6px; }"
+        )
+        lay_giros.addWidget(self.btn_toggle_giros)
+        # mantém lbl_giros_titulo para compat com testes/estilo, mas oculto (usa botão)
         lbl_giros = QLabel("Giros")
         lbl_giros.setStyleSheet(
             "font-weight: bold; border: none; color: #F2F5F7;"
             " background-color: #0F1113; border-radius: 6px; padding: 2px 6px;"
         )
+        lbl_giros.setVisible(False)
         self.lbl_giros_titulo = lbl_giros
-        lay_giros.addWidget(lbl_giros)
         self.lst_giros = QListWidget()
         lst_h = self._altura_lista(LINHAS_MAX_TABELA)
         self.lst_giros.setMaximumHeight(lst_h)
         self.lst_giros.setMinimumHeight(lst_h)
+        self.lst_giros.setVisible(False)
         lay_giros.addWidget(self.lst_giros)
-        frame_giros.setMaximumHeight(lst_h + 30 + 12)
+        # colapsado inicialmente — só cabeçalho (30+12), alinhado no canto inferior
+        frame_giros.setMaximumHeight(30 + 12)
+        frame_giros.setMinimumHeight(30 + 12)
         hmid.addWidget(frame_giros, 1, Qt.AlignmentFlag.AlignBottom)
         self.frame_giros = frame_giros
+        self._giros_expandido = False
+        self.btn_toggle_giros.toggled.connect(self._toggle_giros)
         layout.addLayout(hmid)
 
         # -- wallpaper só atrás dos containers (não no fundo global) --
@@ -557,9 +579,13 @@ class DashboardView(QWidget):
                         is_claro = modo_de(self.vm.ui_config.tema) == ModoTema.CLARO
                         # claro: overlay claro harmônico com wallpaper branco; escuro: preto suave
                         if is_claro:
-                            ov.setStyleSheet("background-color: rgba(255,255,255, 165); border-radius: 8px;")  # noqa: E501
+                            ov.setStyleSheet(
+                                "background-color: rgba(255,255,255, 165); border-radius: 8px;"
+                            )
                         else:
-                            ov.setStyleSheet("background-color: rgba(0, 0, 0, 70); border-radius: 8px;")  # noqa: E501
+                            ov.setStyleSheet(
+                                "background-color: rgba(0, 0, 0, 70); border-radius: 8px;"
+                            )
                         ov.setGeometry(frm.rect())
                         ov.show()
                         ov.lower()
@@ -607,7 +633,11 @@ class DashboardView(QWidget):
                 )
                 # texto do botão expansível — branco no escuro para contraste
                 with contextlib.suppress(Exception):
-                    txt_col = "#F2F5F7" if modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO else "#1A1E22"  # noqa: E501
+                    txt_col = (
+                        "#F2F5F7"
+                        if modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+                        else "#1A1E22"
+                    )
                     self.btn_toggle_log.setStyleSheet(
                         f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
                     )
@@ -813,6 +843,20 @@ class DashboardView(QWidget):
         with contextlib.suppress(Exception):
             self._atualizar_todos_wallpapers()
 
+    def _toggle_giros(self, expandido: bool) -> None:
+        self._giros_expandido = expandido
+        self.lst_giros.setVisible(expandido)
+        self.btn_toggle_giros.setText("▼ Giros" if expandido else "▶ Giros")
+        if expandido:
+            lst_h = self._altura_lista(LINHAS_MAX_TABELA)
+            self.frame_giros.setMaximumHeight(lst_h + 30 + 12)
+            self.frame_giros.setMinimumHeight(lst_h + 30 + 12)
+        else:
+            self.frame_giros.setMaximumHeight(30 + 12)
+            self.frame_giros.setMinimumHeight(30 + 12)
+        with contextlib.suppress(Exception):
+            self._atualizar_todos_wallpapers()
+
     def _atualizar_todos_wallpapers(self) -> None:
         for frm in getattr(self, "_wallpaper_frames", []):
             self._atualizar_wallpaper_frame(frm)
@@ -902,8 +946,7 @@ class DashboardView(QWidget):
         if subtitulo:
             self.toast_sub.setText(subtitulo)
             self.toast_sub.setStyleSheet(
-                "border: none; background: transparent;"
-                f" font-size: 12px; color: {fg};"
+                f"border: none; background: transparent; font-size: 12px; color: {fg};"
             )
             self.toast_sub.setVisible(True)
         else:
@@ -1124,9 +1167,7 @@ class DashboardView(QWidget):
         self.lbl_compacto.setText(compacto)
         fg, bg = cores_indicador(online, self.vm.ui_config.tema)
         # pill opaco e destacado — verde forte com texto preto no claro
-        self.lbl_compacto.setStyleSheet(
-            f"color: {fg}; background: transparent; font-weight: bold;"
-        )
+        self.lbl_compacto.setStyleSheet(f"color: {fg}; background: transparent; font-weight: bold;")
         if bg:
             self.status_pill.setStyleSheet(
                 f"QFrame#StatusPill {{ background-color: {bg}; border-radius: 12px; padding: 4px 10px; border: none; }}"  # noqa: E501
