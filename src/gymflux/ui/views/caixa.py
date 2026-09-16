@@ -31,7 +31,15 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.core.pagamento import FormaPagamento
-from gymflux.ui.theme import AZUL, LIMA, VERMELHO, ModoTema, estilo_selo, modo_de
+from gymflux.ui.theme import (
+    AZUL,
+    LIMA,
+    VERMELHO,
+    ModoTema,
+    estilo_paginacao,
+    estilo_selo,
+    modo_de,
+)
 from gymflux.ui.viewmodels.caixa import CaixaViewModel
 
 
@@ -276,9 +284,9 @@ class CaixaView(QWidget):
         self.tbl.verticalScrollBar().valueChanged.connect(self._on_scroll)
         principal.addWidget(self.tbl, 1)
 
-        # label de paginação (mostrando X de Y)
+        # label de paginação (mostrando X de Y) — cor por tema (claro: preto legível)
         self.lbl_paginacao = QLabel("")
-        self.lbl_paginacao.setStyleSheet("color: #9AA7B2; font-size: 11px;")
+        self.lbl_paginacao.setStyleSheet(estilo_paginacao(self.vm.ui_config.tema))
         self.lbl_paginacao.setVisible(False)
         principal.addWidget(self.lbl_paginacao)
 
@@ -406,6 +414,7 @@ class CaixaView(QWidget):
         )
         fechado = mes is not None and self.vm.mes_fechado(mes)
         self.lbl_fechado.setStyleSheet(estilo_selo(self.vm.ui_config.tema))
+        self.lbl_paginacao.setStyleSheet(estilo_paginacao(self.vm.ui_config.tema))
         self.lbl_fechado.setVisible(fechado)
         self.btn_reabrir.setVisible(fechado)
         self.btn_fechar.setVisible(not fechado)
@@ -428,6 +437,11 @@ class CaixaView(QWidget):
             self.lbl_paginacao.setVisible(True)
         else:
             self.lbl_paginacao.setVisible(False)
+
+    def sincronizar_tema(self, tema) -> None:  # type: ignore[no-untyped-def]
+        """Atualiza selo + paginação sem recarregar (troca de tema sem restart)."""
+        self.lbl_fechado.setStyleSheet(estilo_selo(tema))
+        self.lbl_paginacao.setStyleSheet(estilo_paginacao(tema))
 
     def _render_tabela(self) -> None:
         hoje = date.today()

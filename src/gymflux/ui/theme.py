@@ -127,6 +127,17 @@ def cores_indicador(ok: bool, modo: ModoTema | str = ModoTema.ESCURO) -> tuple[s
     return (LIMA if ok else VERMELHO, None)
 
 
+def estilo_paginacao(modo: ModoTema | str = ModoTema.ESCURO) -> str:
+    """Texto 'Mostrando X de Y' — suave no escuro, preto legível no claro.
+
+    O cinza do escuro (#9AA7B2) sobre fundo claro tem contraste ~2:1;
+    no claro usa a tinta base (#1A1E22, ~13:1 sobre #E8EDF1).
+    """
+    if modo_de(modo) == ModoTema.CLARO:
+        return f"color: {TEXTO_CLARO}; font-size: 11px;"
+    return f"color: {TEXTO_SUAVE}; font-size: 11px;"
+
+
 def estilo_selo(modo: ModoTema | str = ModoTema.ESCURO) -> str:
     """Selo FECHADO: texto com borda no escuro, selo preenchido no claro."""
     if modo_de(modo) == ModoTema.CLARO:

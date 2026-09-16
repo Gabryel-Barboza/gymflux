@@ -24,6 +24,7 @@ from gymflux.ui.theme import (
     ModoTema,
     contraste,
     cores_indicador,
+    estilo_paginacao,
     estilo_resultado,
     stylesheet,
 )
@@ -95,6 +96,19 @@ def test_estilo_resultado_modo_claro_usa_selos():
     neutro = estilo_resultado(None, ModoTema.CLARO)
     assert SUAVE_CLARO in neutro
     assert LIMA not in neutro and VERMELHO not in neutro
+
+
+def test_estilo_paginacao_legivel_no_claro():
+    # escuro mantém o cinza suave; claro usa tinta base (preto legível)
+    assert TEXTO_SUAVE in estilo_paginacao()
+    assert TEXTO_SUAVE in estilo_paginacao(ModoTema.ESCURO)
+    claro = estilo_paginacao(ModoTema.CLARO)
+    assert TEXTO_CLARO in claro
+    assert TEXTO_SUAVE not in claro
+    assert estilo_paginacao("claro") == claro
+    # contraste de texto corrido: >= 4.5 nos dois modos
+    assert contraste(TEXTO_SUAVE, FUNDO) >= 4.5
+    assert contraste(TEXTO_CLARO, FUNDO_CLARO) >= 4.5
 
 
 def test_cores_indicador_online():

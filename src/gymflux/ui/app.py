@@ -321,6 +321,12 @@ def _wire(
                         w.funcionarios_view.sincronizar_tema(  # type: ignore[attr-defined]
                             nova.tema
                         )
+                if hasattr(w, "caixa_view"):
+                    with contextlib.suppress(Exception):
+                        w.caixa_view.sincronizar_tema(nova.tema)  # type: ignore[attr-defined]
+                if hasattr(w, "frequencia_view"):
+                    with contextlib.suppress(Exception):
+                        w.frequencia_view.sincronizar_tema(nova.tema)  # type: ignore[attr-defined]
         logger.info("[UI] configurações aplicadas na sessão")
 
     config_vm = ConfigViewModel(store=store, on_aplicar=_aplicar)
@@ -426,7 +432,8 @@ class GymFluxMainWindow(QMainWindow):
         tabs.addTab(self.caixa_view, self._base_icons[3], "Caixa")
         self.funcionarios_view = FuncionariosView(ctx.funcionarios_vm)
         tabs.addTab(self.funcionarios_view, self._base_icons[4], "Funcionários")
-        tabs.addTab(FrequenciaView(ctx.frequencia_vm), self._base_icons[5], "Frequência")
+        self.frequencia_view = FrequenciaView(ctx.frequencia_vm)
+        tabs.addTab(self.frequencia_view, self._base_icons[5], "Frequência")
         tabs.addTab(ConfigView(ctx.config_vm), self._base_icons[6], "Configurações")
         self.setCentralWidget(tabs)
         self.tabs = tabs

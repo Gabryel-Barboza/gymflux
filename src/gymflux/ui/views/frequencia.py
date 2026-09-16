@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from gymflux.ui.theme import ModoTema, estilo_paginacao
 from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 
 
@@ -73,7 +74,7 @@ class FrequenciaView(QWidget):
         self._filtered: list = []
         self._rendered = 500
         self.lbl_paginacao = QLabel("")
-        self.lbl_paginacao.setStyleSheet("color: #9AA7B2; font-size: 11px;")
+        self.lbl_paginacao.setStyleSheet(estilo_paginacao(self._tema_atual()))
         self.lbl_paginacao.setVisible(False)
         layout.addWidget(self.lbl_paginacao)
         self.tbl.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -84,6 +85,27 @@ class FrequenciaView(QWidget):
         self.chk_dia.toggled.connect(self._on_chk_dia)
         self.dat_dia.dateChanged.connect(lambda _d: self.recarregar())
         self.recarregar()
+
+    @staticmethod
+    def _tema_atual():  # type: ignore[no-untyped-def]
+        """Detecta claro/escuro via stylesheet global (VM não carrega UiConfig)."""
+        tema = ModoTema.ESCURO
+        try:
+            from PySide6.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            ss = ""
+            if isinstance(app, QApplication):
+                ss = app.styleSheet()
+            if "#E8EDF1" in ss:
+                tema = ModoTema.CLARO
+        except Exception:
+            pass
+        return tema
+
+    def sincronizar_tema(self, tema=None) -> None:  # type: ignore[no-untyped-def]
+        """Atualiza paginação sem recarregar (troca de tema sem restart)."""
+        self.lbl_paginacao.setStyleSheet(estilo_paginacao(tema or self._tema_atual()))
 
     def _on_chk_dia(self, checked: bool) -> None:
         self.dat_dia.setEnabled(checked)
@@ -169,6 +191,7 @@ class FrequenciaView(QWidget):
         )
         self._filtered = list(reversed(linhas))
         self.lbl_total.setText(f"{len(self._filtered)} registro(s)")
+        self.lbl_paginacao.setStyleSheet(estilo_paginacao(self._tema_atual()))
         self._rendered = min(self._page_size, len(self._filtered))
         self._render_tabela()
         if len(self._filtered) > self._page_size:

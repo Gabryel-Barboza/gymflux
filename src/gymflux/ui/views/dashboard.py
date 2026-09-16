@@ -937,7 +937,7 @@ class DashboardView(QWidget):
         self.toast_icon.setStyleSheet(
             f"QLabel {{ background-color: {icon_bg}; color: {icon_fg};"
             " border-radius: 18px; font-weight: bold; font-size: 18px;"
-            " border: none; }}"
+            " border: none; }"
         )
         self.toast_title.setText(titulo)
         self.toast_title.setStyleSheet(

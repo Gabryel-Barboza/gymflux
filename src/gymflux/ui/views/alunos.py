@@ -468,6 +468,9 @@ class PerfilAlunoDialog(QDialog):
         # aba 5: Ficha (avaliação física + saúde)
         tab_ficha = QWidget()
         lay_ficha = QVBoxLayout(tab_ficha)
+        # respiro vertical: inputs colados pediam mais espaço entre linhas
+        lay_ficha.setSpacing(10)
+        lay_ficha.setContentsMargins(8, 8, 8, 8)
         # histórico no topo (lista clicável)
         self.lst_ficha = QListWidget()
         self.lst_ficha.setMaximumHeight(90)
@@ -476,6 +479,9 @@ class PerfilAlunoDialog(QDialog):
         lay_ficha.addWidget(self.lst_ficha)
         # form em grade
         grid_ficha = QGridLayout()
+        grid_ficha.setVerticalSpacing(10)
+        grid_ficha.setHorizontalSpacing(8)
+        grid_ficha.setContentsMargins(0, 4, 0, 4)
         self.dat_ficha = QDateEdit(QDate.currentDate())
         self.dat_ficha.setCalendarPopup(True)
         self.dat_ficha.setDisplayFormat("dd/MM/yyyy")
@@ -1411,6 +1417,12 @@ class AlunosView(QWidget):
         self.lbl_detalhes_foto.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_detalhes_foto.setText("Sem foto")
         det_lay.addWidget(self.lbl_detalhes_foto, 0, Qt.AlignmentFlag.AlignHCenter)
+        # divisória estilizada entre foto e informações (faixa sólida 2px)
+        self.detalhes_sep = QFrame()
+        self.detalhes_sep.setObjectName("DetalhesAlunoSep")
+        self.detalhes_sep.setFrameShape(QFrame.Shape.NoFrame)
+        self.detalhes_sep.setFixedHeight(2)
+        det_lay.addWidget(self.detalhes_sep)
         self.lbl_detalhes_nome = QLabel("Selecione um aluno")
         self.lbl_detalhes_nome.setWordWrap(True)
         det_lay.addWidget(self.lbl_detalhes_nome)
@@ -1541,7 +1553,7 @@ class AlunosView(QWidget):
             self.lbl_detalhes_foto.setText("Sem foto")
         self.lbl_detalhes_nome.setText(aluno.nome)
         info = (
-            f"nome: {aluno.nome}\n"
+            f"Nome: {aluno.nome}\n"
             f"CPF: {aluno.cpf or '—'}\n"
             f"Telefone: {aluno.telefone or '—'}\n"
             f"E-mail: {aluno.email or '—'}\n"
@@ -1554,7 +1566,7 @@ class AlunosView(QWidget):
         self._aplicar_tema_detalhes()
 
     def _aplicar_tema_detalhes(self, tema=None) -> None:  # type: ignore[no-untyped-def]
-        from gymflux.ui.theme import ModoTema, paleta_do_modo
+        from gymflux.ui.theme import AZUL, ModoTema, paleta_do_modo
 
         # tenta inferir tema atual via dashboard_vm ou QApplication
         if tema is None:
@@ -1602,6 +1614,12 @@ class AlunosView(QWidget):
             self.lbl_detalhes_foto.setStyleSheet(
                 f"QLabel {{ border: 2px solid {foto_border}; border-radius: 8px;"
                 f" background-color: {foto_bg}; }}"
+            )
+        # divisória foto ↔ informações (acento da identidade, visível nos 2 modos)
+        with contextlib.suppress(Exception):
+            self.detalhes_sep.setStyleSheet(
+                f"QFrame#DetalhesAlunoSep {{ background-color: {AZUL};"
+                " border: none; border-radius: 1px; min-height: 2px; max-height: 2px; }"
             )
         # textos
         self.lbl_detalhes_nome.setStyleSheet(
