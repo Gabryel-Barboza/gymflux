@@ -428,14 +428,15 @@ class DashboardView(QWidget):
 
         frame_giros = QFrame()
         frame_giros.setObjectName("CatracaFrameGiros")
+        # padding ligeiramente menor que Acessos (6px) para ficar proporcional
         frame_giros.setStyleSheet(
             "QFrame#CatracaFrameGiros { border: 1px solid #2A3138; "
-            "border-radius: 8px; padding: 6px; }"
+            "border-radius: 8px; padding: 4px; }"
         )
         frame_giros.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         lay_giros = QVBoxLayout(frame_giros)
-        lay_giros.setContentsMargins(6, 6, 6, 6)
-        lay_giros.setSpacing(6)
+        lay_giros.setContentsMargins(4, 4, 4, 4)
+        lay_giros.setSpacing(4)
         lay_giros.setAlignment(Qt.AlignmentFlag.AlignTop)
         # header expansível igual Acessos — clicável para expandir/colapsar
         self.btn_toggle_giros = QPushButton("▶ Giros")
@@ -476,9 +477,9 @@ class DashboardView(QWidget):
         self._wallpaper_pixmap: QPixmap | None = None
         self._wallpaper_path: str | None = None
         self._wallpaper_labels: dict[QFrame, QLabel] = {}
-        # CatracaCentro fica com fundo transparente e mostra wallpaper do dashboard
-        # header e Acessos de hoje sem wallpaper — só giros mantém
-        self._wallpaper_frames: list[QFrame] = [frame_giros]
+        # CatracaCentro transparente mostra wallpaper do dashboard
+        # Giros e Acessos sempre sólidos (sem wallpaper) — recolhido sólido
+        self._wallpaper_frames: list[QFrame] = []
         for frm in self._wallpaper_frames:
             bg = QLabel(frm)
             bg.setObjectName(f"WallpaperBg_{frm.objectName()}")
@@ -642,13 +643,13 @@ class DashboardView(QWidget):
                         f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
                     )
                 continue
-            # Giros: container segue tema; só o título fica preto
+            # Giros: container sólido sempre, padding levemente menor que Acessos (4px vs 6px)
             if base == "CatracaFrameGiros":
                 ov = self._overlay_labels.get(frm)
                 if ov is not None:
                     ov.hide()
                 frm.setStyleSheet(
-                    f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 6px; }}"  # noqa: E501
+                    f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
                 )
                 # título preto com texto claro, lista segue tema
                 with contextlib.suppress(Exception):

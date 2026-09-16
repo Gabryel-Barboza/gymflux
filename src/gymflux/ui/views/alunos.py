@@ -543,6 +543,26 @@ class PerfilAlunoDialog(QDialog):
         self.spn_braco = self.spn_braco_esq
         self.spn_coxa = self.spn_coxa_esq
         self.spn_pant = self.spn_pant_esq
+        # legibilidade: padding e tamanho mínimo para não cortar valores (sufixo kg/cm)
+        for sp in (
+            self.spn_peso,
+            self.spn_altura,
+            self.spn_gordura,
+            self.spn_braco_esq,
+            self.spn_braco_dir,
+            self.spn_peito,
+            self.spn_cintura,
+            self.spn_quadril,
+            self.spn_coxa_esq,
+            self.spn_coxa_dir,
+            self.spn_pant_esq,
+            self.spn_pant_dir,
+        ):
+            sp.setMinimumWidth(95)
+            sp.setMinimumHeight(28)
+            sp.setStyleSheet("QDoubleSpinBox { padding: 4px 6px; }")
+        self.dat_ficha.setMinimumHeight(28)
+        self.dat_ficha.setStyleSheet("QDateEdit { padding: 4px 6px; }")
         grid_ficha.addWidget(QLabel("Braço Esq:"), 1, 0)
         grid_ficha.addWidget(self.spn_braco_esq, 1, 1)
         grid_ficha.addWidget(QLabel("Braço Dir:"), 1, 2)
@@ -562,18 +582,23 @@ class PerfilAlunoDialog(QDialog):
         grid_ficha.addWidget(QLabel("Pant. Dir:"), 3, 0)
         grid_ficha.addWidget(self.spn_pant_dir, 3, 1)
         lay_ficha.addLayout(grid_ficha)
-        # saúde — QTextEdit para textos longos legíveis
+        # saúde — QTextEdit para textos longos legíveis (padding para não cortar)
         self.txt_problemas = QTextEdit()
         self.txt_problemas.setPlaceholderText("Problemas de saúde (ex: hipertensão, diabetes)")
-        self.txt_problemas.setMaximumHeight(60)
+        self.txt_problemas.setMaximumHeight(75)
+        self.txt_problemas.setStyleSheet("QTextEdit { padding: 6px; }")
         self.txt_restricoes = QTextEdit()
         self.txt_restricoes.setPlaceholderText("Restrições / limitações (ex: joelho)")
-        self.txt_restricoes.setMaximumHeight(60)
+        self.txt_restricoes.setMaximumHeight(75)
+        self.txt_restricoes.setStyleSheet("QTextEdit { padding: 6px; }")
         self.txt_medicamentos = QTextEdit()
         self.txt_medicamentos.setPlaceholderText("Medicamentos em uso")
-        self.txt_medicamentos.setMaximumHeight(60)
+        self.txt_medicamentos.setMaximumHeight(75)
+        self.txt_medicamentos.setStyleSheet("QTextEdit { padding: 6px; }")
         self.txt_contato = QLineEdit()
         self.txt_contato.setPlaceholderText("Contato de emergência — nome e telefone")
+        self.txt_contato.setMinimumHeight(28)
+        self.txt_contato.setStyleSheet("QLineEdit { padding: 4px 6px; }")
         lay_ficha.addWidget(QLabel("Problemas de saúde:"))
         lay_ficha.addWidget(self.txt_problemas)
         lay_ficha.addWidget(QLabel("Restrições:"))

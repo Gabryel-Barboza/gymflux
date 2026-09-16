@@ -269,7 +269,18 @@ class CaixaView(QWidget):
         self.tbl.horizontalHeader().setSortIndicatorShown(True)
         self._sort_col = -1
         self._sort_asc = True
+        # paginação 500 por vez para 7k
+        self._page_size = 500
+        self._rendered = 500
+        self._filtered_linhas: list = []
+        self.tbl.verticalScrollBar().valueChanged.connect(self._on_scroll)
         principal.addWidget(self.tbl, 1)
+
+        # label de paginação (mostrando X de Y)
+        self.lbl_paginacao = QLabel("")
+        self.lbl_paginacao.setStyleSheet("color: #9AA7B2; font-size: 11px;")
+        self.lbl_paginacao.setVisible(False)
+        principal.addWidget(self.lbl_paginacao)
 
         hbtn = QHBoxLayout()
         hbtn = QHBoxLayout()
@@ -382,7 +393,6 @@ class CaixaView(QWidget):
     def recarregar(self) -> None:
         self._recarregar_combos()
         mes = self._mes_atual()
-        hoje = date.today()
         recebido, pendente, total = self.vm.totais_mes(mes)
         # sem data no texto (stats coloridas)
         self.lbl_recebido.setText(f"Recebido: R$ {recebido:.2f}")
@@ -406,55 +416,139 @@ class CaixaView(QWidget):
         if termo:
             linhas = [(p, n) for (p, n) in linhas if termo in n.lower()]
         self._linhas_cache = list(linhas)
-        # ordenação desativa durante preenchimento
+        self._filtered_linhas = list(linhas)
+        # paginação: mostra só primeira página (500) para não travar com 7k
+        self._rendered = min(self._page_size, len(self._filtered_linhas))
+        self._render_tabela()
+        # mostra label de paginação quando houver mais
+        if len(self._filtered_linhas) > self._page_size:
+            self.lbl_paginacao.setText(
+                f"Mostrando {self._rendered} de {len(self._filtered_linhas)} — role até o final para carregar mais"  # noqa: E501
+            )
+            self.lbl_paginacao.setVisible(True)
+        else:
+            self.lbl_paginacao.setVisible(False)
+
+    def _render_tabela(self) -> None:
+        hoje = date.today()
         sorting = self.tbl.isSortingEnabled()
         self.tbl.setSortingEnabled(False)
-        self.tbl.setRowCount(len(linhas))
-        for row, (p, nome) in enumerate(linhas):
-            if p.pago:
-                sit = "PAGO"
-            elif p.dias_atraso(hoje) > 0:
-                sit = f"ATRASADO {p.dias_atraso(hoje)}d"
-            else:
-                sit = "PENDENTE"
-            # datas BR
-            from gymflux.ui.formatters import fmt_br
+        # evita flicker: block signals
+        self.tbl.blockSignals(True)
+        try:
+            self.tbl.setRowCount(self._rendered)
+            for row in range(self._rendered):
+                p, nome = self._filtered_linhas[row]
+                if p.pago:
+                    sit = "PAGO"
+                elif p.dias_atraso(hoje) > 0:
+                    sit = f"ATRASADO {p.dias_atraso(hoje)}d"
+                else:
+                    sit = "PENDENTE"
+                from gymflux.ui.formatters import fmt_br
 
-            def _comp_br(comp: str | None) -> str:
-                if not comp or comp == "—":
-                    return "—"
-                # YYYY-MM -> MM/AAAA
-                try:
-                    y, m = comp.split("-")
-                    return f"{m}/{y}"
-                except Exception:
-                    return comp
+                def _comp_br(comp: str | None) -> str:
+                    if not comp or comp == "—":
+                        return "—"
+                    try:
+                        y, m = comp.split("-")
+                        return f"{m}/{y}"
+                    except Exception:
+                        return comp
 
-            vals = (
-                nome,
-                f"{Decimal(str(p.valor)):.2f}",
-                fmt_br(p.data_vencimento),
-                sit,
-                str(p.forma) if p.forma else "—",
-                _comp_br(p.competencia),
-            )
-            for col, v in enumerate(vals):
-                item = QTableWidgetItem(v)
-                # guarda ids para sobreviver à ordenação visual
-                item.setData(Qt.ItemDataRole.UserRole, p.id)
-                item.setData(Qt.ItemDataRole.UserRole + 1, p.aluno_id)
-                if not p.pago and p.dias_atraso(hoje) > 0:
-                    # tema-aware: escuro fundo escuro, claro rosa
-                    is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
-                    bg = "#3a1a1a" if is_escuro else "#ffe0e0"
-                    fg = VERMELHO if is_escuro else "#991111"
-                    item.setBackground(QColor(bg))
-                    item.setForeground(QColor(fg))
-                self.tbl.setItem(row, col, item)
-        self.tbl.setSortingEnabled(sorting)
+                vals = (
+                    nome,
+                    f"{Decimal(str(p.valor)):.2f}",
+                    fmt_br(p.data_vencimento),
+                    sit,
+                    str(p.forma) if p.forma else "—",
+                    _comp_br(p.competencia),
+                )
+                for col, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setData(Qt.ItemDataRole.UserRole, p.id)
+                    item.setData(Qt.ItemDataRole.UserRole + 1, p.aluno_id)
+                    if not p.pago and p.dias_atraso(hoje) > 0:
+                        is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+                        bg = "#3a1a1a" if is_escuro else "#ffe0e0"
+                        fg = VERMELHO if is_escuro else "#991111"
+                        item.setBackground(QColor(bg))
+                        item.setForeground(QColor(fg))
+                    self.tbl.setItem(row, col, item)
+        finally:
+            self.tbl.blockSignals(False)
+            self.tbl.setSortingEnabled(sorting)
         if self._sort_col >= 0:
             order = Qt.SortOrder.AscendingOrder if self._sort_asc else Qt.SortOrder.DescendingOrder
             self.tbl.sortByColumn(self._sort_col, order)
+
+    def _on_scroll(self, value: int) -> None:
+        bar = self.tbl.verticalScrollBar()
+        if bar.maximum() == 0:
+            return
+        # perto do final (90%)
+        if value < bar.maximum() * 0.9:
+            return
+        if self._rendered >= len(self._filtered_linhas):
+            return
+        # carrega próximo lote
+        novo = min(self._rendered + self._page_size, len(self._filtered_linhas))
+        # evita re-render completo: só adiciona novas linhas
+        hoje = date.today()
+        sorting = self.tbl.isSortingEnabled()
+        self.tbl.setSortingEnabled(False)
+        self.tbl.blockSignals(True)
+        try:
+            self.tbl.setRowCount(novo)
+            for row in range(self._rendered, novo):
+                p, nome = self._filtered_linhas[row]
+                if p.pago:
+                    sit = "PAGO"
+                elif p.dias_atraso(hoje) > 0:
+                    sit = f"ATRASADO {p.dias_atraso(hoje)}d"
+                else:
+                    sit = "PENDENTE"
+                from gymflux.ui.formatters import fmt_br
+
+                def _comp_br2(comp: str | None) -> str:
+                    if not comp or comp == "—":
+                        return "—"
+                    try:
+                        y, m = comp.split("-")
+                        return f"{m}/{y}"
+                    except Exception:
+                        return comp
+
+                vals = (
+                    nome,
+                    f"{Decimal(str(p.valor)):.2f}",
+                    fmt_br(p.data_vencimento),
+                    sit,
+                    str(p.forma) if p.forma else "—",
+                    _comp_br2(p.competencia),
+                )
+                for col, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setData(Qt.ItemDataRole.UserRole, p.id)
+                    item.setData(Qt.ItemDataRole.UserRole + 1, p.aluno_id)
+                    if not p.pago and p.dias_atraso(hoje) > 0:
+                        is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+                        bg = "#3a1a1a" if is_escuro else "#ffe0e0"
+                        fg = VERMELHO if is_escuro else "#991111"
+                        item.setBackground(QColor(bg))
+                        item.setForeground(QColor(fg))
+                    self.tbl.setItem(row, col, item)
+            self._rendered = novo
+            if len(self._filtered_linhas) > self._page_size:
+                self.lbl_paginacao.setText(
+                    f"Mostrando {self._rendered} de {len(self._filtered_linhas)} — role até o final para carregar mais"  # noqa: E501
+                )
+                self.lbl_paginacao.setVisible(self._rendered < len(self._filtered_linhas))
+            else:
+                self.lbl_paginacao.setVisible(False)
+        finally:
+            self.tbl.blockSignals(False)
+            self.tbl.setSortingEnabled(sorting)
 
     def _ordenar_coluna(self, col: int) -> None:
         if self._sort_col == col:

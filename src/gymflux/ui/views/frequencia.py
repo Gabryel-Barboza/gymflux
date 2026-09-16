@@ -68,6 +68,15 @@ class FrequenciaView(QWidget):
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.tbl, 1)
+        # paginação 500 por vez para testes com 7k
+        self._page_size = 500
+        self._filtered: list = []
+        self._rendered = 500
+        self.lbl_paginacao = QLabel("")
+        self.lbl_paginacao.setStyleSheet("color: #9AA7B2; font-size: 11px;")
+        self.lbl_paginacao.setVisible(False)
+        layout.addWidget(self.lbl_paginacao)
+        self.tbl.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
         self.cmb_aluno.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
@@ -158,9 +167,22 @@ class FrequenciaView(QWidget):
             mes=str(mes) if mes is not None else None,
             aluno_id=str(aluno_id) if aluno_id is not None else None,
         )
-        self.lbl_total.setText(f"{len(linhas)} registro(s)")
-        self.tbl.setRowCount(len(linhas))
-        for row, t in enumerate(reversed(linhas)):
+        self._filtered = list(reversed(linhas))
+        self.lbl_total.setText(f"{len(self._filtered)} registro(s)")
+        self._rendered = min(self._page_size, len(self._filtered))
+        self._render_tabela()
+        if len(self._filtered) > self._page_size:
+            self.lbl_paginacao.setText(
+                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"  # noqa: E501
+            )
+            self.lbl_paginacao.setVisible(True)
+        else:
+            self.lbl_paginacao.setVisible(False)
+
+    def _render_tabela(self) -> None:
+        self.tbl.setRowCount(self._rendered)
+        for row in range(self._rendered):
+            t = self._filtered[row]
             vals = (
                 t.timestamp.strftime("%d/%m %H:%M:%S"),
                 self.vm.nome_tentativa(t),
@@ -170,3 +192,34 @@ class FrequenciaView(QWidget):
             )
             for col, v in enumerate(vals):
                 self.tbl.setItem(row, col, QTableWidgetItem(v))
+
+    def _on_scroll(self, value: int) -> None:
+        bar = self.tbl.verticalScrollBar()
+        if bar.maximum() == 0:
+            return
+        if value < bar.maximum() * 0.9:
+            return
+        if self._rendered >= len(self._filtered):
+            return
+        novo = min(self._rendered + self._page_size, len(self._filtered))
+        # adiciona incrementalmente
+        self.tbl.setRowCount(novo)
+        for row in range(self._rendered, novo):
+            t = self._filtered[row]
+            vals = (
+                t.timestamp.strftime("%d/%m %H:%M:%S"),
+                self.vm.nome_tentativa(t),
+                str(t.direcao),
+                str(t.resultado),
+                str(t.motivo or "—"),
+            )
+            for col, v in enumerate(vals):
+                self.tbl.setItem(row, col, QTableWidgetItem(v))
+        self._rendered = novo
+        if len(self._filtered) > self._page_size:
+            self.lbl_paginacao.setText(
+                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"  # noqa: E501
+            )
+            self.lbl_paginacao.setVisible(self._rendered < len(self._filtered))
+        else:
+            self.lbl_paginacao.setVisible(False)
