@@ -1,7 +1,7 @@
 """perf caixa: índice em pagamentos.competencia (pushdown 4.16).
 
 Revision ID: 1a2b3c4d5e6f
-Revises: f4a1b2c3d9e0
+Revises: a15f4e2d9c31
 Create Date: 2026-09-15
 """
 

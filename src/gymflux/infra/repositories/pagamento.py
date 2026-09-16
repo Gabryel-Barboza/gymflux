@@ -7,8 +7,10 @@ from typing import Protocol
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from gymflux.core.pagamento import Pagamento
+from gymflux.infra.models.aluno import AlunoModel
 from gymflux.infra.models.pagamento import PagamentoModel
 
 
@@ -25,6 +27,10 @@ class PagamentoRepository(Protocol):
     def contar_por_mes(self, mes: str | None) -> int: ...
     def totais_por_mes(self, mes: str | None) -> tuple[Decimal, Decimal, Decimal]: ...
     def meses_distintos(self) -> list[str]: ...
+    def buscar_por_nome(
+        self, mes: str | None, termo: str, limit: int | None = None, offset: int = 0
+    ) -> list[tuple[Pagamento, str]]: ...
+    def contar_por_nome(self, mes: str | None, termo: str) -> int: ...
 
 
 def _model_to_domain(m: PagamentoModel) -> Pagamento:
@@ -51,7 +57,7 @@ def _domain_to_model(p: Pagamento) -> PagamentoModel:
     )
 
 
-def _mes_where(mes: str | None):  # type: ignore[no-untyped-def]
+def _mes_where(mes: str | None) -> ColumnElement[bool] | None:
     if mes is None:
         return None
     return or_(
@@ -146,6 +152,39 @@ class PagamentoRepositorySQLAlchemy:
         rows = [r[0] for r in self.session.execute(stmt).all() if r[0]]
         return sorted(set(rows), reverse=True)
 
+    # -- busca por nome do aluno (JOIN + LIKE, paginado) ----------------------
+    def buscar_por_nome(
+        self, mes: str | None, termo: str, limit: int | None = None, offset: int = 0
+    ) -> list[tuple[Pagamento, str]]:
+        like = f"%{termo.strip().lower()}%"
+        stmt = (
+            select(PagamentoModel, AlunoModel.nome)
+            .join(AlunoModel, PagamentoModel.aluno_id == AlunoModel.id)
+            .where(func.lower(AlunoModel.nome).like(like))
+            .order_by(PagamentoModel.vencimento.desc())
+        )
+        where = _mes_where(mes)
+        if where is not None:
+            stmt = stmt.where(where)
+        if limit is not None:
+            stmt = stmt.limit(limit).offset(offset)
+        elif offset:
+            stmt = stmt.offset(offset)
+        return [(_model_to_domain(m), str(nome)) for m, nome in self.session.execute(stmt).all()]
+
+    def contar_por_nome(self, mes: str | None, termo: str) -> int:
+        like = f"%{termo.strip().lower()}%"
+        stmt = (
+            select(func.count())
+            .select_from(PagamentoModel)
+            .join(AlunoModel, PagamentoModel.aluno_id == AlunoModel.id)
+            .where(func.lower(AlunoModel.nome).like(like))
+        )
+        where = _mes_where(mes)
+        if where is not None:
+            stmt = stmt.where(where)
+        return int(self.session.execute(stmt).scalar_one() or 0)
+
     def remover(self, pagamento_id: str) -> None:
         m = self.session.get(PagamentoModel, pagamento_id)
         if m:
@@ -217,6 +256,14 @@ class PagamentoRepositoryMemoria:
         for p in self._pagamentos.values():
             vals.add(p.competencia or p.data_vencimento.strftime("%Y-%m"))
         return sorted(vals, reverse=True)
+
+    def buscar_por_nome(
+        self, mes: str | None, termo: str, limit: int | None = None, offset: int = 0
+    ) -> list[tuple[Pagamento, str]]:
+        raise NotImplementedError("Memória usa fallback da ViewModel (filtro Python)")
+
+    def contar_por_nome(self, mes: str | None, termo: str) -> int:
+        raise NotImplementedError("Memória usa fallback da ViewModel (filtro Python)")
 
     def remover(self, pagamento_id: str) -> None:
         self._pagamentos.pop(pagamento_id, None)

@@ -65,7 +65,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "C4", "UP", "SIM", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]
+ignore = []
+# en-dash intencional só nos turnos (exibição "Seg–Sex · 08–12h")
+per-file-ignores = { "src/gymflux/core/funcionario.py" = ["RUF001", "RUF002", "RUF003"], "src/gymflux/ui/views/funcionarios.py" = ["RUF001", "RUF002", "RUF003"], "tests/unit/core/test_turnos.py" = ["RUF001", "RUF002", "RUF003"] }
 
 [tool.ruff.format]
 quote-style = "double"

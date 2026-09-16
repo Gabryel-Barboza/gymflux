@@ -181,9 +181,7 @@ def format_turnos_compacto(text: str | None, dias_legado: str | None = None) -> 
 
         # dias com en-dash
         dias_compact = dias.replace("-", "–")
-        horarios = " · ".join(
-            f"{_compact(t.inicio)}–{_compact(t.fim)}" for t in lst
-        )
+        horarios = " · ".join(f"{_compact(t.inicio)}–{_compact(t.fim)}" for t in lst)
         # múltiplos horários no mesmo dias => 2 linhas (dias + horários)
         if len(lst) > 1:
             linhas.append(f"{dias_compact}")

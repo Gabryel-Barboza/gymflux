@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 from loguru import logger
-from PySide6.QtCore import QDate, QPoint, QStringListModel, Qt, Signal
+from PySide6.QtCore import QDate, QPoint, QStringListModel, Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -326,7 +326,12 @@ class CaixaView(QWidget):
         # compat: mantém table de combo recarga etc
         self.cmb_mes.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
-        self.edt_busca.textChanged.connect(lambda _t: self.recarregar())
+        # debounce 300ms: evita 1 full-refresh por tecla (travava em 7k)
+        self._busca_timer = QTimer(self)
+        self._busca_timer.setSingleShot(True)
+        self._busca_timer.setInterval(300)
+        self._busca_timer.timeout.connect(self.recarregar)
+        self.edt_busca.textChanged.connect(lambda _t: self._busca_timer.start())
         self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tbl.customContextMenuRequested.connect(self._menu_contexto)
@@ -435,19 +440,18 @@ class CaixaView(QWidget):
 
         termo = self.edt_busca.text().strip().lower()
         if termo:
-            # busca ativa: fallback full filter (ainda paginado se muito grande, mas sem pushdown)
-            linhas_full = self.vm.por_mes(mes)
-            linhas_full = [(p, n) for (p, n) in linhas_full if termo in n.lower()]
-            self._linhas_cache = list(linhas_full)
-            self._filtered_linhas = list(linhas_full)
-            self._total_mes = len(linhas_full)
-            self._rendered = min(self._page_size, self._total_mes)
+            # busca ativa com pushdown (JOIN+LIKE paginado; fallback filtra em Python)
+            self._total_mes = self.vm.contar_busca(mes, termo)
+            pagina = self.vm.buscar(mes, termo, limit=self._page_size, offset=0)
+            self._linhas_cache = list(pagina)
+            self._filtered_linhas = list(pagina)
+            self._rendered = len(pagina)
             self._render_tabela()
             if self._total_mes > self._page_size:
                 self.lbl_paginacao.setText(
                     f"Mostrando {self._rendered} de {self._total_mes} — role até o final para carregar mais"  # noqa: E501
                 )
-                self.lbl_paginacao.setVisible(True)
+                self.lbl_paginacao.setVisible(self._rendered < self._total_mes)
             else:
                 self.lbl_paginacao.setVisible(False)
             return
@@ -539,8 +543,17 @@ class CaixaView(QWidget):
             return
         termo = self.edt_busca.text().strip().lower()
         if termo:
-            # busca ativa: já temos full filtrado, só expande render
-            novo = min(self._rendered + self._page_size, total)
+            # busca ativa paginada: próxima página no repo (pushdown)
+            mes = self._mes_atual()
+            try:
+                proxima = self.vm.buscar(mes, termo, limit=self._page_size, offset=self._rendered)
+            except Exception:
+                proxima = []
+            if not proxima:
+                return
+            self._filtered_linhas.extend(proxima)
+            self._linhas_cache.extend(proxima)
+            novo = self._rendered + len(proxima)
             hoje = date.today()
             sorting = self.tbl.isSortingEnabled()
             self.tbl.setSortingEnabled(False)
@@ -655,8 +668,7 @@ class CaixaView(QWidget):
             self._rendered = novo
             if total > self._page_size:
                 self.lbl_paginacao.setText(
-                    f"Mostrando {self._rendered} de {total} — "
-                    "role até o final para carregar mais"
+                    f"Mostrando {self._rendered} de {total} — role até o final para carregar mais"
                 )
                 self.lbl_paginacao.setVisible(self._rendered < total)
             else:

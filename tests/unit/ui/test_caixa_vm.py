@@ -147,6 +147,88 @@ def test_reabrir_mes_e_reusar_competencia():
         vm.reabrir_mes("2026-09")
 
 
+def test_buscar_fallback_memoria_filtra_por_nome():
+    vm = _caixa()
+    ana = _aluno(vm, "Ana Souza")
+    bruno = _aluno(vm, "Bruno Lima")
+    vm.registrar(
+        aluno_id=ana,
+        valor="100.00",
+        data_vencimento=date(2026, 9, 10),
+        competencia="2026-09",
+    )
+    vm.registrar(
+        aluno_id=bruno,
+        valor="50.00",
+        data_vencimento=date(2026, 9, 5),
+        competencia="2026-09",
+    )
+    rows = vm.buscar("2026-09", "ana")
+    assert [n for _, n in rows] == ["Ana Souza"]
+    assert vm.contar_busca("2026-09", "ana") == 1
+    assert vm.buscar("2026-09", "zzz") == []
+    assert vm.contar_busca("2026-09", "zzz") == 0
+    # termo vazio = por_mes normal
+    assert len(vm.buscar("2026-09", "  ")) == 2
+    # case-insensitive + paginação do fallback
+    assert len(vm.buscar("2026-09", "A", limit=1, offset=1)) == 1
+
+
+def test_buscar_sql_join_paridade(tmp_path):
+    """JOIN+LIKE retorna o mesmo que o filtro Python (paridade SQL x fallback)."""
+    from gymflux.infra.db import get_session, init_db, reset_engine
+    from gymflux.infra.models.aluno import AlunoModel
+    from gymflux.infra.models.pagamento import PagamentoModel
+    from gymflux.infra.repositories.aluno import AlunoRepositorySQLAlchemy
+    from gymflux.infra.repositories.fechamento_caixa import (
+        FechamentoCaixaRepositorySQLAlchemy,
+    )
+    from gymflux.infra.repositories.pagamento import PagamentoRepositorySQLAlchemy
+
+    url = f"sqlite:///{tmp_path}/busca.db"
+    reset_engine()
+    init_db(url)
+    sess = get_session(url)
+    try:
+        for i, nome in enumerate(["Ana Souza", "Bruno Lima", "Anacleto Silva"]):
+            aid = f"aluno-busca-{i}"
+            sess.add(
+                AlunoModel(
+                    id=aid,
+                    nome=nome,
+                    status="ATIVO",
+                    bloqueado_manual=False,
+                )
+            )
+            sess.add(
+                PagamentoModel(
+                    id=f"pag-busca-{i}",
+                    aluno_id=aid,
+                    valor=Decimal("10.00"),
+                    vencimento=date(2026, 9, 10),
+                    competencia="2026-09",
+                )
+            )
+        sess.commit()
+        vm = CaixaViewModel(
+            pagamentos=RegistrarPagamentoService(repo=PagamentoRepositorySQLAlchemy(sess)),
+            alunos=CadastrarAlunoService(repo=AlunoRepositorySQLAlchemy(sess)),
+            fechamentos=FechamentoCaixaRepositorySQLAlchemy(sess),
+        )
+        rows = vm.buscar("2026-09", "ana")
+        assert sorted(n for _, n in rows) == ["Ana Souza", "Anacleto Silva"]
+        assert vm.contar_busca("2026-09", "ana") == 2
+        # ordenado por vencimento desc + paginação
+        pag1 = vm.buscar("2026-09", "ana", limit=1, offset=0)
+        pag2 = vm.buscar("2026-09", "ana", limit=1, offset=1)
+        assert len(pag1) == len(pag2) == 1
+        assert pag1[0][0].id != pag2[0][0].id
+        assert vm.contar_busca("2026-08", "ana") == 0
+    finally:
+        sess.close()
+        reset_engine()
+
+
 def test_forma_none_default_pix():
     vm = _caixa()
     aluno_id = _aluno(vm)

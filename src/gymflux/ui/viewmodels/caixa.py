@@ -120,6 +120,42 @@ class CaixaViewModel:
                 pendente += p.valor
         return recebido, pendente, recebido + pendente
 
+    def buscar(
+        self, mes: str | None, termo: str, limit: int | None = None, offset: int = 0
+    ) -> list[tuple[Pagamento, str]]:
+        """Busca por nome do aluno no mês (pushdown JOIN+LIKE quando há suporte)."""
+        t = termo.strip().lower()
+        if not t:
+            return self.por_mes(mes, limit=limit, offset=offset)
+        repo = getattr(self.pagamentos, "repo", None)
+        if repo is not None and hasattr(repo, "buscar_por_nome"):
+            try:
+                rows = repo.buscar_por_nome(mes, t, limit=limit, offset=offset)  # type: ignore[attr-defined]
+                return list(rows)
+            except Exception:
+                pass
+        # fallback: full-load filtrado em Python
+        linhas = self.por_mes(mes)
+        filtradas = [(p, n) for (p, n) in linhas if t in n.lower()]
+        if offset:
+            filtradas = filtradas[offset:]
+        if limit is not None:
+            filtradas = filtradas[:limit]
+        return filtradas
+
+    def contar_busca(self, mes: str | None, termo: str) -> int:
+        """Total de resultados da busca (p/ paginação)."""
+        t = termo.strip().lower()
+        if not t:
+            return self.contar_por_mes(mes)
+        repo = getattr(self.pagamentos, "repo", None)
+        if repo is not None and hasattr(repo, "contar_por_nome"):
+            try:
+                return int(repo.contar_por_nome(mes, t))  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        return len([1 for _p, n in self.por_mes(mes) if t in n.lower()])
+
     def listar_alunos(self) -> list[Aluno]:
         # se repo tem listar_ordenado, usa sem limite para manter sorted
         aluno_repo = getattr(self.alunos, "repo", None)
