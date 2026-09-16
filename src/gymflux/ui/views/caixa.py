@@ -355,7 +355,7 @@ class CaixaView(QWidget):
         mes = self.cmb_mes.currentData()
         return str(mes) if mes is not None else None
 
-    def _recarregar_combos(self) -> None:
+    def _recarregar_meses(self) -> None:
         mes_atual = self._mes_atual()
         meses = self.vm.meses_disponiveis()
         if not meses:
@@ -365,7 +365,6 @@ class CaixaView(QWidget):
             self.cmb_mes.clear()
             self.cmb_mes.addItem("Todos", None)
             for m in meses:
-                # exibe MM/AAAA mas guarda YYYY-MM
                 try:
                     y, mo = m.split("-")
                     label = f"{mo}/{y}"
@@ -379,12 +378,14 @@ class CaixaView(QWidget):
         finally:
             self.cmb_mes.blockSignals(False)
 
+    def _recarregar_alunos_combo(self) -> None:
         aluno_atual = self.cmb_aluno.currentData()
         texto_atual = self.cmb_aluno.currentText()
         self.cmb_aluno.blockSignals(True)
         try:
             self.cmb_aluno.clear()
             nomes = []
+            # usar listar_ordenado quando disponível já é ordenado e com busca
             for a in self.vm.listar_alunos():
                 self.cmb_aluno.addItem(a.nome, a.id)
                 nomes.append(a.nome)
@@ -398,15 +399,28 @@ class CaixaView(QWidget):
         finally:
             self.cmb_aluno.blockSignals(False)
 
+    def _recarregar_combos(self) -> None:
+        # LEGADO: mantém compat (chamado por testes/externo) -> só meses + alunos se combo vazio
+        self._recarregar_meses()
+        # só recarrega alunos se ainda vazio (evita full-load por troca de mês)
+        if self.cmb_aluno.count() == 0:
+            self._recarregar_alunos_combo()
+        else:
+            # se já tem, apenas garante que meses está atualizado; alunos fica cacheado
+            pass
+
     def recarregar(self) -> None:
-        self._recarregar_combos()
+        # PART 1: pushdown — UM refresh por troca de mês
+        #  (meses DISTINCT + totais SUM + página LIMIT)
+        # _recarregar_combos dividido: meses sempre, alunos só se vazio
+        self._recarregar_meses()
+        if self.cmb_aluno.count() == 0:
+            self._recarregar_alunos_combo()
         mes = self._mes_atual()
         recebido, pendente, total = self.vm.totais_mes(mes)
-        # sem data no texto (stats coloridas)
         self.lbl_recebido.setText(f"Recebido: R$ {recebido:.2f}")
         self.lbl_pendente.setText(f"Pendente: R$ {pendente:.2f}")
         self.lbl_total.setText(f"Total: R$ {total:.2f}")
-        # compat lbl_totais
         rotulo = mes or "geral"
         self.lbl_totais.setText(
             f"{rotulo} — Recebido R$ {recebido:.2f} · "
@@ -419,22 +433,40 @@ class CaixaView(QWidget):
         self.btn_reabrir.setVisible(fechado)
         self.btn_fechar.setVisible(not fechado)
 
-        linhas = self.vm.por_mes(mes)
-        # filtro similar alunos: busca por nome/aluno
         termo = self.edt_busca.text().strip().lower()
         if termo:
-            linhas = [(p, n) for (p, n) in linhas if termo in n.lower()]
-        self._linhas_cache = list(linhas)
-        self._filtered_linhas = list(linhas)
-        # paginação: mostra só primeira página (500) para não travar com 7k
-        self._rendered = min(self._page_size, len(self._filtered_linhas))
+            # busca ativa: fallback full filter (ainda paginado se muito grande, mas sem pushdown)
+            linhas_full = self.vm.por_mes(mes)
+            linhas_full = [(p, n) for (p, n) in linhas_full if termo in n.lower()]
+            self._linhas_cache = list(linhas_full)
+            self._filtered_linhas = list(linhas_full)
+            self._total_mes = len(linhas_full)
+            self._rendered = min(self._page_size, self._total_mes)
+            self._render_tabela()
+            if self._total_mes > self._page_size:
+                self.lbl_paginacao.setText(
+                    f"Mostrando {self._rendered} de {self._total_mes} — role até o final para carregar mais"  # noqa: E501
+                )
+                self.lbl_paginacao.setVisible(True)
+            else:
+                self.lbl_paginacao.setVisible(False)
+            return
+
+        # modo pushdown paginado
+        self._total_mes = self.vm.contar_por_mes(mes)
+        pagina = self.vm.por_mes(mes, limit=self._page_size, offset=0)
+        self._linhas_cache = list(pagina)
+        self._filtered_linhas = list(pagina)
+        self._rendered = len(pagina)
+        # se total ainda não refletiu página (contar pode ser maior), guarda total
+        if not hasattr(self, "_total_mes"):
+            self._total_mes = self._rendered
         self._render_tabela()
-        # mostra label de paginação quando houver mais
-        if len(self._filtered_linhas) > self._page_size:
+        if self._total_mes > self._page_size:
             self.lbl_paginacao.setText(
-                f"Mostrando {self._rendered} de {len(self._filtered_linhas)} — role até o final para carregar mais"  # noqa: E501
+                f"Mostrando {self._rendered} de {self._total_mes} — role até o final para carregar mais"  # noqa: E501
             )
-            self.lbl_paginacao.setVisible(True)
+            self.lbl_paginacao.setVisible(self._rendered < self._total_mes)
         else:
             self.lbl_paginacao.setVisible(False)
 
@@ -500,22 +532,90 @@ class CaixaView(QWidget):
         bar = self.tbl.verticalScrollBar()
         if bar.maximum() == 0:
             return
-        # perto do final (90%)
         if value < bar.maximum() * 0.9:
             return
-        if self._rendered >= len(self._filtered_linhas):
+        total = getattr(self, "_total_mes", len(self._filtered_linhas))
+        if self._rendered >= total:
             return
-        # carrega próximo lote
-        novo = min(self._rendered + self._page_size, len(self._filtered_linhas))
-        # evita re-render completo: só adiciona novas linhas
+        termo = self.edt_busca.text().strip().lower()
+        if termo:
+            # busca ativa: já temos full filtrado, só expande render
+            novo = min(self._rendered + self._page_size, total)
+            hoje = date.today()
+            sorting = self.tbl.isSortingEnabled()
+            self.tbl.setSortingEnabled(False)
+            self.tbl.blockSignals(True)
+            try:
+                self.tbl.setRowCount(novo)
+                for row in range(self._rendered, novo):
+                    p, nome = self._filtered_linhas[row]
+                    if p.pago:
+                        sit = "PAGO"
+                    elif p.dias_atraso(hoje) > 0:
+                        sit = f"ATRASADO {p.dias_atraso(hoje)}d"
+                    else:
+                        sit = "PENDENTE"
+                    from gymflux.ui.formatters import fmt_br
+
+                    def _comp_br2(comp: str | None) -> str:
+                        if not comp or comp == "—":
+                            return "—"
+                        try:
+                            y, m = comp.split("-")
+                            return f"{m}/{y}"
+                        except Exception:
+                            return comp
+
+                    vals = (
+                        nome,
+                        f"{Decimal(str(p.valor)):.2f}",
+                        fmt_br(p.data_vencimento),
+                        sit,
+                        str(p.forma) if p.forma else "—",
+                        _comp_br2(p.competencia),
+                    )
+                    for col, v in enumerate(vals):
+                        item = QTableWidgetItem(v)
+                        item.setData(Qt.ItemDataRole.UserRole, p.id)
+                        item.setData(Qt.ItemDataRole.UserRole + 1, p.aluno_id)
+                        if not p.pago and p.dias_atraso(hoje) > 0:
+                            is_escuro = modo_de(self.vm.ui_config.tema) == ModoTema.ESCURO
+                            bg = "#3a1a1a" if is_escuro else "#ffe0e0"
+                            fg = VERMELHO if is_escuro else "#991111"
+                            item.setBackground(QColor(bg))
+                            item.setForeground(QColor(fg))
+                        self.tbl.setItem(row, col, item)
+                self._rendered = novo
+                if total > self._page_size:
+                    self.lbl_paginacao.setText(
+                        f"Mostrando {self._rendered} de {total} — "
+                        "role até o final para carregar mais"
+                    )
+                    self.lbl_paginacao.setVisible(self._rendered < total)
+                else:
+                    self.lbl_paginacao.setVisible(False)
+            finally:
+                self.tbl.blockSignals(False)
+                self.tbl.setSortingEnabled(sorting)
+            return
+        # pushdown: busca próxima página no repo
+        mes = self._mes_atual()
+        try:
+            proxima = self.vm.por_mes(mes, limit=self._page_size, offset=self._rendered)
+        except Exception:
+            proxima = []
+        if not proxima:
+            return
         hoje = date.today()
         sorting = self.tbl.isSortingEnabled()
         self.tbl.setSortingEnabled(False)
         self.tbl.blockSignals(True)
         try:
+            novo = self._rendered + len(proxima)
+            self._filtered_linhas.extend(proxima)
+            self._linhas_cache.extend(proxima)
             self.tbl.setRowCount(novo)
-            for row in range(self._rendered, novo):
-                p, nome = self._filtered_linhas[row]
+            for idx, (p, nome) in enumerate(proxima, start=self._rendered):
                 if p.pago:
                     sit = "PAGO"
                 elif p.dias_atraso(hoje) > 0:
@@ -524,7 +624,7 @@ class CaixaView(QWidget):
                     sit = "PENDENTE"
                 from gymflux.ui.formatters import fmt_br
 
-                def _comp_br2(comp: str | None) -> str:
+                def _comp_br3(comp: str | None) -> str:
                     if not comp or comp == "—":
                         return "—"
                     try:
@@ -539,7 +639,7 @@ class CaixaView(QWidget):
                     fmt_br(p.data_vencimento),
                     sit,
                     str(p.forma) if p.forma else "—",
-                    _comp_br2(p.competencia),
+                    _comp_br3(p.competencia),
                 )
                 for col, v in enumerate(vals):
                     item = QTableWidgetItem(v)
@@ -551,13 +651,14 @@ class CaixaView(QWidget):
                         fg = VERMELHO if is_escuro else "#991111"
                         item.setBackground(QColor(bg))
                         item.setForeground(QColor(fg))
-                    self.tbl.setItem(row, col, item)
+                    self.tbl.setItem(idx, col, item)
             self._rendered = novo
-            if len(self._filtered_linhas) > self._page_size:
+            if total > self._page_size:
                 self.lbl_paginacao.setText(
-                    f"Mostrando {self._rendered} de {len(self._filtered_linhas)} — role até o final para carregar mais"  # noqa: E501
+                    f"Mostrando {self._rendered} de {total} — "
+                    "role até o final para carregar mais"
                 )
-                self.lbl_paginacao.setVisible(self._rendered < len(self._filtered_linhas))
+                self.lbl_paginacao.setVisible(self._rendered < total)
             else:
                 self.lbl_paginacao.setVisible(False)
         finally:

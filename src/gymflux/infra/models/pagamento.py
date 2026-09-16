@@ -25,7 +25,9 @@ class PagamentoModel(Base):
         "pagamento", Date, nullable=True, default=None
     )
     forma: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
-    competencia: Mapped[str | None] = mapped_column(String(7), nullable=True, default=None)
+    competencia: Mapped[str | None] = mapped_column(
+        String(7), nullable=True, default=None, index=True
+    )
 
     def __repr__(self) -> str:
         return f"<PagamentoModel id={self.id} aluno={self.aluno_id} venc={self.vencimento}>"

@@ -45,21 +45,72 @@ class CaixaViewModel:
         return self.pagamentos.listar()
 
     def meses_disponiveis(self) -> list[str]:
+        # pushdown: DISTINCT no repo quando disponível
+        repo = getattr(self.pagamentos, "repo", None)
+        if repo is not None and hasattr(repo, "meses_distintos"):
+            try:
+                meses = set(repo.meses_distintos())  # type: ignore[attr-defined]
+                meses.update(f.mes for f in self.fechamentos.listar())
+                return sorted(meses, reverse=True)
+            except Exception:
+                pass
         meses = {self.mes_de(p) for p in self.listar_todos()}
         meses.update(f.mes for f in self.fechamentos.listar())
         return sorted(meses, reverse=True)
 
-    def por_mes(self, mes: str | None) -> list[tuple[Pagamento, str]]:
+    def por_mes(
+        self, mes: str | None, limit: int | None = None, offset: int = 0
+    ) -> list[tuple[Pagamento, str]]:
         """(pagamento, nome_aluno) do mês ou todos; ordenado por vencimento desc."""
+        # pushdown paginado quando repo suporta
+        repo = getattr(self.pagamentos, "repo", None)
+        aluno_repo = getattr(self.alunos, "repo", None)
+        if repo is not None and hasattr(repo, "listar_por_mes"):
+            try:
+                pags = repo.listar_por_mes(mes, limit=limit, offset=offset)  # type: ignore[attr-defined]
+                # mapa_nomes só dos ids da página
+                ids = [p.aluno_id for p in pags]
+                nomes: dict[str, str] = {}
+                if aluno_repo is not None and hasattr(aluno_repo, "mapa_nomes"):
+                    try:
+                        nomes = aluno_repo.mapa_nomes(ids)  # type: ignore[attr-defined]
+                    except Exception:
+                        nomes = {a.id: a.nome for a in self.listar_alunos() if a.id in set(ids)}
+                else:
+                    nomes = {a.id: a.nome for a in self.listar_alunos() if a.id in set(ids)}
+                return [(p, nomes.get(p.aluno_id, p.aluno_id)) for p in pags]
+            except Exception:
+                pass
+        # fallback: full-load
         nomes = {a.id: a.nome for a in self.listar_alunos()}
         pags = self.listar_todos()
         if mes is not None:
             pags = [p for p in pags if self.mes_de(p) == mes]
         pags.sort(key=lambda p: p.data_vencimento, reverse=True)
+        if offset:
+            pags = pags[offset:]
+        if limit is not None:
+            pags = pags[:limit]
         return [(p, nomes.get(p.aluno_id, p.aluno_id)) for p in pags]
+
+    def contar_por_mes(self, mes: str | None) -> int:
+        repo = getattr(self.pagamentos, "repo", None)
+        if repo is not None and hasattr(repo, "contar_por_mes"):
+            try:
+                return int(repo.contar_por_mes(mes))  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # fallback: via por_mes sem limite
+        return len(self.por_mes(mes))
 
     def totais_mes(self, mes: str | None) -> tuple[Decimal, Decimal, Decimal]:
         """(recebido, pendente, total) do mês ou geral."""
+        repo = getattr(self.pagamentos, "repo", None)
+        if repo is not None and hasattr(repo, "totais_por_mes"):
+            try:
+                return repo.totais_por_mes(mes)  # type: ignore[attr-defined,no-any-return]
+            except Exception:
+                pass
         recebido = Decimal("0")
         pendente = Decimal("0")
         for p, _nome in self.por_mes(mes):
@@ -70,6 +121,13 @@ class CaixaViewModel:
         return recebido, pendente, recebido + pendente
 
     def listar_alunos(self) -> list[Aluno]:
+        # se repo tem listar_ordenado, usa sem limite para manter sorted
+        aluno_repo = getattr(self.alunos, "repo", None)
+        if aluno_repo is not None and hasattr(aluno_repo, "listar_ordenado"):
+            try:
+                return aluno_repo.listar_ordenado()  # type: ignore[attr-defined,no-any-return]
+            except Exception:
+                pass
         return sorted(self.alunos.listar(), key=lambda a: a.nome.lower())
 
     def do_aluno(self, aluno_id: str) -> list[Pagamento]:

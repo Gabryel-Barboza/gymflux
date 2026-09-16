@@ -1,11 +1,11 @@
 """AlunoRepository — Protocol + SQLAlchemy impl + Memória fallback."""
 
-# ruff: noqa: SIM105, E501
+# ruff: noqa: SIM105
 from __future__ import annotations
 
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from gymflux.core.aluno import Aluno, StatusAluno
@@ -20,6 +20,10 @@ class AlunoRepository(Protocol):
     def listar(self) -> list[Aluno]: ...
     def remover(self, aluno_id: str) -> None: ...
     def total(self) -> int: ...
+    def mapa_nomes(self, ids: list[str]) -> dict[str, str]: ...
+    def listar_ordenado(
+        self, limit: int | None = None, offset: int = 0, busca: str | None = None
+    ) -> list[Aluno]: ...
 
 
 def _model_to_domain(m: AlunoModel) -> Aluno:
@@ -76,7 +80,9 @@ def _domain_to_model(aluno: Aluno) -> AlunoModel:
             data_nasc=aluno.data_nasc,
             telefone=aluno.telefone,
             email=aluno.email,
-            status=aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status),
+            status=aluno.status.value
+            if isinstance(aluno.status, StatusAluno)
+            else str(aluno.status),
             observacoes=aluno.observacoes,
             endereco=aluno.endereco,
             bloqueado_manual=bool(aluno.bloqueado_manual),
@@ -130,7 +136,9 @@ class AlunoRepositorySQLAlchemy:
                 existing.telefone = aluno.telefone
                 existing.email = aluno.email
                 existing.status = (
-                    aluno.status.value if isinstance(aluno.status, StatusAluno) else str(aluno.status)
+                    aluno.status.value
+                    if isinstance(aluno.status, StatusAluno)
+                    else str(aluno.status)
                 )
                 existing.observacoes = aluno.observacoes
                 existing.endereco = aluno.endereco
@@ -230,6 +238,58 @@ class AlunoRepositorySQLAlchemy:
                 return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
             raise
 
+    def mapa_nomes(self, ids: list[str]) -> dict[str, str]:
+        if not ids:
+            return {}
+        self._ensure_clean()
+        try:
+            stmt = select(AlunoModel.id, AlunoModel.nome).where(AlunoModel.id.in_(ids))
+            return {str(r[0]): str(r[1]) for r in self.session.execute(stmt).all()}
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(AlunoModel.id, AlunoModel.nome).where(AlunoModel.id.in_(ids))
+                return {str(r[0]): str(r[1]) for r in self.session.execute(stmt).all()}
+            raise
+
+    def listar_ordenado(
+        self, limit: int | None = None, offset: int = 0, busca: str | None = None
+    ) -> list[Aluno]:
+        self._ensure_clean()
+        try:
+            stmt = select(AlunoModel).order_by(func.lower(AlunoModel.nome))
+            if busca and busca.strip():
+                termo = f"%{busca.strip().lower()}%"
+                stmt = stmt.where(func.lower(AlunoModel.nome).like(termo))
+            if limit is not None:
+                stmt = stmt.limit(limit).offset(offset)
+            elif offset:
+                stmt = stmt.offset(offset)
+            return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+        except Exception as e:
+            from sqlalchemy.exc import PendingRollbackError
+
+            if isinstance(e, PendingRollbackError):
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
+                stmt = select(AlunoModel).order_by(func.lower(AlunoModel.nome))
+                if busca and busca.strip():
+                    termo = f"%{busca.strip().lower()}%"
+                    stmt = stmt.where(func.lower(AlunoModel.nome).like(termo))
+                if limit is not None:
+                    stmt = stmt.limit(limit).offset(offset)
+                elif offset:
+                    stmt = stmt.offset(offset)
+                return [_model_to_domain(m) for m in self.session.execute(stmt).scalars().all()]
+            raise
+
     def remover(self, aluno_id: str) -> None:
         self._ensure_clean()
         try:
@@ -305,6 +365,26 @@ class AlunoRepositoryMemoria:
 
     def listar(self) -> list[Aluno]:
         return list(self._alunos.values())
+
+    def mapa_nomes(self, ids: list[str]) -> dict[str, str]:
+        if not ids:
+            return {}
+        ids_set = set(ids)
+        return {a.id: a.nome for a in self._alunos.values() if a.id in ids_set}
+
+    def listar_ordenado(
+        self, limit: int | None = None, offset: int = 0, busca: str | None = None
+    ) -> list[Aluno]:
+        vals = list(self._alunos.values())
+        if busca and busca.strip():
+            termo = busca.strip().lower()
+            vals = [a for a in vals if termo in a.nome.lower()]
+        vals.sort(key=lambda a: a.nome.lower())
+        if offset:
+            vals = vals[offset:]
+        if limit is not None:
+            vals = vals[:limit]
+        return vals
 
     def remover(self, aluno_id: str) -> None:
         self._alunos.pop(aluno_id, None)

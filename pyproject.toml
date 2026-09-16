@@ -29,11 +29,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# UI - instalar apenas quando for desenvolver interface
+# UI - instalar apenas quando for desenvolver interface (wheels em Linux/mac/win64;
+# em Windows 32-bit use o dual-env: UI no .venv x64, hardware no .venv32 minimal)
 ui = ["PySide6>=6.7"]
-# Windows real - só instala em Windows (ctypes é stdlib, mas pywin32 ajuda)
+# Windows real - pywin32 (COM) + comtypes (fallback SComConfig); só em Windows
 windows = [
     "pywin32>=306; sys_platform == 'win32'",
+    "comtypes>=1.2; sys_platform == 'win32'",
 ]
 # Hardware real depende de Windows 32-bit + DLL
 
@@ -63,7 +65,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "C4", "UP", "SIM", "RUF"]
-ignore = []
+ignore = ["RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.format]
 quote-style = "double"
