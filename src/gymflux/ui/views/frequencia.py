@@ -112,7 +112,7 @@ class FrequenciaView(QWidget):
         self.recarregar()
 
     def _filtrar_alunos(self, texto: str) -> None:
-        # paginação: mostra até 50 que contêm texto
+        # paginação: mostra até 100 que contêm texto (7k total, evita travar QComboBox)
         if not hasattr(self, "_todos_alunos_cache"):
             return
         txt = texto.strip().lower()
@@ -121,7 +121,7 @@ class FrequenciaView(QWidget):
             if txt
             else [a.nome for a in self._todos_alunos_cache]
         )
-        exib = filtrados[:50]
+        exib = filtrados[:100]
         self._completer_model.setStringList(exib)
         # mantém popup se filtrado
         if txt and exib:
@@ -140,10 +140,10 @@ class FrequenciaView(QWidget):
         try:
             self.cmb_aluno.clear()
             self.cmb_aluno.addItem("Todos", None)
-            # paginação 50
-            for a in self._todos_alunos_cache[:50]:
+            # paginação 100 visíveis (todos em cache 7k, evita travar dropdown)
+            for a in self._todos_alunos_cache[:100]:
                 self.cmb_aluno.addItem(a.nome, a.id)
-            self._completer_model.setStringList([a.nome for a in self._todos_alunos_cache[:50]])
+            self._completer_model.setStringList([a.nome for a in self._todos_alunos_cache[:100]])
             if aluno_atual is not None:
                 idx = self.cmb_aluno.findData(aluno_atual)
                 if idx >= 0:
@@ -196,7 +196,7 @@ class FrequenciaView(QWidget):
         self._render_tabela()
         if len(self._filtered) > self._page_size:
             self.lbl_paginacao.setText(
-                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"  # noqa: E501
+                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"
             )
             self.lbl_paginacao.setVisible(True)
         else:
@@ -241,7 +241,7 @@ class FrequenciaView(QWidget):
         self._rendered = novo
         if len(self._filtered) > self._page_size:
             self.lbl_paginacao.setText(
-                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"  # noqa: E501
+                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"
             )
             self.lbl_paginacao.setVisible(self._rendered < len(self._filtered))
         else:

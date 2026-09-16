@@ -83,18 +83,24 @@ def _create_turno_row(
     fim: str = "18:00",
 ) -> dict:
     row_widget = QWidget(parent)
+    # borda leve para seleção visual
+    row_widget.setObjectName("TurnoRow")
+    row_widget.setStyleSheet(
+        "QWidget#TurnoRow { border: 1px solid transparent; border-radius: 6px; }"
+    )
     lay = QHBoxLayout(row_widget)
-    lay.setContentsMargins(0, 0, 0, 0)
-    lay.setSpacing(6)
+    lay.setContentsMargins(4, 2, 4, 2)
+    lay.setSpacing(8)
     cmb = QComboBox(row_widget)
     cmb.addItems(_DIAS_PRESETS)
+    cmb.setMinimumWidth(120)
+    cmb.setMaximumWidth(130)
     edt_custom = QLineEdit(row_widget)
     edt_custom.setPlaceholderText("Seg, Qua ...")
     edt_custom.setVisible(False)
-    edt_custom.setMaximumWidth(110)
+    edt_custom.setMaximumWidth(120)
     # seleciona preset ou personalizado
     if dias in _PRESET_MAP.values() or dias in _PRESET_MAP:
-        # tenta achar preset que mapeia para dias
         inv = {v: k for k, v in _PRESET_MAP.items()}
         preset = inv.get(dias, dias)
         if preset in _DIAS_PRESETS:
@@ -102,14 +108,12 @@ def _create_turno_row(
         else:
             cmb.setCurrentText(dias if dias in _DIAS_PRESETS else "Seg-Sex")
     else:
-        # verifica se dias é um dos presets
         if dias in _DIAS_PRESETS:
             cmb.setCurrentText(dias)
         else:
             cmb.setCurrentText("Personalizado")
             edt_custom.setText(dias)
             edt_custom.setVisible(True)
-    # mapeia Horário preset "Todos" etc
     if dias == "Seg-Dom":
         cmb.setCurrentText("Todos")
 
@@ -120,6 +124,9 @@ def _create_turno_row(
 
     t_ini = QTimeEdit(row_widget)
     t_ini.setDisplayFormat("HH:mm")
+    t_ini.setMinimumWidth(80)
+    t_ini.setMaximumWidth(90)
+    t_ini.setAlignment(Qt.AlignmentFlag.AlignCenter)
     try:
         h, m = inicio.split(":")
         t_ini.setTime(QTime(int(h), int(m)))
@@ -127,6 +134,9 @@ def _create_turno_row(
         t_ini.setTime(QTime(8, 0))
     t_fim = QTimeEdit(row_widget)
     t_fim.setDisplayFormat("HH:mm")
+    t_fim.setMinimumWidth(80)
+    t_fim.setMaximumWidth(90)
+    t_fim.setAlignment(Qt.AlignmentFlag.AlignCenter)
     try:
         h, m = fim.split(":")
         t_fim.setTime(QTime(int(h), int(m)))
@@ -138,15 +148,7 @@ def _create_turno_row(
     lay.addWidget(t_ini)
     lay.addWidget(QLabel("—", row_widget))
     lay.addWidget(t_fim)
-
-    btn_add = QPushButton("+", row_widget)
-    btn_add.setMaximumWidth(28)
-    btn_add.setToolTip("Adicionar turno")
-    btn_remove = QPushButton("−", row_widget)
-    btn_remove.setMaximumWidth(28)
-    btn_remove.setToolTip("Remover turno")
-    lay.addWidget(btn_add)
-    lay.addWidget(btn_remove)
+    lay.addStretch(1)
 
     return {
         "widget": row_widget,
@@ -154,8 +156,6 @@ def _create_turno_row(
         "edt_custom": edt_custom,
         "t_ini": t_ini,
         "t_fim": t_fim,
-        "btn_add": btn_add,
-        "btn_remove": btn_remove,
         "layout": lay,
     }
 
@@ -188,20 +188,36 @@ class NovoFuncionarioDialog(QDialog):
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica*:", h_senha)
 
-        # editor de turnos
+        # editor de turnos — linhas alinhadas, seleção via clique, 2 botões abaixo
         form.addRow(QLabel("Turnos ( Dias + Horário ):"))
         self._turnos_container = QWidget()
         self._turnos_layout = QVBoxLayout(self._turnos_container)
         self._turnos_layout.setContentsMargins(0, 0, 0, 0)
         self._turnos_layout.setSpacing(4)
         self._turnos_rows: list[dict] = []
+        self._turno_selected: int | None = None
         # uma linha inicial
         self._add_turno_row()
         form.addRow(self._turnos_container)
-        # botão adicionar geral
-        self.btn_add_turno = QPushButton("Adicionar turno")
+        # dois botões abaixo, com ícones
+        h_turnos_btn = QHBoxLayout()
+        self.btn_add_turno = QPushButton(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
+            "Adicionar turno",
+        )
+        self.btn_add_turno.setToolTip("Adiciona um novo turno")
         self.btn_add_turno.clicked.connect(lambda: self._add_turno_row())
-        form.addRow(self.btn_add_turno)
+        self.btn_remove_turno = QPushButton(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
+        )
+        self.btn_remove_turno.setToolTip(
+            "Remove o turno selecionado (clique na linha para selecionar)"
+        )
+        self.btn_remove_turno.clicked.connect(self._remove_selected)
+        h_turnos_btn.addWidget(self.btn_add_turno)
+        h_turnos_btn.addWidget(self.btn_remove_turno)
+        h_turnos_btn.addStretch(1)
+        form.addRow(h_turnos_btn)
 
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -235,17 +251,64 @@ class NovoFuncionarioDialog(QDialog):
         self, dias: str = "Seg-Sex", inicio: str = "08:00", fim: str = "12:00"
     ) -> None:
         row = _create_turno_row(self._turnos_container, dias=dias, inicio=inicio, fim=fim)
-        row["btn_add"].clicked.connect(lambda: self._add_turno_row())
-        row["btn_remove"].clicked.connect(lambda: self._remove_turno_row(row))
+
+        # seleção por clique na linha
+        def _sel(_e, r=row):  # type: ignore[no-untyped-def]
+            try:
+                idx = (
+                    self._turnos_rows.index(r) if r in self._turnos_rows else len(self._turnos_rows)
+                )
+                # para linha ainda não adicionada, será o último
+                if r not in self._turnos_rows:
+                    idx = len(self._turnos_rows)
+                self._select_turno(idx)
+            except Exception:
+                pass
+
+        row["widget"].mousePressEvent = _sel  # type: ignore[method-assign,assignment]
         self._turnos_layout.addWidget(row["widget"])
         self._turnos_rows.append(row)
+        # auto-seleciona o novo
+        self._select_turno(len(self._turnos_rows) - 1)
 
-    def _remove_turno_row(self, row: dict) -> None:
+    def _select_turno(self, idx: int | None) -> None:
+        self._turno_selected = idx
+        for i, r in enumerate(self._turnos_rows):
+            w = r["widget"]
+            if i == idx:
+                w.setStyleSheet(
+                    "QWidget#TurnoRow { border: 1px solid #5AC8FA; border-radius: 6px; background: rgba(90,200,250,18%); }"
+                )
+            else:
+                w.setStyleSheet(
+                    "QWidget#TurnoRow { border: 1px solid transparent; border-radius: 6px; }"
+                )
+
+    def _remove_selected(self) -> None:
+        if self._turno_selected is None or self._turno_selected >= len(self._turnos_rows):
+            if len(self._turnos_rows) <= 1:
+                return
+            # sem seleção: remove último
+            idx = len(self._turnos_rows) - 1
+        else:
+            idx = self._turno_selected
         if len(self._turnos_rows) <= 1:
             return
+        row = self._turnos_rows[idx]
         self._turnos_layout.removeWidget(row["widget"])
         row["widget"].deleteLater()
-        self._turnos_rows.remove(row)
+        self._turnos_rows.pop(idx)
+        # ajusta seleção
+        if self._turnos_rows:
+            self._select_turno(min(idx, len(self._turnos_rows) - 1))
+        else:
+            self._turno_selected = None
+
+    def _remove_turno_row(self, row: dict) -> None:
+        if row in self._turnos_rows:
+            idx = self._turnos_rows.index(row)
+            self._turno_selected = idx
+            self._remove_selected()
 
     def horarios_text(self) -> str | None:
         return _horarios_text_from_rows(self._turnos_rows)
@@ -408,13 +471,14 @@ class PerfilFuncionarioDialog(QDialog):
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica:", self.edt_senha)
 
-        # turnos editor (read_only desabilita)
+        # turnos editor (read_only desabilita) — 2 botões abaixo
         form.addRow(QLabel("Turnos:"))
         self._turnos_container = QWidget()
         self._turnos_layout = QVBoxLayout(self._turnos_container)
         self._turnos_layout.setContentsMargins(0, 0, 0, 0)
         self._turnos_layout.setSpacing(4)
         self._turnos_rows: list[dict] = []
+        self._turno_selected: int | None = None
         turnos = parse_turnos_tolerante(func.horarios, func.dias)
         if not turnos:
             self._add_turno_row(read_only=read_only)
@@ -422,9 +486,21 @@ class PerfilFuncionarioDialog(QDialog):
             for t in turnos:
                 self._add_turno_row(dias=t.dias, inicio=t.inicio, fim=t.fim, read_only=read_only)
         if not read_only:
-            self.btn_add_turno = QPushButton("Adicionar turno")
+            h_turnos_btn = QHBoxLayout()
+            self.btn_add_turno = QPushButton(
+                self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
+                "Adicionar turno",
+            )
             self.btn_add_turno.clicked.connect(lambda: self._add_turno_row(read_only=False))
-            self._turnos_layout.addWidget(self.btn_add_turno)
+            self.btn_remove_turno = QPushButton(
+                self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
+            )
+            self.btn_remove_turno.setToolTip("Remover turno selecionado (clique na linha)")
+            self.btn_remove_turno.clicked.connect(self._remove_selected)
+            h_turnos_btn.addWidget(self.btn_add_turno)
+            h_turnos_btn.addWidget(self.btn_remove_turno)
+            h_turnos_btn.addStretch(1)
+            self._turnos_layout.addLayout(h_turnos_btn)
         form.addRow(self._turnos_container)
         top.addLayout(form, 1)
         # foto quadrada à direita
@@ -506,24 +582,74 @@ class PerfilFuncionarioDialog(QDialog):
             row["t_ini"].setEnabled(False)
             row["t_fim"].setReadOnly(True)
             row["t_fim"].setEnabled(False)
-            row["btn_add"].setVisible(False)
-            row["btn_remove"].setVisible(False)
         else:
-            row["btn_add"].clicked.connect(lambda: self._add_turno_row(read_only=False))
-            row["btn_remove"].clicked.connect(lambda: self._remove_turno_row(row))
-        self._turnos_layout.insertWidget(max(0, len(self._turnos_rows)), row["widget"])
-        self._turnos_rows.append(row)
-        if read_only:
-            for r in self._turnos_rows:
-                r["btn_add"].setVisible(False)
-                r["btn_remove"].setVisible(False)
+            # seleção por clique
+            def _sel(_e, r=row):  # type: ignore[no-untyped-def]
+                try:
+                    idx = (
+                        self._turnos_rows.index(r)
+                        if r in self._turnos_rows
+                        else len(self._turnos_rows)
+                    )
+                    if r not in self._turnos_rows:
+                        idx = len(self._turnos_rows)
+                    self._select_turno(idx)
+                except Exception:
+                    pass
 
-    def _remove_turno_row(self, row: dict) -> None:
+            row["widget"].mousePressEvent = _sel  # type: ignore[method-assign,assignment]
+            # insere antes dos botões (último item é layout dos botões)
+            # encontra índice do layout de botões se existir
+            insert_at = len(self._turnos_rows)
+            # se houver layout de botões no final, mantém botões no fim
+            self._turnos_layout.insertWidget(insert_at, row["widget"])
+            self._turnos_rows.append(row)
+            self._select_turno(len(self._turnos_rows) - 1)
+            return
+        # read_only: apenas adiciona
+        self._turnos_layout.insertWidget(len(self._turnos_rows), row["widget"])
+        self._turnos_rows.append(row)
+
+    def _select_turno(self, idx: int | None) -> None:
+        if getattr(self, "_read_only", False):
+            return
+        self._turno_selected = idx
+        for i, r in enumerate(self._turnos_rows):
+            w = r["widget"]
+            if i == idx:
+                w.setStyleSheet(
+                    "QWidget#TurnoRow { border: 1px solid #5AC8FA; border-radius: 6px; background: rgba(90,200,250,18%); }"
+                )
+            else:
+                w.setStyleSheet(
+                    "QWidget#TurnoRow { border: 1px solid transparent; border-radius: 6px; }"
+                )
+
+    def _remove_selected(self) -> None:
+        if getattr(self, "_read_only", False):
+            return
+        if self._turno_selected is None or self._turno_selected >= len(self._turnos_rows):
+            if len(self._turnos_rows) <= 1:
+                return
+            idx = len(self._turnos_rows) - 1
+        else:
+            idx = self._turno_selected
         if len(self._turnos_rows) <= 1:
             return
+        row = self._turnos_rows[idx]
         self._turnos_layout.removeWidget(row["widget"])
         row["widget"].deleteLater()
-        self._turnos_rows.remove(row)
+        self._turnos_rows.pop(idx)
+        if self._turnos_rows:
+            self._select_turno(min(idx, len(self._turnos_rows) - 1))
+        else:
+            self._turno_selected = None
+
+    def _remove_turno_row(self, row: dict) -> None:
+        if row in self._turnos_rows:
+            idx = self._turnos_rows.index(row)
+            self._turno_selected = idx
+            self._remove_selected()
 
     def horarios_text(self) -> str | None:
         return _horarios_text_from_rows(self._turnos_rows)
@@ -622,7 +748,7 @@ class PerfilFuncionarioDialog(QDialog):
                 cropped = scaled.copy(x, y, 120, 120)
                 self.lbl_foto.setPixmap(cropped)
                 self.lbl_foto.setStyleSheet(
-                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"  # noqa: E501
+                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"
                 )
 
     def _remover_foto(self) -> None:
@@ -630,7 +756,7 @@ class PerfilFuncionarioDialog(QDialog):
         self.lbl_foto.clear()
         self.lbl_foto.setText("Sem foto")
         self.lbl_foto.setStyleSheet(
-            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"
         )
 
     def _salvar(self) -> None:

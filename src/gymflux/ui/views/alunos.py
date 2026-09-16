@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStyle,
     QTableWidget,
     QTableWidgetItem,
@@ -465,9 +466,13 @@ class PerfilAlunoDialog(QDialog):
         lay_pag.addLayout(hb)
         tabs.addTab(tab_pag, "Pagamentos")
 
-        # aba 5: Ficha (avaliação física + saúde)
-        tab_ficha = QWidget()
-        lay_ficha = QVBoxLayout(tab_ficha)
+        # aba 5: Ficha (avaliação física + saúde) — scroll para não cortar inputs
+        tab_ficha = QScrollArea()
+        tab_ficha.setWidgetResizable(True)
+        tab_ficha.setFrameShape(QFrame.Shape.NoFrame)
+        tab_ficha.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner_ficha = QWidget()
+        lay_ficha = QVBoxLayout(inner_ficha)
         # respiro vertical: inputs colados pediam mais espaço entre linhas
         lay_ficha.setSpacing(10)
         lay_ficha.setContentsMargins(8, 8, 8, 8)
@@ -628,6 +633,8 @@ class PerfilAlunoDialog(QDialog):
         hficha.addWidget(self.btn_ficha_excluir)
         hficha.addStretch(1)
         lay_ficha.addLayout(hficha)
+        lay_ficha.addStretch(1)
+        tab_ficha.setWidget(inner_ficha)
         tabs.addTab(tab_ficha, "Ficha")
 
         layout.addWidget(tabs, 1)
