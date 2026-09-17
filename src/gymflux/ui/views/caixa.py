@@ -327,10 +327,10 @@ class CaixaView(QWidget):
         # compat: mantém table de combo recarga etc
         self.cmb_mes.currentIndexChanged.connect(lambda _i: self.recarregar())
         self.cmb_aluno.editTextChanged.connect(self._filtrar_alunos)
-        # debounce 300ms: evita 1 full-refresh por tecla (travava em 7k)
+        # debounce 1s: evita 1 full-refresh por tecla (travava em 7k)
         self._busca_timer = QTimer(self)
         self._busca_timer.setSingleShot(True)
-        self._busca_timer.setInterval(300)
+        self._busca_timer.setInterval(1000)
         self._busca_timer.timeout.connect(self.recarregar)
         self.edt_busca.textChanged.connect(lambda _t: self._busca_timer.start())
         self.tbl.horizontalHeader().sectionClicked.connect(self._ordenar_coluna)

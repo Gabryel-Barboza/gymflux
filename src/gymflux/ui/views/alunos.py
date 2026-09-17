@@ -1508,10 +1508,10 @@ class AlunosView(QWidget):
         hbtn.addStretch(1)
         layout.addLayout(hbtn)
 
-        # debounce 300ms igual CaixaView: evita 1 full-refresh por tecla (travava em 7k)
+        # debounce 1s igual CaixaView: evita 1 full-refresh por tecla (travava em 7k)
         self._busca_timer = QTimer(self)
         self._busca_timer.setSingleShot(True)
-        self._busca_timer.setInterval(300)
+        self._busca_timer.setInterval(1000)
         self._busca_timer.timeout.connect(self.recarregar)
         self.edt_busca.textChanged.connect(lambda _t: self._busca_timer.start())
         self.cmb_status.currentIndexChanged.connect(lambda _i: self.recarregar())
