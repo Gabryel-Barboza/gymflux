@@ -221,6 +221,20 @@ def icone_preto(style, standard_pixmap):  # type: ignore[no-untyped-def]
             return QIcon()
 
 
+def icone_vermelho(style, standard_pixmap):  # type: ignore[no-untyped-def]
+    """Retorna ícone padrão tintado de vermelho (VERMELHO) para destaque."""
+    try:
+        base = style.standardIcon(standard_pixmap)
+        return _tint_icon(base, VERMELHO)
+    except Exception:
+        try:
+            return style.standardIcon(standard_pixmap)
+        except Exception:
+            from PySide6.QtGui import QIcon
+
+            return QIcon()
+
+
 def stylesheet(modo: ModoTema | str = ModoTema.ESCURO) -> str:
     """QSS da academia aplicado na QApplication (todas as abas)."""
     paleta = paleta_do_modo(modo)

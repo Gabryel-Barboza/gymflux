@@ -277,6 +277,8 @@ def _wire(
         logger.info(f"[UI] inatividade: {n_inativos} aluno(s) desativado(s)")
 
     def _aplicar(nova: UiConfig) -> None:
+        # guarda tema anterior para evitar repolish desnecessário (7k linhas → 1s)
+        tema_antigo = getattr(dashboard_vm.ui_config, "tema", None)
         liberar_svc.regra.config = nova.to_regra_config()
         dashboard_vm.ui_config = nova
         caixa_vm.ui_config = nova
@@ -284,7 +286,9 @@ def _wire(
             bridge.trocar_porta(nova.porta_catraca)
         app_inst = QApplication.instance()
         if isinstance(app_inst, QApplication):
-            app_inst.setStyleSheet(stylesheet(nova.tema))
+            # só repinta se tema mudou; com 7k alunos o repolish global custa ~1s
+            if tema_antigo is None or str(tema_antigo) != str(nova.tema):
+                app_inst.setStyleSheet(stylesheet(nova.tema))
             # atualiza ícone da aba selecionada e wallpaper
             import contextlib
 

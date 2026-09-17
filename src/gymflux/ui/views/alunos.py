@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Protocol
 
 from loguru import logger
-from PySide6.QtCore import QDate, QPoint, QSize, Qt
+from PySide6.QtCore import QDate, QPoint, QSize, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -384,8 +384,9 @@ class PerfilAlunoDialog(QDialog):
         self._ficha_cache: list[object] = []
         self._ficha_edit_id: str | None = None
         self.setWindowTitle(f"Perfil — {aluno.nome}")
-        self.resize(640, 520)
-        self.setMaximumWidth(700)
+        self.resize(780, 580)
+        self.setMinimumWidth(720)
+        self.setMaximumWidth(900)
         layout = QVBoxLayout(self)
 
         tabs = QTabWidget(self)
@@ -473,6 +474,7 @@ class PerfilAlunoDialog(QDialog):
         tab_ficha.setFrameShape(QFrame.Shape.NoFrame)
         tab_ficha.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         inner_ficha = QWidget()
+        inner_ficha.setMinimumWidth(700)
         lay_ficha = QVBoxLayout(inner_ficha)
         # respiro vertical: inputs colados pediam mais espaço entre linhas
         lay_ficha.setSpacing(10)
@@ -647,13 +649,17 @@ class PerfilAlunoDialog(QDialog):
 
         layout.addWidget(tabs, 1)
 
-        # botão Liberar (extra, fora das abas)
+        # botão Liberar (extra, fora das abas) — com cooldown 3s como na catraca
         hlib = QHBoxLayout()
         self.btn_liberar = QPushButton("Liberar")
         self.btn_liberar.setToolTip("Liberar catraca para este aluno")
         hlib.addWidget(self.btn_liberar)
         hlib.addStretch(1)
         layout.addLayout(hlib)
+        self._cooldown_liberar = QTimer(self)
+        self._cooldown_liberar.setSingleShot(True)
+        self._cooldown_liberar.timeout.connect(self._fim_cooldown_liberar)
+        self._em_cooldown_liberar = False
 
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
@@ -786,6 +792,9 @@ class PerfilAlunoDialog(QDialog):
             self._excluir_matricula()
 
     def _liberar(self) -> None:
+        if getattr(self, "_em_cooldown_liberar", False):
+            QMessageBox.information(self, "Liberar", "Aguarde 3s antes de liberar novamente.")
+            return
         # tenta via dashboard_vm se disponível, senão via alunos_vm + mensagem
         if self._dashboard_vm is not None:
             try:
@@ -795,12 +804,26 @@ class PerfilAlunoDialog(QDialog):
                     "Liberar",
                     self._dashboard_vm.resume_decisao(decisao),  # type: ignore[attr-defined]
                 )
+                self._iniciar_cooldown_liberar()
                 return
             except Exception as e:
                 QMessageBox.warning(self, "Liberar", str(e))
                 return
         # fallback: informa que catraca liberada depende do dashboard
         QMessageBox.information(self, "Liberar", "Use a aba Catraca para liberar com CPF/senha.")
+
+    def _pode_liberar(self) -> bool:
+        return not getattr(self, "_em_cooldown_liberar", False)
+
+    def _iniciar_cooldown_liberar(self) -> None:
+        self._em_cooldown_liberar = True
+        self.btn_liberar.setEnabled(False)
+        if hasattr(self, "_cooldown_liberar"):
+            self._cooldown_liberar.start(3000)
+
+    def _fim_cooldown_liberar(self) -> None:
+        self._em_cooldown_liberar = False
+        self.btn_liberar.setEnabled(True)
 
     def _recarregar_frequencia(self) -> None:
         if self._frequencia is None:
