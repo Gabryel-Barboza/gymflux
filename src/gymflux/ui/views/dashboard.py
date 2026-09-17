@@ -272,7 +272,7 @@ class DashboardView(QWidget):
         pill_lay.setSpacing(0)
         pill_lay.addWidget(self.lbl_compacto)
         self.btn_detalhes = QPushButton("Detalhes")
-        self.btn_detalhes.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_MessageBoxInformation))  # noqa: E501
+        self.btn_detalhes.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning))
         self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.status_pill, 0)
         hstatus.addStretch(1)

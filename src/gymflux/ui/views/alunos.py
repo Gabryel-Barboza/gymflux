@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 from gymflux.core.aluno import Aluno, StatusAluno
 from gymflux.core.pagamento import FormaPagamento, Pagamento
 from gymflux.ui.config_store import CADASTRO_CAMPOS, ConfigStore
-from gymflux.ui.theme import icone_preto
+from gymflux.ui.theme import icone_preto, icone_vermelho
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflux.ui.views.caixa import NovoPagamentoDialog
@@ -344,6 +344,14 @@ class NovoAlunoDialog(QDialog):
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        # ícones pretos (antes cinza apagado)
+        for bt, pix in [
+            (QDialogButtonBox.StandardButton.Ok, QStyle.StandardPixmap.SP_DialogOkButton),
+            (QDialogButtonBox.StandardButton.Cancel, QStyle.StandardPixmap.SP_DialogCancelButton),
+        ]:
+            b = botoes.button(bt)
+            if b is not None:
+                b.setIcon(icone_preto(self.style(), pix))
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         layout.addWidget(botoes)
@@ -415,7 +423,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_matricular = QPushButton("Matricular...")
         self.btn_excluir_mat = QToolButton()
         self.btn_excluir_mat.setToolTip("Excluir matrícula selecionada")
-        self.btn_excluir_mat.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_mat.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))  # noqa: E501
         self.btn_excluir_mat.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
             " QToolButton:hover { color: #FF8A8A; }"
@@ -455,7 +463,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_pago_pag.setToolTip("Marca o pagamento selecionado como pago hoje")
         self.btn_excluir_pag = QToolButton()
         self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
-        self.btn_excluir_pag.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_pag.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))  # noqa: E501
         self.btn_excluir_pag.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
             " QToolButton:hover { color: #FF8A8A; }"
@@ -636,7 +644,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_ficha_excluir = QToolButton()
         self.btn_ficha_excluir.setToolTip("Excluir avaliação selecionada")
         self.btn_ficha_excluir.setIcon(
-            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon)
+            icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon)
         )
         hficha.addWidget(self.btn_ficha_nova)
         hficha.addWidget(self.btn_ficha_salvar)
@@ -668,6 +676,7 @@ class PerfilAlunoDialog(QDialog):
         btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
         if btn_save is not None:
             btn_save.setText("Salvar")
+            btn_save.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton))
             btn_save.setStyleSheet(
                 "QPushButton { background-color: #5AC8FA; color: #0F1113;"
                 " border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
@@ -675,6 +684,7 @@ class PerfilAlunoDialog(QDialog):
         btn_cancel = botoes.button(QDialogButtonBox.StandardButton.Cancel)
         if btn_cancel is not None:
             btn_cancel.setText("Cancelar")
+            btn_cancel.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton))  # noqa: E501
             btn_cancel.setStyleSheet(
                 "QPushButton { background-color: transparent;"
                 " border: 1px solid #5AC8FA; color: #5AC8FA;"
@@ -785,7 +795,7 @@ class PerfilAlunoDialog(QDialog):
         self.tbl_mat.selectRow(item.row())
         menu = QMenu(self)
         a_exc = menu.addAction(
-            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
+            icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
         )
         acao = menu.exec(self.tbl_mat.viewport().mapToGlobal(pos))
         if acao == a_exc:
@@ -978,7 +988,7 @@ class PerfilAlunoDialog(QDialog):
         menu = QMenu(self)
         a_pago = menu.addAction("Marcar como pago / pendente")
         a_exc = menu.addAction(
-            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
+            icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
         )
         acao = menu.exec(self.tbl_pag.viewport().mapToGlobal(pos))
         if acao == a_pago:

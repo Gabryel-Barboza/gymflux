@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.core.plano import Plano, TipoPlano
-from gymflux.ui.theme import icone_preto
+from gymflux.ui.theme import icone_preto, icone_vermelho
 from gymflux.ui.viewmodels.planos import DURACAO_POR_TIPO, PlanosViewModel
 
 
@@ -68,6 +68,13 @@ class NovoPlanoDialog(QDialog):
         botoes = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        for bt, pix in [
+            (QDialogButtonBox.StandardButton.Ok, QStyle.StandardPixmap.SP_DialogOkButton),
+            (QDialogButtonBox.StandardButton.Cancel, QStyle.StandardPixmap.SP_DialogCancelButton),
+        ]:
+            b = botoes.button(bt)
+            if b is not None:
+                b.setIcon(icone_preto(self.style(), pix))
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         layout.addWidget(botoes)
@@ -194,7 +201,7 @@ class PlanosView(QWidget):
         hb = QHBoxLayout()
         btn_editar = QPushButton("Editar")
         btn_excluir = QToolButton()
-        btn_excluir.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
+        btn_excluir.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
         btn_excluir.setToolTip("Excluir plano")
         btn_excluir.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
