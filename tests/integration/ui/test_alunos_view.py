@@ -19,8 +19,10 @@ def test_alunos_view_busca_filtra(qtbot, ctx: AppContext):
     ctx.alunos_vm.cadastrar(nome="Ana Silva", cpf="11144477735")
     ctx.alunos_vm.cadastrar(nome="Bruno Souza", cpf="22255588846")
     view.edt_busca.setText("ana")
+    qtbot.wait(350)  # debounce 300ms igual CaixaView
     assert view.tbl.rowCount() == 1
     view.edt_busca.clear()
+    qtbot.wait(350)
     assert view.tbl.rowCount() == 2
 
 
