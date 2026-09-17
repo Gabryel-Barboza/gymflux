@@ -1811,6 +1811,10 @@ class AlunosView(QWidget):
         a_mat = menu.addAction("Matricular...")
         a_bloq = menu.addAction("Bloquear/Desbloquear")
         a_inat = menu.addAction("Inativar/Reativar")
+        menu.addSeparator()
+        a_excluir = menu.addAction(
+            icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir aluno"
+        )
         acao = menu.exec(self.tbl.viewport().mapToGlobal(pos))
         if acao == a_perfil:
             self._abrir_perfil()
@@ -1820,6 +1824,34 @@ class AlunosView(QWidget):
             self._toggle_bloqueio()
         elif acao == a_inat:
             self._acao("inativar")
+        elif acao == a_excluir:
+            self._excluir_aluno()
+
+    def _excluir_aluno(self) -> None:
+        sel = self._selecionado()
+        if sel is None:
+            return
+        aluno_id, nome = sel
+        aluno = self.vm.alunos.buscar(aluno_id)
+        nome_exibir = aluno.nome if aluno else nome
+        confirma = QMessageBox.question(
+            self,
+            "Excluir aluno",
+            f"Excluir definitivamente o aluno '{nome_exibir}'?\n\n"
+            "Isso apagará matrículas, pagamentos e frequência vinculados.\n"
+            "Esta ação não pode ser desfeita.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirma != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.vm.remover(aluno_id)
+        except (ValueError, RuntimeError) as e:
+            QMessageBox.warning(self, "Alunos", str(e))
+            return
+        logger.info(f"[UI] aluno excluído id={aluno_id}")
+        self.recarregar()
 
     def _abrir_perfil(self) -> None:
         sel = self._selecionado()

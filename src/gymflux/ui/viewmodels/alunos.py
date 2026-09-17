@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -239,6 +240,31 @@ class AlunosViewModel:
         result = self.alunos.atualizar(aluno)
         self._commit()
         return result
+
+    def remover(self, aluno_id: str) -> None:
+        """Remove aluno (exclusão definitiva). Só via menu de contexto."""
+        # limpa vínculos antes do aluno (evita orfãos em memória e FK sem CASCADE)
+        if self.matricula_repo is not None:
+            with contextlib.suppress(Exception):
+                for mid, _ in list(self.matriculas_com_id(aluno_id)):
+                    if not mid.startswith("idx-"):
+                        with contextlib.suppress(Exception):
+                            self.matricula_repo.remover(mid)
+        if self.pagamento_repo is not None:
+            with contextlib.suppress(Exception):
+                pags: list[Any] = []
+                if hasattr(self.pagamento_repo, "listar_por_aluno"):
+                    pags = list(self.pagamento_repo.listar_por_aluno(aluno_id))  # type: ignore[attr-defined]
+                elif hasattr(self.pagamento_repo, "listar"):
+                    todos = self.pagamento_repo.listar()  # type: ignore[attr-defined]
+                    pags = [p for p in todos if getattr(p, "aluno_id", None) == aluno_id]
+                for p in pags:
+                    pid = getattr(p, "id", None)
+                    if pid and hasattr(self.pagamento_repo, "remover"):
+                        with contextlib.suppress(Exception):
+                            self.pagamento_repo.remover(pid)  # type: ignore[attr-defined]
+        self.alunos.remover(aluno_id)
+        self._commit()
 
     # -- matrícula (liga aluno <-> plano p/ liberar catraca) -------------------
     def planos_disponiveis(self) -> list[Plano]:

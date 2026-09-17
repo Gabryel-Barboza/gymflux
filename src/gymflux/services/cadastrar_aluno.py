@@ -19,6 +19,7 @@ class AlunoRepoProtocol(Protocol):
     def buscar_por_cpf(self, cpf: str) -> Aluno | None: ...
     def buscar_por_senha(self, senha: str) -> Aluno | None: ...
     def listar(self) -> list[Aluno]: ...
+    def remover(self, aluno_id: str) -> None: ...
 
 
 @dataclass(slots=True)
@@ -106,6 +107,15 @@ class CadastrarAlunoService:
         aluno.inativar()
         result = self.repo.salvar(aluno)
         return result if result is not None else aluno
+
+    def remover(self, aluno_id: str) -> None:
+        if self.repo.buscar_por_id(aluno_id) is None:
+            raise ValueError(f"Aluno id={aluno_id} não encontrado")
+        if hasattr(self.repo, "remover"):
+            self.repo.remover(aluno_id)  # type: ignore[attr-defined]
+            logger.info(f"[CadastrarAluno] remover id={aluno_id}")
+        else:
+            raise RuntimeError("Repositório sem remover()")
 
     def listar(self) -> list[Aluno]:
         return self.repo.listar()
