@@ -471,7 +471,7 @@ class CaixaView(QWidget):
         if self._total_mes > self._page_size:
             self.lbl_paginacao.setText(
                 f"Mostrando {self._rendered} de {self._total_mes} — "
-                    "role até o final para carregar mais"
+                "role até o final para carregar mais"
             )
             self.lbl_paginacao.setVisible(self._rendered < self._total_mes)
         else:

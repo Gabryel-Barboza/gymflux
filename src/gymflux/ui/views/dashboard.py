@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from gymflux.core.acesso import TentativaAcesso
 from gymflux.ui.catraca_bridge import CatracaBridge
 from gymflux.ui.theme import (
+    TINTA_SOBRE_ACENTO,
     VERMELHO,
     ModoTema,
     cores_indicador,
@@ -319,7 +320,6 @@ class DashboardView(QWidget):
         # ícone contrastando com fundo AZUL #5AC8FA
         try:
             from gymflux.ui.app import _tint_icon
-            from gymflux.ui.theme import TINTA_SOBRE_ACENTO
 
             _icon_base = icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
             _icon_dest = _tint_icon(_icon_base, TINTA_SOBRE_ACENTO)
@@ -384,7 +384,7 @@ class DashboardView(QWidget):
         self.lbl_verificacao.setVisible(False)
         layout.addWidget(self.lbl_verificacao)
 
-        # -- logs / giros lado a lado — Acessos hoje (3) --- Giros (1) expansível para cima --  # noqa: E501
+        # -- logs / giros lado a lado — Acessos hoje (3) --- Giros (1) expansível para cima --
         layout.addStretch(1)
         hmid = QHBoxLayout()
         hmid.setSpacing(12)
@@ -658,7 +658,7 @@ class DashboardView(QWidget):
                 frm.setStyleSheet(
                     f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
                 )
-                # título com fundo do container e texto preto (antes preto #0F1113 com texto branco)
+                # título com fundo do container e texto preto (antes preto com texto claro)
                 with contextlib.suppress(Exception):
                     self.lst_giros.setStyleSheet("")
                     self.lbl_giros_titulo.setStyleSheet(

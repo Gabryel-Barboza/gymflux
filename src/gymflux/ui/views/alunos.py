@@ -477,7 +477,7 @@ class PerfilAlunoDialog(QDialog):
         # respiro vertical: inputs colados pediam mais espaço entre linhas
         lay_ficha.setSpacing(10)
         lay_ficha.setContentsMargins(8, 8, 8, 8)
-        # histórico no topo (lista clicável)
+        # histórico no topo (lista clicável) — mais destacado
         self.lst_ficha = QListWidget()
         self.lst_ficha.setObjectName("FichaHistorico")
         self.lst_ficha.setMaximumHeight(100)

@@ -91,7 +91,9 @@ class ConfigView(QWidget):
         self.edt_wallpaper = QLineEdit()
         self.edt_wallpaper.setPlaceholderText("auto")
         self.edt_wallpaper.setReadOnly(True)
-        self.edt_wallpaper.setToolTip("Imagem de fundo — vazio = automático por tema (preto/branco)")  # noqa: E501
+        self.edt_wallpaper.setToolTip(
+            "Imagem de fundo — vazio = automático por tema (preto/branco)"
+        )
         self.btn_wallpaper = QPushButton("Escolher...")
         self.btn_wallpaper.setToolTip("Escolher imagem de wallpaper")
         self.btn_wallpaper_limpar = QPushButton("Limpar")
