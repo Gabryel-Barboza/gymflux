@@ -40,8 +40,6 @@ Banco local **SQLite + SQLAlchemy 2.0 + Alembic** (`data/gymflux.db`, WAL, `GYMF
 | ![Funcionarios escuro](screenshots/Funcionarios_escuro.png) | ![Frequencia escuro](screenshots/Frequencia_escuro.png) | ![Configuracoes escuro](screenshots/Configuracoes_escuro.png) |
 | ![Funcionarios claro](screenshots/Funcionarios_claro.png) | ![Frequencia claro](screenshots/Frequencia_claro.png) | ![Configuracoes claro](screenshots/Configuracoes_claro.png) |
 
-> Tema: azul `#5AC8FA`, preto `#0F1113`, lima `#A3D65C`, vermelho `#E57373`. Troca só a base no claro (`#E8EDF1`/`#C8D0D8` + ícone da aba selecionada em azul).
-
 ## Como funciona a catraca
 
 ```
@@ -53,7 +51,7 @@ Banco local **SQLite + SQLAlchemy 2.0 + Alembic** (`data/gymflux.db`, WAL, `GYMF
 ```
 
 * **Dev Linux:** `MockHenry7x` simula giro via `threading.Timer` / `simular_teclado`.
-* **Prod Windows 32-bit:** `RealHenry7x` via `win32com.client.Dispatch("Henry.Kernel7x")` (serial, `SComConfig`).
+* **Prod Windows 32-bit:** `RealHenry7x` via `win32com.client.Dispatch("Kernel7x")` (serial, `SComConfig`).
 
 ## Quickstart (Linux dev)
 
@@ -80,23 +78,11 @@ uv run python scripts/inspect_dll.py vendor/Henry/Henry7x/Kernel7x.dll
 uv run python scripts/dump_henry_typelib.py > dumps/henry_typelib.txt  # só Windows 32-bit
 ```
 
-## Quickstart (Windows prod)
-
-```powershell
-# DEVE ser Python 32-bit!
-python -c "import struct; print(struct.calcsize('P')*8)"  # 32
-# Registre a DLL uma vez como Admin:
-C:\Windows\SysWOW64\regsvr32.exe vendor\Henry\Henry7x\Kernel7x.dll
-# ou: vendor\Henry\Henry7x\HregSvr.exe  (como Admin)
-uv sync --group dev --extra ui
-$env:GYMFLUX_HENRY_MOCK="0"; $env:GYMFLUX_HENRY_PORTA="COM3"
-uv run gymflux catraca status
-```
 
 ## Build Windows (instalador — Fase 5)
 
 > Gera `GymFlux.exe` (onefile windowed) + `GymFlux-Setup-vX.Y.Z.exe` via Inno Setup.
-> `kernel7x.dll` **não** é bundlada (fica em `vendor/` gitignored); o app falha graciosamente sem DLL (`RuntimeError` em `real.py`).
+> `kernel7x.dll` **não** faz parte do bundle, é preciso instalar manualmente o software; o app falha graciosamente sem DLL (`RuntimeError` em `real.py`).
 
 **Pré-requisitos (Windows 10/11 64-bit, WOW64):**
 
@@ -154,8 +140,6 @@ tests/                    # unit/ + integration/ (168 testes)
 - [x] **Fase 4:** UI PySide6 (7 abas), tema claro/escuro, wallpaper, bandeja, frequência, caixa, funcionários
 - [ ] **Fase 5:** Biometria real (`Bio_*` / UFScanner) + instalador Inno Setup + assinatura
 
-Ver `docs/ROADMAP.md` detalhado (docs é gitignored — veja `AGENTS.md` local).
-
 ## Contrato Henry 7x
 
 Toda comunicação passa por `src/gymflux/hardware/henry7x/interface.py` (`Henry7xDriver`).
@@ -167,26 +151,13 @@ Toda comunicação passa por `src/gymflux/hardware/henry7x/interface.py` (`Henry
 | `on_giro` | polling `ColetaEventos` + `QuantRegsColetados` |
 | `status()` | `Versao` / `ListaPortasSeriais` / `ThreadLastError` |
 
-Veja `docs/DLL_CONTRACT.md` (100+ métodos do dump PowerShell).
-
 ## Licença
 
-Apache-2.0 — ver `LICENSE`. Permissiva com grant de patentes (ver `docs/DECISIONS.md` ADR-004).
+Apache-2.0 — ver `LICENSE`.
 
 ## Documentação (local, gitignored)
 
 - [Arquitetura](docs/ARCHITECTURE.md) · [Requisitos](docs/REQUIREMENTS.md) · [Contrato DLL](docs/DLL_CONTRACT.md) · [Decisões ADRs](docs/DECISIONS.md) · [Roadmap](docs/ROADMAP.md) · [Memória do agente](AGENTS.md)
-
-## Contribuindo
-
-```bash
-uv sync --group dev --extra ui
-uv run ruff check src tests && uv run ruff format src tests
-uv run mypy src
-uv run pytest -q
-```
-
-Commits `conventional commits` (`feat:`, `fix:`, `chore:`), PT-BR ou EN.
 
 ## Aviso Legal
 
