@@ -272,7 +272,7 @@ class DashboardView(QWidget):
         pill_lay.setSpacing(0)
         pill_lay.addWidget(self.lbl_compacto)
         self.btn_detalhes = QPushButton("Detalhes")
-        self.btn_detalhes.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning))
+        self.btn_detalhes.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_MessageBoxWarning))  # noqa: E501
         self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.status_pill, 0)
         hstatus.addStretch(1)
@@ -683,25 +683,25 @@ class DashboardView(QWidget):
                         f"QPushButton {{ font-weight: bold; border: none; text-align: left; padding: 2px; background: transparent; color: {txt_col}; }}"  # noqa: E501
                     )
                 continue
-            # Giros: container sólido sempre, padding levemente menor que Acessos (4px vs 6px)
+            # Giros: sem fundo, apenas texto (branco no escuro, preto no claro)
             if base == "CatracaFrameGiros":
                 ov = self._overlay_labels.get(frm)
                 if ov is not None:
                     ov.hide()
                 frm.setStyleSheet(
-                    f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
+                    "QFrame#CatracaFrameGiros { border: none; background: transparent; padding: 4px; }"  # noqa: E501
                 )
-                # título: no claro remove fundo preto e usa painel+texto preto; no escuro mantém preto+branco  # noqa: E501
+                # título: apenas texto, sem fundo
                 with contextlib.suppress(Exception):
                     self.lst_giros.setStyleSheet("")
                     is_claro_giros = modo_de(self.vm.ui_config.tema) == ModoTema.CLARO
                     if is_claro_giros:
                         self.lbl_giros_titulo.setStyleSheet(
-                            f"font-weight: bold; border: none; color: #0F1113; background-color: {painel}; border-radius: 6px; padding: 2px 6px;"  # noqa: E501
+                            "font-weight: bold; border: none; color: #0F1113; background: transparent; padding: 2px 6px;"  # noqa: E501
                         )
                     else:
                         self.lbl_giros_titulo.setStyleSheet(
-                            "font-weight: bold; border: none; color: #F2F5F7; background-color: #0F1113; border-radius: 6px; padding: 2px 6px;"  # noqa: E501
+                            "font-weight: bold; border: none; color: #F2F5F7; background: transparent; padding: 2px 6px;"  # noqa: E501
                         )
         # tabelas: modo claro precisa destaque sobre wallpaper escuro
         self._aplicar_estilo_tabelas(wallpaper_ativo)
