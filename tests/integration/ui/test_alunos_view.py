@@ -36,8 +36,17 @@ def test_dialog_aluno_tem_senha_visivel(qtbot):
     assert "cartao_id" not in dados  # cartão removido na Fase 4.8
 
 
-def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx: AppContext):
-    aluno = ctx.alunos_vm.cadastrar(nome="Ana", senha="1234")
+def test_perfil_modal_edita_e_lista_pagamentos(qtbot, ctx: AppContext, tmp_path, monkeypatch, mocker):  # noqa: E501
+    # isola ConfigStore: cpf obrigatório no disco real travava este teste
+    # (QMessageBox.warning modal bloqueia offscreen) — usa config vazia
+    from gymflux.ui.config_store import ConfigStore, UiConfig
+
+    mocker.patch("gymflux.ui.views.alunos.QMessageBox.warning")
+    cfg_path = tmp_path / "gymflux_config.json"
+    store = ConfigStore(cfg_path)
+    store.save(UiConfig(cadastro_obrigatorios={}))
+    monkeypatch.setattr("gymflux.ui.views.alunos.ConfigStore", lambda *a, **kw: store)
+    aluno = ctx.alunos_vm.cadastrar(nome="Ana", senha="1234", cpf="11144477735")
     ctx.caixa_vm.registrar(
         aluno_id=aluno.id,
         valor=Decimal("99.90"),
