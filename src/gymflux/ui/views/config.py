@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.ui.config_store import ModoAcesso, ModoFundo, UiConfig
-from gymflux.ui.theme import ModoTema, modo_de
+from gymflux.ui.theme import ModoTema, icone_preto, modo_de
 from gymflux.ui.viewmodels.config import ConfigViewModel
 
 
@@ -164,7 +164,7 @@ class ConfigView(QWidget):
         botoes = QHBoxLayout()
         self.btn_salvar = QPushButton("Salvar e aplicar")
         self.btn_salvar.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton)
         )
         botoes.addWidget(self.btn_salvar)
         botoes.addStretch(1)

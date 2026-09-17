@@ -170,6 +170,57 @@ def contraste(frente: str, fundo: str) -> float:
     return (claro + 0.05) / (escuro + 0.05)
 
 
+_ICONE_CACHE: dict[int, object] = {}  # type: ignore[no-untyped-def]
+
+
+def _tint_icon(icon, color_hex: str):  # type: ignore[no-untyped-def]
+    """Tint QIcon para cor_hex (usado para ícones pretos destacados) — via QImage alpha."""
+    try:
+        from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
+
+        sizes = icon.availableSizes() or [icon.pixmap(32, 32).size()]
+        tinted = QIcon()
+        target = QColor(color_hex)
+        for sz in sizes:
+            pix = icon.pixmap(sz)
+            if pix.isNull():
+                continue
+            img = pix.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+            for y in range(img.height()):
+                for x in range(img.width()):
+                    c = img.pixelColor(x, y)
+                    if c.alpha() == 0:
+                        continue
+                    c.setRed(target.red())
+                    c.setGreen(target.green())
+                    c.setBlue(target.blue())
+                    img.setPixelColor(x, y, c)
+            out = QPixmap.fromImage(img)
+            tinted.addPixmap(out)
+        return tinted if not tinted.isNull() else icon
+    except Exception:
+        return icon
+
+
+def icone_preto(style, standard_pixmap):  # type: ignore[no-untyped-def]
+    """Retorna ícone padrão tintado de preto (#0F1113) para destaque (com cache)."""
+    try:
+        key = int(standard_pixmap) if hasattr(standard_pixmap, "__int__") else hash(str(standard_pixmap))  # noqa: E501
+        if key in _ICONE_CACHE:
+            return _ICONE_CACHE[key]  # type: ignore[no-any-return]
+        base = style.standardIcon(standard_pixmap)
+        tinted = _tint_icon(base, TINTA_SOBRE_ACENTO)
+        _ICONE_CACHE[key] = tinted
+        return tinted
+    except Exception:
+        try:
+            return style.standardIcon(standard_pixmap)
+        except Exception:
+            from PySide6.QtGui import QIcon
+
+            return QIcon()
+
+
 def stylesheet(modo: ModoTema | str = ModoTema.ESCURO) -> str:
     """QSS da academia aplicado na QApplication (todas as abas)."""
     paleta = paleta_do_modo(modo)
@@ -188,6 +239,15 @@ def stylesheet(modo: ModoTema | str = ModoTema.ESCURO) -> str:
         "\nQGroupBox, QTableWidget, QListWidget, QFrame#PlanoCard {"
         "\n    border: 1px solid #C8D0D8;"
         "\n}"
+        if is_claro
+        else ""
+    )
+    # Header em modo claro: fundo preto + texto branco para destaque (antes apagado #E8EDF1/#5A6B78)
+    header_claro = (
+        "\nQTabWidget::pane { background-color: #0F1113; border: 1px solid #0F1113; }"
+        "\nQTabBar { background-color: #0F1113; }"
+        "\nQTabBar::tab { background-color: #0F1113; color: #F2F5F7; }"
+        "\nQTabBar::tab:selected { background-color: #0F1113; color: #5AC8FA; border-bottom: 2px solid #5AC8FA; }"  # noqa: E501
         if is_claro
         else ""
     )
@@ -241,7 +301,7 @@ QTabBar::tab:selected {{
     color: {cor_selecionada};
     font-weight: bold;
     border-bottom: 2px solid {AZUL};
-}}{sombra_clara}
+}}{sombra_clara}{header_claro}
 QPushButton {{
     background-color: {AZUL};
     color: {TINTA_SOBRE_ACENTO};
@@ -328,6 +388,46 @@ QCheckBox::indicator:checked {{
 QCheckBox::indicator:unchecked:disabled {{
     background-color: {fundo};
     border: 1px solid {borda};
+}}
+QScrollBar:vertical {{
+    border: none;
+    background: {fundo};
+    width: 10px;
+    margin: 0;
+}}
+QScrollBar::handle:vertical {{
+    background: {suave};
+    border-radius: 5px;
+    min-height: 24px;
+}}
+QScrollBar::handle:vertical:hover {{
+    background: {AZUL};
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+    height: 0;
+    background: none;
+}}
+QScrollBar:horizontal {{
+    border: none;
+    background: {fundo};
+    height: 10px;
+    margin: 0;
+}}
+QScrollBar::handle:horizontal {{
+    background: {suave};
+    border-radius: 5px;
+    min-width: 24px;
+}}
+QScrollBar::handle:horizontal:hover {{
+    background: {AZUL};
+}}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+    width: 0;
+    background: none;
+}}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+    background: none;
 }}
 QDialog {{
     background-color: {fundo};

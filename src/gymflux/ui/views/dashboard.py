@@ -29,7 +29,14 @@ from PySide6.QtWidgets import (
 
 from gymflux.core.acesso import TentativaAcesso
 from gymflux.ui.catraca_bridge import CatracaBridge
-from gymflux.ui.theme import VERMELHO, ModoTema, cores_indicador, estilo_resultado, modo_de
+from gymflux.ui.theme import (
+    VERMELHO,
+    ModoTema,
+    cores_indicador,
+    estilo_resultado,
+    icone_preto,
+    modo_de,
+)
 from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
 LINHAS_VISIVEIS = 3
@@ -264,7 +271,7 @@ class DashboardView(QWidget):
         pill_lay.addWidget(self.lbl_compacto)
         self.btn_detalhes = QPushButton("Detalhes")
         self.btn_detalhes.setIcon(
-            estilo.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
+            icone_preto(estilo, QStyle.StandardPixmap.SP_MessageBoxInformation)
         )
         self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.status_pill, 0)
@@ -314,12 +321,12 @@ class DashboardView(QWidget):
             from gymflux.ui.app import _tint_icon
             from gymflux.ui.theme import TINTA_SOBRE_ACENTO
 
-            _icon_base = estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+            _icon_base = icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
             _icon_dest = _tint_icon(_icon_base, TINTA_SOBRE_ACENTO)
             self.btn_liberar.setIcon(_icon_dest)
         except Exception:
             self.btn_liberar.setIcon(
-                estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+                icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
             )
         self.btn_liberar.setIconSize(QSize(22, 22))
         self.btn_liberar.setMinimumHeight(32)
@@ -347,17 +354,17 @@ class DashboardView(QWidget):
         self.edt_codigo.setVisible(False)
         self.btn_identificar = QPushButton("Identificar")
         self.btn_identificar.setIcon(
-            estilo.standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton)
+            icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
         )
         self.btn_identificar.setVisible(False)
         self.btn_entrada = QPushButton("Liberar Entrada")
-        self.btn_entrada.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_ArrowForward))
+        self.btn_entrada.setIcon(icone_preto(estilo, QStyle.StandardPixmap.SP_ArrowForward))
         self.btn_entrada.setVisible(False)
         self.btn_saida = QPushButton("Liberar Saída")
-        self.btn_saida.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
+        self.btn_saida.setIcon(icone_preto(estilo, QStyle.StandardPixmap.SP_ArrowBack))
         self.btn_saida.setVisible(False)
         self.btn_bloquear = QPushButton("Bloquear")
-        self.btn_bloquear.setIcon(estilo.standardIcon(QStyle.StandardPixmap.SP_DialogCancelButton))
+        self.btn_bloquear.setIcon(icone_preto(estilo, QStyle.StandardPixmap.SP_DialogCancelButton))
         self.btn_bloquear.setVisible(False)
         layout.addWidget(self.edt_aluno)
         layout.addWidget(self.edt_codigo)
@@ -651,12 +658,11 @@ class DashboardView(QWidget):
                 frm.setStyleSheet(
                     f"QFrame#CatracaFrameGiros {{ border: 1px solid #2A3138; border-radius: 8px; background-color: {painel}; padding: 4px; }}"  # noqa: E501
                 )
-                # título preto com texto claro, lista segue tema
+                # título com fundo do container e texto preto (antes preto #0F1113 com texto branco)
                 with contextlib.suppress(Exception):
                     self.lst_giros.setStyleSheet("")
                     self.lbl_giros_titulo.setStyleSheet(
-                        "font-weight: bold; border: none; color: #F2F5F7;"
-                        " background-color: #0F1113; border-radius: 6px; padding: 2px 6px;"
+                        f"font-weight: bold; border: none; color: #0F1113; background-color: {painel}; border-radius: 6px; padding: 2px 6px;"  # noqa: E501
                     )
         # tabelas: modo claro precisa destaque sobre wallpaper escuro
         self._aplicar_estilo_tabelas(wallpaper_ativo)

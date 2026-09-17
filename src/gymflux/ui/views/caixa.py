@@ -38,6 +38,7 @@ from gymflux.ui.theme import (
     ModoTema,
     estilo_paginacao,
     estilo_selo,
+    icone_preto,
     modo_de,
 )
 from gymflux.ui.viewmodels.caixa import CaixaViewModel
@@ -311,7 +312,7 @@ class CaixaView(QWidget):
         self.btn_atualizar = QPushButton("Atualizar")
         self.btn_atualizar.setToolTip("Recarrega a lista (otimizado: só repinta)")
         self.btn_atualizar.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_BrowserReload)
         )
         hbtn.addWidget(self.cmb_aluno, 2)
         hbtn.addWidget(self.btn_novo)
@@ -449,7 +450,8 @@ class CaixaView(QWidget):
             self._render_tabela()
             if self._total_mes > self._page_size:
                 self.lbl_paginacao.setText(
-                    f"Mostrando {self._rendered} de {self._total_mes} — role até o final para carregar mais"  # noqa: E501
+                    f"Mostrando {self._rendered} de {self._total_mes} — "
+                    "role até o final para carregar mais"
                 )
                 self.lbl_paginacao.setVisible(self._rendered < self._total_mes)
             else:
@@ -468,7 +470,8 @@ class CaixaView(QWidget):
         self._render_tabela()
         if self._total_mes > self._page_size:
             self.lbl_paginacao.setText(
-                f"Mostrando {self._rendered} de {self._total_mes} — role até o final para carregar mais"  # noqa: E501
+                f"Mostrando {self._rendered} de {self._total_mes} — "
+                    "role até o final para carregar mais"
             )
             self.lbl_paginacao.setVisible(self._rendered < self._total_mes)
         else:

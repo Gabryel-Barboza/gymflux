@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.core.funcionario import format_turnos_compacto, parse_turnos_tolerante
+from gymflux.ui.theme import icone_preto
 from gymflux.ui.viewmodels.funcionarios import FuncionariosViewModel
 
 _DIAS_PRESETS = ["Seg-Sex", "Sáb", "Dom", "Seg-Sáb", "Todos", "Personalizado"]
@@ -202,13 +203,13 @@ class NovoFuncionarioDialog(QDialog):
         # dois botões abaixo, com ícones
         h_turnos_btn = QHBoxLayout()
         self.btn_add_turno = QPushButton(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_FileDialogNewFolder),
             "Adicionar turno",
         )
         self.btn_add_turno.setToolTip("Adiciona um novo turno")
         self.btn_add_turno.clicked.connect(lambda: self._add_turno_row())
         self.btn_remove_turno = QPushButton(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
         )
         self.btn_remove_turno.setToolTip(
             "Remove o turno selecionado (clique na linha para selecionar)"
@@ -277,7 +278,7 @@ class NovoFuncionarioDialog(QDialog):
             w = r["widget"]
             if i == idx:
                 w.setStyleSheet(
-                    "QWidget#TurnoRow { border: 1px solid #5AC8FA; border-radius: 6px; background: rgba(90,200,250,18%); }"
+                    "QWidget#TurnoRow { border: 1px solid #5AC8FA; border-radius: 6px; background: rgba(90,200,250,18%); }"  # noqa: E501
                 )
             else:
                 w.setStyleSheet(
@@ -488,12 +489,12 @@ class PerfilFuncionarioDialog(QDialog):
         if not read_only:
             h_turnos_btn = QHBoxLayout()
             self.btn_add_turno = QPushButton(
-                self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
+                icone_preto(self.style(), QStyle.StandardPixmap.SP_FileDialogNewFolder),
                 "Adicionar turno",
             )
             self.btn_add_turno.clicked.connect(lambda: self._add_turno_row(read_only=False))
             self.btn_remove_turno = QPushButton(
-                self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
+                icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
             )
             self.btn_remove_turno.setToolTip("Remover turno selecionado (clique na linha)")
             self.btn_remove_turno.clicked.connect(self._remove_selected)
@@ -618,7 +619,7 @@ class PerfilFuncionarioDialog(QDialog):
             w = r["widget"]
             if i == idx:
                 w.setStyleSheet(
-                    "QWidget#TurnoRow { border: 1px solid #5AC8FA; border-radius: 6px; background: rgba(90,200,250,18%); }"
+                    "QWidget#TurnoRow { border: 1px solid #5AC8FA; border-radius: 6px; background: rgba(90,200,250,18%); }"  # noqa: E501
                 )
             else:
                 w.setStyleSheet(
@@ -748,7 +749,7 @@ class PerfilFuncionarioDialog(QDialog):
                 cropped = scaled.copy(x, y, 120, 120)
                 self.lbl_foto.setPixmap(cropped)
                 self.lbl_foto.setStyleSheet(
-                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"
+                    "QLabel { border: 2px solid #5AC8FA; border-radius: 8px; background-color: #0F1113; }"  # noqa: E501
                 )
 
     def _remover_foto(self) -> None:
@@ -756,7 +757,7 @@ class PerfilFuncionarioDialog(QDialog):
         self.lbl_foto.clear()
         self.lbl_foto.setText("Sem foto")
         self.lbl_foto.setStyleSheet(
-            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"
+            "QLabel { border: 2px dashed #5AC8FA; border-radius: 8px; background-color: #1A1E22; color: #9AA7B2; }"  # noqa: E501
         )
 
     def _salvar(self) -> None:
@@ -1107,7 +1108,7 @@ class FuncionariosView(QWidget):
         self.tbl.selectRow(item.row())
         menu = QMenu(self)
         a_editar = menu.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_FileDialogDetailedView),
             "Editar",
         )
         a_ativar = menu.addAction("Ativar/Inativar")

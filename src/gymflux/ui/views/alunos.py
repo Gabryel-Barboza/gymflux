@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 from gymflux.core.aluno import Aluno, StatusAluno
 from gymflux.core.pagamento import FormaPagamento, Pagamento
 from gymflux.ui.config_store import CADASTRO_CAMPOS, ConfigStore
+from gymflux.ui.theme import icone_preto
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflux.ui.views.caixa import NovoPagamentoDialog
@@ -413,7 +414,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_matricular = QPushButton("Matricular...")
         self.btn_excluir_mat = QToolButton()
         self.btn_excluir_mat.setToolTip("Excluir matrícula selecionada")
-        self.btn_excluir_mat.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_mat.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
         self.btn_excluir_mat.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
             " QToolButton:hover { color: #FF8A8A; }"
@@ -453,7 +454,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_pago_pag.setToolTip("Marca o pagamento selecionado como pago hoje")
         self.btn_excluir_pag = QToolButton()
         self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
-        self.btn_excluir_pag.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        self.btn_excluir_pag.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
         self.btn_excluir_pag.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
             " QToolButton:hover { color: #FF8A8A; }"
@@ -478,8 +479,15 @@ class PerfilAlunoDialog(QDialog):
         lay_ficha.setContentsMargins(8, 8, 8, 8)
         # histórico no topo (lista clicável)
         self.lst_ficha = QListWidget()
-        self.lst_ficha.setMaximumHeight(90)
+        self.lst_ficha.setObjectName("FichaHistorico")
+        self.lst_ficha.setMaximumHeight(100)
         self.lst_ficha.setToolTip("Histórico — clique para carregar no formulário")
+        self.lst_ficha.setStyleSheet(
+            "QListWidget#FichaHistorico { font-weight: bold; font-size: 13px; border: 1px solid #5AC8FA; border-radius: 6px; }"  # noqa: E501
+            " QListWidget#FichaHistorico::item { padding: 6px 8px; border-left: 4px solid #5AC8FA; margin: 2px 4px; border-radius: 4px; }"  # noqa: E501
+            " QListWidget#FichaHistorico::item:selected { background: #5AC8FA; color: #0F1113; }"
+            " QListWidget#FichaHistorico::item:hover { background: rgba(90,200,250,18%); }"
+        )
         lay_ficha.addWidget(QLabel("Histórico de avaliações (clique para editar):"))
         lay_ficha.addWidget(self.lst_ficha)
         # form em grade
@@ -626,7 +634,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_ficha_excluir = QToolButton()
         self.btn_ficha_excluir.setToolTip("Excluir avaliação selecionada")
         self.btn_ficha_excluir.setIcon(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon)
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon)
         )
         hficha.addWidget(self.btn_ficha_nova)
         hficha.addWidget(self.btn_ficha_salvar)
@@ -771,7 +779,7 @@ class PerfilAlunoDialog(QDialog):
         self.tbl_mat.selectRow(item.row())
         menu = QMenu(self)
         a_exc = menu.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
         )
         acao = menu.exec(self.tbl_mat.viewport().mapToGlobal(pos))
         if acao == a_exc:
@@ -947,7 +955,7 @@ class PerfilAlunoDialog(QDialog):
         menu = QMenu(self)
         a_pago = menu.addAction("Marcar como pago / pendente")
         a_exc = menu.addAction(
-            self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
+            icone_preto(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Excluir"
         )
         acao = menu.exec(self.tbl_pag.viewport().mapToGlobal(pos))
         if acao == a_pago:

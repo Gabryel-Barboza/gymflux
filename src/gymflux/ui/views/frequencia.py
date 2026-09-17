@@ -196,7 +196,8 @@ class FrequenciaView(QWidget):
         self._render_tabela()
         if len(self._filtered) > self._page_size:
             self.lbl_paginacao.setText(
-                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"
+                f"Mostrando {self._rendered} de {len(self._filtered)} — "
+                "role até o final para carregar mais"
             )
             self.lbl_paginacao.setVisible(True)
         else:
@@ -241,7 +242,8 @@ class FrequenciaView(QWidget):
         self._rendered = novo
         if len(self._filtered) > self._page_size:
             self.lbl_paginacao.setText(
-                f"Mostrando {self._rendered} de {len(self._filtered)} — role até o final para carregar mais"
+                f"Mostrando {self._rendered} de {len(self._filtered)} — "
+                "role até o final para carregar mais"
             )
             self.lbl_paginacao.setVisible(self._rendered < len(self._filtered))
         else:
