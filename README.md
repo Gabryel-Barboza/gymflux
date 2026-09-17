@@ -91,10 +91,43 @@ C:\Windows\SysWOW64\regsvr32.exe vendor\Henry\Henry7x\Kernel7x.dll
 uv sync --group dev --extra ui
 $env:GYMFLUX_HENRY_MOCK="0"; $env:GYMFLUX_HENRY_PORTA="COM3"
 uv run gymflux catraca status
-# Build instalador (na VM Windows 32-bit):
-# pyinstaller --onefile --windowed --name GymFlux src/gymflux/__main__.py
-# iscc installer/gymflux.iss  -> GymFlux-Setup.exe (+ kernel7x.dll + kernel7x.ini)
 ```
+
+## Build Windows (instalador — Fase 5)
+
+> Gera `GymFlux.exe` (onefile windowed) + `GymFlux-Setup-vX.Y.Z.exe` via Inno Setup.
+> `kernel7x.dll` **não** é bundlada (fica em `vendor/` gitignored); o app falha graciosamente sem DLL (`RuntimeError` em `real.py`).
+
+**Pré-requisitos (Windows 10/11 64-bit, WOW64):**
+
+- **Python 3.11 32-bit** (https://www.python.org/downloads/ — *Windows installer 32-bit*). Confirme `python -c "import struct; print(struct.calcsize('P')*8)"` → `32`.
+- **uv** (https://docs.astral.sh/uv/) no `PATH`.
+- **Inno Setup 6** (https://jrsoftware.org/isinfo.php) — adiciona `ISCC.exe`/`iscc` ao `PATH` (instalação padrão `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`).
+
+**Comando (PowerShell / pwsh — na raiz do repo):**
+
+```powershell
+pwsh scripts/build.ps1
+# ou clássico:
+scripts\build.bat
+```
+
+O script lê `version` de `pyproject.toml`, roda `uv sync --group dev --extra ui`, `uv run pyinstaller gymflux.spec --noconfirm` e, se o `iscc` estiver no `PATH`, compila o instalador `iscc installer/gymflux.iss /DMyAppVersion=x.y.z`.
+
+**Saídas:**
+
+- `dist\GymFlux.exe` — executável onefile windowed (sem console). Em modo frozen o DB e o JSON vão para `%APPDATA%\GymFlux\gymflux.db` e `gymflux_config.json` (`platformdirs`), com migrations/assets embarcados via `_MEIPASS`.
+- `dist\installer\GymFlux-Setup-vX.Y.Z.exe` — instalador Inno Setup (`WizardStyle=modern`, `lzma2`, `ArchitecturesInstallIn64BitMode=x86compatible`). Instala em `{autopf}\GymFlux`, cria atalhos no Menu Iniciar/Área de Trabalho (checkbox) e opcionalmente em `Inicializar` (bandeja), com *Run postinstall*.
+
+**Verificação rápida (sem catraca, sem DLL):**
+
+```powershell
+dist\GymFlux.exe --help
+dist\GymFlux.exe catraca status   # erro gracioso se DLL ausente
+dist\GymFlux.exe ui               # abre mock + SQLite, tray minimiza para bandeja
+```
+
+**CI:** `/.github/workflows/release.yml` faz o mesmo em `windows-latest` (Python 3.11 x86, `uv`, PyInstaller + Inno Setup Action) a cada tag `v*` e em `workflow_dispatch`, publicando o instalador como artifact/release.
 
 ## Estrutura
 

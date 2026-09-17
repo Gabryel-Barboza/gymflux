@@ -77,9 +77,23 @@ class AppContext:
 
 def _ensure_schema() -> None:
     """Garante tabelas: alembic upgrade head (se alembic.ini) ou create_all."""
-    from pathlib import Path
+    try:
+        from gymflux.infra.db import get_alembic_ini_path
 
-    ini = Path("alembic.ini")
+        ini = get_alembic_ini_path()
+    except Exception:
+        import sys as _sys
+        from pathlib import Path
+
+        if bool(getattr(_sys, "frozen", False)):
+            meipass = getattr(_sys, "_MEIPASS", None)
+            if meipass:
+                cand = Path(meipass) / "alembic.ini"
+                ini = cand if cand.exists() else Path("alembic.ini")
+            else:
+                ini = Path("alembic.ini")
+        else:
+            ini = Path("alembic.ini")
     if ini.exists():
         from alembic import command
         from alembic.config import Config
@@ -472,11 +486,28 @@ class GymFluxMainWindow(QMainWindow):
             self._tray_available = False
         if self._tray_available:
             try:
+                import sys as _sys_tray
                 from pathlib import Path
 
                 from PySide6.QtGui import QAction, QIcon
 
-                icon_path = Path("src/gymflux/ui/assets/wallpaper-preto.png")
+                # frozen: tenta _MEIPASS antes de src/
+                icon_cands: list[Path] = []
+                if bool(getattr(_sys_tray, "frozen", False)):
+                    meipass = getattr(_sys_tray, "_MEIPASS", None)
+                    if meipass:
+                        icon_cands.append(
+                            Path(meipass) / "src" / "gymflux" / "ui" / "assets" / "wallpaper-preto.png"  # noqa: E501
+                        )
+                        icon_cands.append(
+                            Path(meipass) / "gymflux" / "ui" / "assets" / "wallpaper-preto.png"
+                        )
+                        icon_cands.append(Path(meipass) / "assets" / "wallpaper-preto.png")
+                icon_cands.append(Path("src/gymflux/ui/assets/wallpaper-preto.png"))
+                icon_path = next(
+                    (p for p in icon_cands if p.exists()),
+                    Path("src/gymflux/ui/assets/wallpaper-preto.png"),
+                )
                 icon = QIcon(str(icon_path)) if icon_path.exists() else QIcon()
                 if icon.isNull():
                     # fallback para ícone do tema (sempre existe)

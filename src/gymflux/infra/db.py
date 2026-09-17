@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -15,6 +16,66 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from gymflux.config.settings import get_settings
+
+# --- caminhos portáteis (dev vs frozen) ---
+_DEFAULT_DB_REL = Path("data/gymflux.db")
+_DEFAULT_DB_URL = f"sqlite:///{_DEFAULT_DB_REL.as_posix()}"
+
+
+def _is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def _frozen_data_dir() -> Path:
+    try:
+        from platformdirs import user_data_dir
+
+        return Path(user_data_dir("GymFlux"))
+    except Exception:
+        # fallback sem platformdirs (não deve ocorrer em prod)
+        if sys.platform == "win32":
+            # %APPDATA%\GymFlux
+            appdata = Path.home() / "AppData" / "Roaming" / "GymFlux"
+            return appdata
+        return Path.home() / ".local" / "share" / "GymFlux"
+
+
+def get_default_db_path() -> Path:
+    """Caminho do SQLite por ambiente: data/ em dev, %APPDATA%/GymFlux em frozen."""
+    if _is_frozen():
+        d = _frozen_data_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "gymflux.db"
+    return _DEFAULT_DB_REL
+
+
+def get_default_db_url() -> str:
+    p = get_default_db_path()
+    # sqlite:///C:/... (abs) ou sqlite:///data/... (rel) — ambos válidos
+    return f"sqlite:///{p.as_posix()}"
+
+
+def _effective_db_url(url: str) -> str:
+    """Se frozen e URL é o default dev, troca para %APPDATA%/GymFlux."""
+    if _is_frozen() and url in (_DEFAULT_DB_URL, "sqlite:///data/gymflux.db"):
+        return get_default_db_url()
+    return url
+
+
+def get_alembic_ini_path() -> Path:
+    """alembic.ini em dev (raiz) ou dentro de _MEIPASS quando frozen."""
+    if _is_frozen():
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            cand = Path(meipass) / "alembic.ini"
+            if cand.exists():
+                return cand
+        # fallback Win: _MEIPASS pode não ter alembic.ini se coleta falhou
+        frozen_dir = _frozen_data_dir()
+        cand2 = frozen_dir / "alembic.ini"
+        if cand2.exists():
+            return cand2
+    return Path("alembic.ini")
 
 
 class Base(DeclarativeBase):
@@ -41,7 +102,8 @@ _session_factory: sessionmaker[Session] | None = None
 def get_engine(db_url: str | None = None, echo: bool = False) -> Engine:
     """Retorna Engine singleton (ou cria novo se db_url diferente)."""
     global _engine, _session_factory
-    url = db_url or get_settings().db_url
+    raw_url = db_url or get_settings().db_url
+    url = _effective_db_url(raw_url)
     # singleton simples: se URL mudou, recria
     if _engine is not None and str(_engine.url) == url and _engine.echo == echo:
         return _engine
@@ -61,8 +123,9 @@ def get_engine(db_url: str | None = None, echo: bool = False) -> Engine:
                 raw = url.split("sqlite:///")[-1].split("?")[0]
                 if raw and raw != ":memory:":
                     p = Path(raw)
-                    if not p.is_absolute():
-                        # relativo ao cwd (raiz do projeto)
+                    # absoluto (frozen %APPDATA%) ou relativo — garante parent
+                    if str(p) not in (".", ""):
+                        # Path("C:/...") em Linux não é absolute; trata igual
                         p.parent.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass

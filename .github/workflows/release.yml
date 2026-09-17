@@ -1,0 +1,93 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11 x86 (COM 32-bit)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: "x86"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: uv sync (dev + ui)
+        run: uv sync --group dev --extra ui
+
+      - name: Extract version from pyproject.toml
+        id: version
+        shell: pwsh
+        run: |
+          $raw = Get-Content pyproject.toml -Raw
+          if ($raw -match '(?m)^\s*version\s*=\s*"([^"]+)"') {
+            $v = $Matches[1]
+            echo "version=$v" >> $env:GITHUB_OUTPUT
+            Write-Host "version=$v"
+          } else {
+            throw "version not found"
+          }
+
+      - name: PyInstaller (onefile windowed)
+        run: uv run pyinstaller gymflux.spec --noconfirm
+
+      - name: Verify dist\GymFlux.exe exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/GymFlux.exe)) { throw "dist/GymFlux.exe not found" }
+          Get-Item dist/GymFlux.exe | Format-List Name, Length, LastWriteTime
+
+      - name: Install Inno Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1
+        with:
+          path: C:\Program Files (x86)\Inno Setup 6\ISCC.exe
+          # action instala Inno Setup 6 mais recente
+
+      - name: Build installer (ISCC)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          # tenta ISCC no PATH, senão caminho padrão
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+          if (-not $iscc) { $iscc = Get-Command ISCC -ErrorAction SilentlyContinue }
+          if (-not $iscc) {
+            $cands = @("C:\Program Files (x86)\Inno Setup 6\ISCC.exe", "C:\Program Files\Inno Setup 6\ISCC.exe")
+            foreach ($c in $cands) { if (Test-Path $c) { $iscc = Get-Item $c; break } }
+          }
+          if (-not $iscc) { throw "ISCC not found after setup" }
+          $isccPath = if ($iscc.Source) { $iscc.Source } elseif ($iscc.Path) { $iscc.Path } else { "$iscc" }
+          Write-Host "iscc: $isccPath"
+          & $isccPath "installer/gymflux.iss" "/DMyAppVersion=$v"
+          if ($LASTEXITCODE -ne 0) { throw "iscc failed $LASTEXITCODE" }
+          Get-ChildItem dist/installer -Filter *.exe | Format-Table Name, Length
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GymFlux-Setup-v${{ steps.version.outputs.version }}
+          path: dist/installer/*.exe
+          if-no-files-found: error
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/installer/*.exe
+          generate_release_notes: true
+          # tag v* já vem de github.ref

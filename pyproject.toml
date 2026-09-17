@@ -25,6 +25,7 @@ dependencies = [
     "pydantic-settings>=2.1",
     "python-dotenv>=1.0",
     "loguru>=0.7",
+    "platformdirs>=4.0",
     "pefile>=2024.8.26",  # inspeção de DLLs (kernel7x.dll)
 ]
 

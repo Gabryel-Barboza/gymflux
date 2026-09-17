@@ -29,15 +29,17 @@
 ### Comandos canônicos
 
 ```bash
-uv sync --group dev          # instala deps
-uv run pytest                # testes (153 passed + 1 skipped HW em 2026-09-12)
+uv sync --group dev --extra ui   # dev Linux (PySide6 offscreen)
+uv run pytest -q                 # 197 passed + 1 skipped HW (2026-09-16)
 uv run ruff check src tests
 uv run ruff format src tests
 uv run mypy src
-uv run gymflux --help        # entry point único
+uv run gymflux --help            # entry point único
 uv run gymflux db upgrade && uv run gymflux db seed
 # Inspeção DLL (quando tiver kernel7x.dll):
 uv run python scripts/inspect_dll.py vendor/kernel7x.dll
+# Build Windows (na VM 32-bit):
+pwsh scripts/build.ps1           # -> dist/GymFlux.exe + dist/installer/GymFlux-Setup-vX.Y.Z.exe
 ```
 
 ## 3. Arquitetura (resumo, detalhes em `docs/ARCHITECTURE.md`)
@@ -128,6 +130,14 @@ src/gymflux/       # único
 - **2026-09-13 — Fase 4.10-B (telas alunos/planos/frequência/caixa) ✅:**
   - `core/aluno.py` +`endereco` + `infra/models/aluno.py` + migração `d3e8f1a2c4b9` + repos/viewmodels (`alunos.py` `endereco`, `caixa.py` `reabrir_mes`); `views/alunos.py`: `_AlunoForm` `QTextEdit` 80px separado + `edt_endereco` + grade, `PerfilAlunoDialog` botão `Salvar` + `_header_clicado` menu Excel (valores únicos + busca `QLineEdit` + `QListWidget`), `views/planos.py`: `QVBoxLayout` 1 coluna compacta + `NovoPlanoDialog` `PERSONALIZADO` mostra `spn_dur` (senão esconde, usa `DURACAO_POR_TIPO`), `views/frequencia.py`: `QCompleter` + `QListView` + paginação 50 + fix `chk_dia` (desmarcado lista mês inteiro), `views/caixa.py`: `CaixaViewModel.reabrir_mes` + `btn_reabrir` quando FECHADO.
   - Verificação Linux: 153 passed + 1 skipped, ruff/mypy limpos, `alembic upgrade` `d3e8f1a2c4b9` head + `downgrade` ok, `QT_QPA_PLATFORM=offscreen pytest tests/ui` 69 passed. **RB01-RB05 e hardware intocados.**
+- **2026-09-16 — Fase 5 (build Windows + instalador Inno Setup) ✅:**
+  - **Portátil frozen:** `infra/db.py` +`get_default_db_path/url`, `get_alembic_ini_path`, `_effective_db_url` (dev `data/` vs frozen `%APPDATA%/GymFlux` via `platformdirs`; `sys._MEIPASS` p/ `alembic.ini`) + `ui/config_store.py` +`get_default_config_path`, `_assets_base` (mesma troca + `sys._MEIPASS` p/ `wallpaper-*.png`); `__main__.py` +`_resolve_alembic_ini` e `ui/app.py` `_ensure_schema` + tray icon `_MEIPASS`. `platformdirs>=4.0` em `dependencies`. Fallback Linux intacto (`uv run gymflux db upgrade` ainda usa `data/`).
+  - **PyInstaller:** `gymflux.spec` na raiz (onefile windowed `GymFlux`, `console=False`, `icon` `src/gymflux/ui/assets/icon.ico` se existir, `UPX=False`, `pathex src/`, `exclude tests`, `datas` `alembic.ini` `.` + `migrations` + `assets`, `hiddenimports` `win32com.client.gencache`+`comtypes`+`sqlalchemy`+`alembic`+`loguru`+`platformdirs`). `pyinstaller gymflux.spec` testável em Windows 32-bit.
+  - **Inno Setup:** `installer/gymflux.iss` (`AppName=GymFlux`, `AppId={{631F33FA-...}}`, `AppVersion={#MyAppVersion}` via `/DMyAppVersion`, `DefaultDirName={autopf}\GymFlux`, `OutputDir=dist\installer`, `OutputBaseFilename=GymFlux-Setup-v{#MyAppVersion}`, `WizardStyle=modern`, `lzma2`, `x86compatible`, `Files dist\GymFlux.exe->{app}`, `Icons` grupo/desktop/startup c/ `Tasks` checkbox, `Run postinstall`, `LicenseFile=LICENSE`). `vendor/kernel7x.dll` NÃO bundlada (falha graciosa).
+  - **Build scripts:** `scripts/build.ps1` (PowerShell) + `scripts/build.bat` leem `version` de `pyproject.toml`, rodam `uv sync --group dev --extra ui`, `uv run pyinstaller gymflux.spec --noconfirm`, depois `iscc installer/gymflux.iss /DMyAppVersion=x.y.z` se `ISCC` no PATH (senão avisa). Saídas `dist/GymFlux.exe` + `dist/installer/GymFlux-Setup-vX.Y.Z.exe`.
+  - **CI:** `.github/workflows/release.yml` (`on push tag v*` + `workflow_dispatch`, `windows-latest`, `setup-python 3.11 x86`, `setup-uv` cache, `uv sync --group dev --extra ui`, `pyinstaller`, `Minionguyjpro/Inno-Setup-Action@v1`, `iscc`, `upload-artifact`, `softprops/action-gh-release` se tag, `timeout 20min`).
+  - **Outros:** `.gitignore` +`!gymflux.spec` (era `*.spec` global); `README.md` § Build Windows (pré-reqs + `pwsh scripts/build.ps1` + verificação `dist\GymFlux.exe --help|ui|catraca status` sem DLL).
+  - Verificação Linux: `uv run ruff check` + `uv run mypy src` limpos, `uv run pytest -q` **197 passed +1 skipped**, `gymflux db upgrade` + `gymflux --help` ok. **core/services/infra/hardware/UI intocados (só paths portáteis isolados com fallback).**
 - **2026-09-15 — Fase 4.16 perf Caixa + turnos ✅:**
   - **Perf Caixa:** `pagamento` repo `listar_por_mes(mes,limit,offset)` WHERE `competencia==mes OR (IS NULL AND strftime==mes)` + `contar_por_mes` + `totais_por_mes` SUM(CASE) + `meses_distintos` DISTINCT coalesce; `aluno` repo `mapa_nomes(ids)` IN + `listar_ordenado`; `pagamento.competencia` índice `ix_pagamentos_competencia` migração `1a2b3c4d5e6f`; `CaixaViewModel` pushdown (meses DISTINCT, paginado+mapa só página, SUM, COUNT) + `views/caixa.py` UM refresh por mês (só meses DISTINCT + combo alunos cacheado), paginação 500 via COUNT, scroll busca próxima página offset, marcar/desmarcar via `buscar_por_id` direto; `tests/unit/ui/test_caixa_perf.py` 2k <1s slow; medido 7,6k/10k: 136ms cold /21ms warm (era 2s) `recarregar` 93-179ms.
   - **Turnos:** `core/funcionario.py` `Turno(dias,inicio,fim)` + `parse_turnos()`/`format_turnos()`/`parse_turnos_tolerante()`/`format_turnos_compacto()` valida HH:MM e dias `Seg Ter Qua Qui Sex Sáb Dom` com `-` e `;`; `viewmodels/funcionarios.py` normaliza via parse/format (ValueError amigável); `views/funcionarios.py` editor de turnos no `Novo/Perfil` (linhas: combo preset `Seg-Sex Sáb Dom Seg-Sáb Todos Personalizado` + `edt_custom` + 2 `QTimeEdit` + +/-) substitui `QLineEdit` livre e migra legado; tabela coluna Horários compacto multilinha `Seg–Sex\n08h–12h · 14h–18h` com tooltip full, wordWrap + largura 200; `FuncionariosView` detalhes `Nome:` capitalizado (fix); `tests/unit/core/test_turnos.py` 6 testes roundtrip.
@@ -174,9 +184,9 @@ src/gymflux/       # único
 - Fase 0: Bootstrap ✅
 - Fase 1: Domínio + Hardware mockado + Testes ✅
 - Fase 2: Persistência SQLite + Alembic ✅
-- Fase 3: Integração real kernel7x.dll + testes em VM Windows 32-bit
+- Fase 3: Integração real kernel7x.dll + testes em VM Windows 32-bit ⏳ (mock validado; commissioning catraca ligada pendente)
 - Fase 4: UI PySide6 (cadastro, dashboard catraca) ✅
-- Fase 5: Biometria + instalador + assinatura
+- Fase 5: Build Windows + instalador (PyInstaller + Inno Setup) ✅ + Biometria + assinatura ⏳
 
 ## 8. Pendências / Perguntas para o Dono
 
@@ -212,7 +222,7 @@ src/gymflux/       # único
 ## 9. Checklist para Próxima Sessão
 
 1. Ler este arquivo + `docs/ARCHITECTURE.md` + `docs/DLL_CONTRACT.md`.
-2. `uv sync --group dev --extra ui && uv run pytest` deve passar (153 passed + 1 skipped HW em 2026-09-12).
+2. `uv sync --group dev --extra ui && uv run pytest -q` deve passar (197 passed + 1 skipped HW em 2026-09-16).
 3. Se houver `vendor/Henry/Henry7x/Kernel7x.dll`, rodar `scripts/inspect_dll.py`.
 4. Não quebrar regra 32-bit: `real.py` só Windows 32-bit via COM, nunca `ctypes.CDLL`.
 
@@ -225,4 +235,4 @@ src/gymflux/       # único
 - Serial: `ListaPortasSeriais` → escolher `COM3` etc, `SComConfig` define baud/paridade; `AdicionaCard(SComConfig, int)` abre porta.
 
 ---
-*Última atualização: 2026-09-15 por gerente (auditoria Fase 4.16, 196 passed). Mantenha este arquivo enxuto e factual.*
+*Última atualização: 2026-09-16 por subordinado Fase 5 (build Windows + instalador, 197 passed). Mantenha este arquivo enxuto e factual.*

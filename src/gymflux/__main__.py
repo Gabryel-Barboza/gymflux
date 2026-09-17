@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def cmd_mock_demo(_args: argparse.Namespace) -> int:
@@ -162,15 +163,31 @@ def cmd_info(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_db_upgrade(_args: argparse.Namespace) -> int:
-    from pathlib import Path
+def _resolve_alembic_ini() -> Path:
+    try:
+        from gymflux.infra.db import get_alembic_ini_path
 
+        return get_alembic_ini_path()
+    except Exception:
+        import sys as _sys
+        from pathlib import Path
+
+        if bool(getattr(_sys, "frozen", False)):
+            meipass = getattr(_sys, "_MEIPASS", None)
+            if meipass:
+                cand = Path(meipass) / "alembic.ini"
+                if cand.exists():
+                    return cand
+        return Path("alembic.ini")
+
+
+def cmd_db_upgrade(_args: argparse.Namespace) -> int:
     from alembic import command
     from alembic.config import Config
 
-    ini = Path("alembic.ini")
+    ini = _resolve_alembic_ini()
     if not ini.exists():
-        print("[erro] alembic.ini não encontrado (rode na raiz do projeto)")
+        print(f"[erro] alembic.ini não encontrado em {ini} (rode na raiz ou verifique bundle)")
         return 1
     cfg = Config(str(ini))
     # garante script_location correto se relativo
@@ -188,14 +205,12 @@ def cmd_db_upgrade(_args: argparse.Namespace) -> int:
 
 
 def cmd_db_downgrade(_args: argparse.Namespace) -> int:
-    from pathlib import Path
-
     from alembic import command
     from alembic.config import Config
 
-    ini = Path("alembic.ini")
+    ini = _resolve_alembic_ini()
     if not ini.exists():
-        print("[erro] alembic.ini não encontrado")
+        print(f"[erro] alembic.ini não encontrado em {ini}")
         return 1
     target = _args.revision or "-1"
     cfg = Config(str(ini))

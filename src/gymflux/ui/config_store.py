@@ -8,6 +8,7 @@ operação (bloqueios, tolerância, timeout, porta) persistidos em
 from __future__ import annotations
 
 import json
+import sys as _sys
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -18,7 +19,53 @@ from loguru import logger
 from gymflux.core.regras import RegraAcessoConfig
 from gymflux.ui.theme import ModoTema
 
-DEFAULT_CONFIG_PATH = Path("data/gymflux_config.json")
+_DEFAULT_CONFIG_REL = Path("data/gymflux_config.json")
+
+
+def _is_frozen() -> bool:
+    return bool(getattr(_sys, "frozen", False))
+
+
+def _frozen_data_dir() -> Path:
+    try:
+        from platformdirs import user_data_dir
+
+        return Path(user_data_dir("GymFlux"))
+    except Exception:
+        if _sys.platform == "win32":
+            return Path.home() / "AppData" / "Roaming" / "GymFlux"
+        return Path.home() / ".local" / "share" / "GymFlux"
+
+
+def _assets_base() -> Path:
+    """Base de assets: _MEIPASS quando frozen, senão cwd."""
+    if _is_frozen():
+        meipass = getattr(_sys, "_MEIPASS", None)
+        if meipass:
+            cand = Path(meipass) / "src" / "gymflux" / "ui" / "assets"
+            if cand.exists():
+                return cand
+            # alternativo: assets na raiz do bundle
+            cand2 = Path(meipass) / "gymflux" / "ui" / "assets"
+            if cand2.exists():
+                return cand2
+            cand3 = Path(meipass) / "assets"
+            if cand3.exists():
+                return cand3
+    return Path("src/gymflux/ui/assets")
+
+
+def get_default_config_path() -> Path:
+    """JSON de config: data/ em dev, %APPDATA%/GymFlux em frozen."""
+    if _is_frozen():
+        d = _frozen_data_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "gymflux_config.json"
+    return _DEFAULT_CONFIG_REL
+
+
+# compat: código legado compara com DEFAULT_CONFIG_PATH
+DEFAULT_CONFIG_PATH = get_default_config_path() if _is_frozen() else _DEFAULT_CONFIG_REL
 
 SENHA_MIN_MIN = 4
 SENHA_MIN_MAX = 8
@@ -163,7 +210,7 @@ class UiConfig:
 class ConfigStore:
     """Carrega/salva ``UiConfig`` em JSON (escrita atômica via tmp+replace)."""
 
-    path: Path | str = field(default=DEFAULT_CONFIG_PATH)
+    path: Path | str = field(default_factory=lambda: get_default_config_path())
     fallback_porta: str = "1"
 
     @property
@@ -174,14 +221,22 @@ class ConfigStore:
         return self.caminho.exists()
 
     def _default_wallpaper(self, tema: ModoTema | None = None) -> str | None:
+        base = _assets_base()
         # novo: wallpaper-preto.png / wallpaper-branco.png por tema
         if tema is not None:
             nome = "wallpaper-branco.png" if tema == ModoTema.CLARO else "wallpaper-preto.png"
-            p = Path(f"src/gymflux/ui/assets/{nome}")
+            p = base / nome
             if p.exists():
                 return str(p)
+            # fallback legacy path dev
+            p2 = Path(f"src/gymflux/ui/assets/{nome}")
+            if p2.exists():
+                return str(p2)
         # fallback: tenta ambos, depois legado
         for p in (
+            base / "wallpaper-preto.png",
+            base / "wallpaper-branco.png",
+            base / "wallpaper.png",
             Path("src/gymflux/ui/assets/wallpaper-preto.png"),
             Path("src/gymflux/ui/assets/wallpaper-branco.png"),
             Path("src/gymflux/ui/assets/wallpaper.png"),

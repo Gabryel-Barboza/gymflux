@@ -38,9 +38,12 @@ instance/
 data/*.db
 data/*.sqlite*
 data/*.log
+# fotos dos alunos (LGPD: nunca versionar)
+data/fotos/
 
 # PyInstaller
 *.spec
+!gymflux.spec
 build/pyinstaller/
 dist/
 *.exe
