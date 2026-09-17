@@ -53,29 +53,20 @@ jobs:
           if (-not (Test-Path dist/GymFlux.exe)) { throw "dist/GymFlux.exe not found" }
           Get-Item dist/GymFlux.exe | Format-List Name, Length, LastWriteTime
 
-      - name: Install Inno Setup
-        uses: Minionguyjpro/Inno-Setup-Action@v1
+      - name: Build installer (Inno Setup)
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
         with:
-          path: C:\Program Files (x86)\Inno Setup 6\ISCC.exe
-          # action instala Inno Setup 6 mais recente
+          path: installer/gymflux.iss
+          options: /DMyAppVersion=${{ steps.version.outputs.version }}
 
-      - name: Build installer (ISCC)
+      - name: Verify installer exists
         shell: pwsh
         run: |
-          $v = "${{ steps.version.outputs.version }}"
-          # tenta ISCC no PATH, senão caminho padrão
-          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
-          if (-not $iscc) { $iscc = Get-Command ISCC -ErrorAction SilentlyContinue }
-          if (-not $iscc) {
-            $cands = @("C:\Program Files (x86)\Inno Setup 6\ISCC.exe", "C:\Program Files\Inno Setup 6\ISCC.exe")
-            foreach ($c in $cands) { if (Test-Path $c) { $iscc = Get-Item $c; break } }
-          }
-          if (-not $iscc) { throw "ISCC not found after setup" }
-          $isccPath = if ($iscc.Source) { $iscc.Source } elseif ($iscc.Path) { $iscc.Path } else { "$iscc" }
-          Write-Host "iscc: $isccPath"
-          & $isccPath "installer/gymflux.iss" "/DMyAppVersion=$v"
-          if ($LASTEXITCODE -ne 0) { throw "iscc failed $LASTEXITCODE" }
           Get-ChildItem dist/installer -Filter *.exe | Format-Table Name, Length
+          if (-not (Test-Path "dist/installer/GymFlux-Setup-v${{ steps.version.outputs.version }}.exe")) {
+            # fallback: qualquer exe
+            if (-not (Get-ChildItem dist/installer -Filter *.exe)) { throw "installer not found" }
+          }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
