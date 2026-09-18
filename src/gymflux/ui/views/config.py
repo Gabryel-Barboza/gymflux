@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QStyle,
     QVBoxLayout,
@@ -20,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.ui.config_store import ModoAcesso, ModoFundo, UiConfig
-from gymflux.ui.theme import ModoTema, icone_preto, modo_de
+from gymflux.ui.theme import ModoTema, icon_size, icone_preto, modo_de
 from gymflux.ui.viewmodels.config import ConfigViewModel
 
 
@@ -31,6 +33,17 @@ class ConfigView(QWidget):
         super().__init__(parent)
         self.vm = vm
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        # Scroll: evita inputs espremidos/cortados em janela baixa (Fase 5.3).
+        # O toast (lbl_status) continua filho direto da view (fora do scroll).
+        self.area_rolagem = QScrollArea(self)
+        self.area_rolagem.setWidgetResizable(True)
+        self.area_rolagem.setFrameShape(QFrame.Shape.NoFrame)
+        self.area_rolagem.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget()
+        layout.addWidget(self.area_rolagem)
+        self.area_rolagem.setWidget(inner)
+        layout = QVBoxLayout(inner)
 
         # -- Categoria: Catraca -------------------------------------------------
         grp_catraca = QGroupBox("Catraca")
@@ -179,6 +192,7 @@ class ConfigView(QWidget):
         self.btn_salvar.setIcon(
             icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton)
         )
+        self.btn_salvar.setIconSize(QSize(icon_size(), icon_size()))
         botoes.addWidget(self.btn_salvar)
         botoes.addStretch(1)
         layout.addLayout(botoes)

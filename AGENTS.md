@@ -154,6 +154,11 @@ src/gymflux/       # único
   - Testes: `tests/integration/ui/test_detalhes_dialog.py` (4: retry mock <1s Desconectada→Conectada, falha→erro vermelho, dict legado, auto-retry sozinho); `test_helper_ipc.py` +3 (EXE fake→mock, `_modo_catraca_configurado`, modo mock vence settings); `test_config_store.py` +2 (default/legado/roundtrip).
   - Verificação Linux: ruff/mypy limpos, `uv run pytest -q` **212 passed +1 skipped**. **core/services/infra/models intocados.**
   - Follow-up: btn "Tentar reconectar" com cooldown 5s anti-spam (`Aguarde Ns...`); combo da Config com labels exatos "Equipamento"/"Demonstração"; bump versão `0.1.2` (`pyproject`+`uv.lock`).
+- **2026-09-18 — Fase 5.3 (toast overlay + ícones win + scroll Config) ✅:**
+  - Toast (`views/dashboard.py`): overlay filho direto fora de layout + `WA_TransparentForMouseEvents` + tamanho travado por exibição (largura ≤80% view, altura ≤120px, sem min/max persistente nem `invalidate()`); `resizeEvent` só move. Teste: show/hide 3x não muda `window.geometry().height()`.
+  - Ícones (`ui/theme.py` +`icon_size()`: 16px no win32, 22 fora; Qt-free): `setIconSize` explícito em botões de telas/modais (catraca, alunos, funcionários, planos, caixa, config, dialogs Ok/Cancel, turnos +/-); header de abas intacto. Teste: `iconSize` esperado + `sizeHint().width() < 400`.
+  - Config (`views/config.py`): conteúdo em `QScrollArea` (`area_rolagem`, resizable, sem scroll horizontal; toast fora do scroll) — inputs não espremem em janela baixa.
+  - Verificação Linux: ruff/mypy limpos, `uv run pytest -q` **216 passed +1 skipped** (212 +4). **core/services/infra/models intocados;** `uv.lock` só sync p/ `0.1.3` já versionado.
   - Auditoria gerente 2026-09-18: Detalhes retry em thread (spinner 300ms, sem travar UI, erro em vermelho), auto-retry polling 1s → 3×/2s via `reconnect_concluido`; `modo_catraca` não polui DB (mesmo `%APPDATA%/GymFlux/gymflux.db`, só troca driver, mock não grava logs falsos) e sem custo perf (IPC JSON 1-3ms, thread só quando offline); legados aceitos, 212 passed confirmam. APROVADO.
 - **2026-09-15 — Fase 4.16 perf Caixa + turnos ✅:**
   - **Perf Caixa:** `pagamento` repo `listar_por_mes(mes,limit,offset)` WHERE `competencia==mes OR (IS NULL AND strftime==mes)` + `contar_por_mes` + `totais_por_mes` SUM(CASE) + `meses_distintos` DISTINCT coalesce; `aluno` repo `mapa_nomes(ids)` IN + `listar_ordenado`; `pagamento.competencia` índice `ix_pagamentos_competencia` migração `1a2b3c4d5e6f`; `CaixaViewModel` pushdown (meses DISTINCT, paginado+mapa só página, SUM, COUNT) + `views/caixa.py` UM refresh por mês (só meses DISTINCT + combo alunos cacheado), paginação 500 via COUNT, scroll busca próxima página offset, marcar/desmarcar via `buscar_por_id` direto; `tests/unit/ui/test_caixa_perf.py` 2k <1s slow; medido 7,6k/10k: 136ms cold /21ms warm (era 2s) `recarregar` 93-179ms.
@@ -256,4 +261,4 @@ src/gymflux/       # único
 - `uv sync --group dev --extra ui` em Linux/x64 inalterado (mock); helper não usa DB (`infra/db.py` e `config_store.py` portáteis já bastam).
 
 ---
-*Última atualização: 2026-09-18 por subordinado Fase 5.2 (resiliência catraca, 212 passed). Mantenha este arquivo enxuto e factual.*
+*Última atualização: 2026-09-18 por subordinado Fase 5.3 (toast overlay + ícones win + scroll Config, 216 passed). Mantenha este arquivo enxuto e factual.*

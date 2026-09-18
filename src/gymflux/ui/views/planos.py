@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from loguru import logger
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.core.plano import Plano, TipoPlano
-from gymflux.ui.theme import icone_preto, icone_vermelho
+from gymflux.ui.theme import icon_size, icone_preto, icone_vermelho
 from gymflux.ui.viewmodels.planos import DURACAO_POR_TIPO, PlanosViewModel
 
 
@@ -75,6 +75,7 @@ class NovoPlanoDialog(QDialog):
             b = botoes.button(bt)
             if b is not None:
                 b.setIcon(icone_preto(self.style(), pix))
+                b.setIconSize(QSize(icon_size(), icon_size()))
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         layout.addWidget(botoes)
@@ -202,6 +203,7 @@ class PlanosView(QWidget):
         btn_editar = QPushButton("Editar")
         btn_excluir = QToolButton()
         btn_excluir.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))
+        btn_excluir.setIconSize(QSize(icon_size(), icon_size()))
         btn_excluir.setToolTip("Excluir plano")
         btn_excluir.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"

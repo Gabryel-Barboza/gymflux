@@ -26,6 +26,7 @@ from gymflux.ui.theme import (
     cores_indicador,
     estilo_paginacao,
     estilo_resultado,
+    icon_size,
     stylesheet,
 )
 
@@ -142,3 +143,14 @@ def test_contraste_minimo_texto_fundo():
     assert VERMELHO in estilo_selo()
     assert VERMELHO in estilo_selo(ModoTema.CLARO)
     assert contraste(TINTA_SOBRE_ACENTO, VERMELHO) >= 4.5
+
+
+def test_icon_size_win32_16_fora_22(monkeypatch):
+    """Fase 5.3: botões usam 16px no Windows (QStyle grande), 22 fora."""
+    import sys
+
+    assert icon_size() == 22
+    assert icon_size(20) == 20
+    monkeypatch.setattr(sys, "platform", "win32")
+    assert icon_size() == 16
+    assert icon_size(20) == 16

@@ -36,6 +36,7 @@ from gymflux.ui.theme import (
     ModoTema,
     cores_indicador,
     estilo_resultado,
+    icon_size,
     icone_preto,
     icone_vermelho,
     modo_de,
@@ -310,10 +311,12 @@ class DashboardView(QWidget):
         estilo = self.style()
 
         # -- toast overlay centralizado e destacado (modal) -----------------------
+        # Fase 5.3: overlay puro (fora de qualquer layout, tamanho fixo por
+        # exibição) — nunca participa de sizeHint, não estica a janela.
         self.toast = QFrame(self)
         self.toast.setObjectName("ToastFrame")
         self.toast.setVisible(False)
-        self.toast.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+        self.toast.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.toast.setStyleSheet(
             "QFrame#ToastFrame { background-color: #1A1E22; border: 1px solid #2A3138; border-radius: 14px; }"  # noqa: E501
         )
@@ -395,6 +398,7 @@ class DashboardView(QWidget):
         pill_lay.addWidget(self.lbl_compacto)
         self.btn_detalhes = QPushButton("Detalhes")
         self.btn_detalhes.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_MessageBoxWarning))  # noqa: E501
+        self.btn_detalhes.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_detalhes.setMinimumHeight(28)
         hstatus.addWidget(self.status_pill, 0)
         hstatus.addStretch(1)
@@ -449,7 +453,7 @@ class DashboardView(QWidget):
             self.btn_liberar.setIcon(
                 icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
             )
-        self.btn_liberar.setIconSize(QSize(22, 22))
+        self.btn_liberar.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_liberar.setMinimumHeight(32)
         self.btn_liberar.setMinimumWidth(150)
         self.btn_liberar.setStyleSheet(
@@ -477,15 +481,19 @@ class DashboardView(QWidget):
         self.btn_identificar.setIcon(
             icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
         )
+        self.btn_identificar.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_identificar.setVisible(False)
         self.btn_entrada = QPushButton("Liberar Entrada")
         self.btn_entrada.setIcon(icone_preto(estilo, QStyle.StandardPixmap.SP_ArrowForward))
+        self.btn_entrada.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_entrada.setVisible(False)
         self.btn_saida = QPushButton("Liberar Saída")
         self.btn_saida.setIcon(icone_preto(estilo, QStyle.StandardPixmap.SP_ArrowBack))
+        self.btn_saida.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_saida.setVisible(False)
         self.btn_bloquear = QPushButton("Bloquear")
         self.btn_bloquear.setIcon(icone_preto(estilo, QStyle.StandardPixmap.SP_DialogCancelButton))
+        self.btn_bloquear.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_bloquear.setVisible(False)
         layout.addWidget(self.edt_aluno)
         layout.addWidget(self.edt_codigo)
@@ -1046,13 +1054,10 @@ class DashboardView(QWidget):
 
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
-        # centraliza toast no meio da tela
+        # centraliza toast no meio da tela (só move; nunca mexe em layout)
         if self.toast.isVisible():
-            self.toast.adjustSize()
-            max_w = int(self.width() * 0.7)
-            if self.toast.width() > max_w:
-                self.toast.setMaximumWidth(max_w)
-                self.toast.adjustSize()
+            largura = min(self.toast.width(), max(280, int(self.width() * 0.8)))
+            self.toast.resize(largura, min(self.toast.height(), 120))
             x = (self.width() - self.toast.width()) // 2
             y = (self.height() - self.toast.height()) // 2
             self.toast.move(max(8, x), max(8, y))
@@ -1130,17 +1135,13 @@ class DashboardView(QWidget):
         else:
             self.toast_sub.setVisible(False)
             self.toast_sub.setText("")
-        # tamanho e posição central — largura aumentada para caber em uma linha
+        # tamanho fixo por exibição (Fase 5.3): largura limitada à view e
+        # altura travada — sem setMinimum/MaximumWidth persistente, sem
+        # layout.invalidate(), sem tocar no parent. Overlay não estica nada.
         self.toast.adjustSize()
-        max_w = int(self.width() * 0.88) if self.width() > 0 else 720
-        min_w = 420
-        if self.toast.width() < min_w:
-            self.toast.setMinimumWidth(min_w)
-        if self.toast.width() > max_w:
-            self.toast.setMaximumWidth(max_w)
-            self.toast.adjustSize()
-        else:
-            self.toast.setMaximumWidth(16777215)
+        largura = min(max(280, self.toast.sizeHint().width()), max(280, int(self.width() * 0.8)))
+        altura = min(max(48, self.toast.sizeHint().height()), 120)
+        self.toast.resize(largura, altura)
         # centraliza texto em uma linha
         self.toast_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.toast_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)

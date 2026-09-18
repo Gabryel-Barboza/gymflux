@@ -11,6 +11,7 @@ não atinge contraste mínimo, o modo claro usa tinta escura (sem cor nova):
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -200,6 +201,18 @@ def _tint_icon(icon, color_hex: str):  # type: ignore[no-untyped-def]
         return tinted if not tinted.isNull() else icon
     except Exception:
         return icon
+
+
+def icon_size(padrao: int = 22) -> int:
+    """Lado (px) do ícone em botões de telas/modais — Qt-free (retorna int).
+
+    No Windows os pixmaps do QStyle vêm maiores e estouram o layout, por
+    isso usa 16px; nas demais plataformas mantém ``padrao`` (22). Header
+    de abas NÃO usa isto (ícones do `_base_icons`/tint intactos).
+    """
+    if sys.platform == "win32":
+        return 16
+    return padrao
 
 
 def icone_preto(style, standard_pixmap):  # type: ignore[no-untyped-def]

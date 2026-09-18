@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 from gymflux.core.aluno import Aluno, StatusAluno
 from gymflux.core.pagamento import FormaPagamento, Pagamento
 from gymflux.ui.config_store import CADASTRO_CAMPOS, ConfigStore
-from gymflux.ui.theme import icone_preto, icone_vermelho
+from gymflux.ui.theme import icon_size, icone_preto, icone_vermelho
 from gymflux.ui.viewmodels.alunos import AlunosViewModel
 from gymflux.ui.viewmodels.frequencia import FrequenciaViewModel
 from gymflux.ui.views.caixa import NovoPagamentoDialog
@@ -352,6 +352,7 @@ class NovoAlunoDialog(QDialog):
             b = botoes.button(bt)
             if b is not None:
                 b.setIcon(icone_preto(self.style(), pix))
+                b.setIconSize(QSize(icon_size(), icon_size()))
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         layout.addWidget(botoes)
@@ -424,6 +425,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_excluir_mat = QToolButton()
         self.btn_excluir_mat.setToolTip("Excluir matrícula selecionada")
         self.btn_excluir_mat.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))  # noqa: E501
+        self.btn_excluir_mat.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_excluir_mat.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
             " QToolButton:hover { color: #FF8A8A; }"
@@ -464,6 +466,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_excluir_pag = QToolButton()
         self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
         self.btn_excluir_pag.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))  # noqa: E501
+        self.btn_excluir_pag.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_excluir_pag.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
             " QToolButton:hover { color: #FF8A8A; }"
@@ -646,6 +649,7 @@ class PerfilAlunoDialog(QDialog):
         self.btn_ficha_excluir.setIcon(
             icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon)
         )
+        self.btn_ficha_excluir.setIconSize(QSize(icon_size(), icon_size()))
         hficha.addWidget(self.btn_ficha_nova)
         hficha.addWidget(self.btn_ficha_salvar)
         hficha.addWidget(self.btn_ficha_excluir)
@@ -677,6 +681,7 @@ class PerfilAlunoDialog(QDialog):
         if btn_save is not None:
             btn_save.setText("Salvar")
             btn_save.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton))
+            btn_save.setIconSize(QSize(icon_size(), icon_size()))
             btn_save.setStyleSheet(
                 "QPushButton { background-color: #5AC8FA; color: #0F1113;"
                 " border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
@@ -685,6 +690,7 @@ class PerfilAlunoDialog(QDialog):
         if btn_cancel is not None:
             btn_cancel.setText("Cancelar")
             btn_cancel.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton))  # noqa: E501
+            btn_cancel.setIconSize(QSize(icon_size(), icon_size()))
             btn_cancel.setStyleSheet(
                 "QPushButton { background-color: transparent;"
                 " border: 1px solid #5AC8FA; color: #5AC8FA;"

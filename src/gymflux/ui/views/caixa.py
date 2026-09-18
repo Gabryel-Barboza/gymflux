@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 from loguru import logger
-from PySide6.QtCore import QDate, QPoint, QStringListModel, Qt, QTimer, Signal
+from PySide6.QtCore import QDate, QPoint, QSize, QStringListModel, Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -38,6 +38,7 @@ from gymflux.ui.theme import (
     ModoTema,
     estilo_paginacao,
     estilo_selo,
+    icon_size,
     icone_preto,
     modo_de,
 )
@@ -314,6 +315,7 @@ class CaixaView(QWidget):
         self.btn_atualizar.setIcon(
             icone_preto(self.style(), QStyle.StandardPixmap.SP_BrowserReload)
         )
+        self.btn_atualizar.setIconSize(QSize(icon_size(), icon_size()))
         hbtn.addWidget(self.cmb_aluno, 2)
         hbtn.addWidget(self.btn_novo)
         hbtn.addWidget(self.btn_marcar_pago)

@@ -102,3 +102,19 @@ def test_config_cadastro_obrigatorios_salva_e_aplica(qtbot, ctx: AppContext, tmp
     view._salvar()
     loaded2 = ConfigStore(tmp_path / "gymflux_config.json").load()
     assert loaded2.cadastro_obrigatorios["cpf"] is False
+
+
+def test_config_tem_scroll_e_toast_fora(qtbot, ctx: AppContext):
+    """Fase 5.3: conteúdo rola (inputs não espremem) e o toast fica fora do scroll."""
+    from PySide6.QtWidgets import QScrollArea
+
+    view = ConfigView(ctx.config_vm)
+    qtbot.addWidget(view)
+    assert isinstance(view.area_rolagem, QScrollArea)
+    assert view.area_rolagem.widgetResizable()
+    assert view.area_rolagem.widget() is not None
+    # toast continua filho direto da view (não rola junto)
+    assert view.lbl_status.parent() is view
+    # modo catraca: labels exatos + roundtrip real/mock
+    assert view.cmb_modo_catraca.itemText(0) == "Equipamento"
+    assert view.cmb_modo_catraca.itemText(1) == "Demonstração"

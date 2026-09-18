@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from gymflux.core.funcionario import format_turnos_compacto, parse_turnos_tolerante
-from gymflux.ui.theme import icone_preto, icone_vermelho
+from gymflux.ui.theme import icon_size, icone_preto, icone_vermelho
 from gymflux.ui.viewmodels.funcionarios import FuncionariosViewModel
 
 _DIAS_PRESETS = ["Seg-Sex", "Sáb", "Dom", "Seg-Sáb", "Todos", "Personalizado"]
@@ -206,11 +206,13 @@ class NovoFuncionarioDialog(QDialog):
             icone_preto(self.style(), QStyle.StandardPixmap.SP_FileDialogNewFolder),
             "Adicionar turno",
         )
+        self.btn_add_turno.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_add_turno.setToolTip("Adiciona um novo turno")
         self.btn_add_turno.clicked.connect(lambda: self._add_turno_row())
         self.btn_remove_turno = QPushButton(
             icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"
         )
+        self.btn_remove_turno.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_remove_turno.setToolTip(
             "Remove o turno selecionado (clique na linha para selecionar)"
         )
@@ -230,6 +232,7 @@ class NovoFuncionarioDialog(QDialog):
             b = botoes.button(bt)
             if b is not None:
                 b.setIcon(icone_preto(self.style(), pix))
+                b.setIconSize(QSize(icon_size(), icon_size()))
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         form.addRow(botoes)
@@ -499,10 +502,12 @@ class PerfilFuncionarioDialog(QDialog):
                 icone_preto(self.style(), QStyle.StandardPixmap.SP_FileDialogNewFolder),
                 "Adicionar turno",
             )
+            self.btn_add_turno.setIconSize(QSize(icon_size(), icon_size()))
             self.btn_add_turno.clicked.connect(lambda: self._add_turno_row(read_only=False))
             self.btn_remove_turno = QPushButton(
                 icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"  # noqa: E501
             )
+            self.btn_remove_turno.setIconSize(QSize(icon_size(), icon_size()))
             self.btn_remove_turno.setToolTip("Remover turno selecionado (clique na linha)")
             self.btn_remove_turno.clicked.connect(self._remove_selected)
             h_turnos_btn.addWidget(self.btn_add_turno)
@@ -557,6 +562,7 @@ class PerfilFuncionarioDialog(QDialog):
             if btn_save is not None:
                 btn_save.setText("Salvar")
                 btn_save.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton))  # noqa: E501
+                btn_save.setIconSize(QSize(icon_size(), icon_size()))
                 btn_save.setStyleSheet(
                     "QPushButton { background-color: #5AC8FA; color: #0F1113;"
                     " border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
@@ -565,6 +571,7 @@ class PerfilFuncionarioDialog(QDialog):
             if btn_cancel is not None:
                 btn_cancel.setText("Cancelar")
                 btn_cancel.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton))  # noqa: E501
+                btn_cancel.setIconSize(QSize(icon_size(), icon_size()))
                 btn_cancel.setStyleSheet(
                     "QPushButton { background-color: transparent;"
                     " border: 1px solid #5AC8FA; color: #5AC8FA;"

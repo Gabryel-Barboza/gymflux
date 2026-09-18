@@ -173,3 +173,48 @@ def test_click_em_registro_funcionario_nao_abre_perfil(dash: DashboardView, ctx:
     dash.perfil_solicitado.connect(emitidos.append)
     dash._registro_clicado(0, 1)  # linha mais recente = funcionário
     assert emitidos == []
+
+
+def test_toast_nao_estica_janela(qtbot, ctx: AppContext):
+    """Fase 5.3: toast é overlay de tamanho fixo — show/hide não mexe na geometria."""
+    from PySide6.QtCore import Qt
+
+    win = build_window(ctx)
+    qtbot.addWidget(win)
+    win.resize(900, 620)
+    win.show()
+    qtbot.wait(100)
+    h0 = win.geometry().height()
+    dash = win.tabs.widget(0)
+    assert isinstance(dash, DashboardView)
+    for i in range(3):
+        dash._mostrar_toast(f"Aluno {i} — Liberado", True)
+        qtbot.wait(50)
+        assert win.geometry().height() == h0
+        dash.toast.setVisible(False)
+        qtbot.wait(50)
+        assert win.geometry().height() == h0
+    # overlay fora de qualquer layout e transparente ao mouse
+    assert dash.toast.parent() is dash
+    assert dash.layout() is None or dash.layout().indexOf(dash.toast) == -1
+    assert bool(dash.toast.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents))
+
+
+def test_botoes_tem_icon_size_explicito(dash: DashboardView):
+    """Fase 5.3: ícones travados via icon_size() — não estouram no Windows."""
+    from PySide6.QtCore import QSize
+
+    from gymflux.ui.theme import icon_size
+
+    esperado = QSize(icon_size(), icon_size())
+    for btn in (
+        dash.btn_liberar,
+        dash.btn_detalhes,
+        dash.btn_entrada,
+        dash.btn_saida,
+        dash.btn_bloquear,
+        dash.btn_identificar,
+    ):
+        assert not btn.icon().isNull()
+        assert btn.iconSize() == esperado
+    assert dash.btn_liberar.sizeHint().width() < 400
