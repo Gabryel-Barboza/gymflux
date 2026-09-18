@@ -154,3 +154,20 @@ def test_icon_size_win32_16_fora_22(monkeypatch):
     monkeypatch.setattr(sys, "platform", "win32")
     assert icon_size() == 16
     assert icon_size(20) == 16
+
+
+def test_qss_inputs_modernos_nos_dois_modos():
+    """Fase 5.4: setas flat (sem 3D) em QSS global, claro e escuro."""
+    for modo in ("ESCURO", "CLARO"):
+        qss = stylesheet(modo)
+        for seletor in (
+            "QSpinBox::up-button",
+            "QSpinBox::down-button",
+            "QDoubleSpinBox::up-button",
+            "QComboBox::drop-down",
+            "QDateEdit::drop-down",
+            "QTimeEdit::drop-down",
+            "QTextEdit:focus",
+        ):
+            assert seletor in qss, f"{seletor} ausente no modo {modo}"
+        assert "QSpinBox::up-button:hover" in qss

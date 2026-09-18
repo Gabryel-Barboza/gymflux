@@ -171,7 +171,28 @@ def contraste(frente: str, fundo: str) -> float:
     return (claro + 0.05) / (escuro + 0.05)
 
 
-_ICONE_CACHE: dict[int, object] = {}  # type: ignore[no-untyped-def]
+_ICONE_CACHE: dict[tuple[int, int], object] = {}  # type: ignore[no-untyped-def]
+
+
+def normalizar_icone(icon, lado: int | None = None):  # type: ignore[no-untyped-def]
+    """Reconstrói o QIcon com UM único pixmap exato (DPI-safe, Fase 5.4).
+
+    O QStyle entrega pixmaps nativos grandes (32/128px); em telas Windows
+    com devicePixelRatio alto o botão pinta maior que no Linux mesmo com
+    ``setIconSize``. Um pixmap exato em ``icon_size()`` garante
+    ``actualSize == lado`` em qualquer DPI. Header de abas NÃO usa isto.
+    Qt-free no import (PySide só dentro, como ``_tint_icon``).
+    """
+    try:
+        from PySide6.QtGui import QIcon
+
+        n = int(lado or icon_size())
+        pix = icon.pixmap(n, n)
+        if pix.isNull():
+            return icon
+        return QIcon(pix)
+    except Exception:
+        return icon
 
 
 def _tint_icon(icon, color_hex: str):  # type: ignore[no-untyped-def]
@@ -216,19 +237,25 @@ def icon_size(padrao: int = 22) -> int:
 
 
 def icone_preto(style, standard_pixmap):  # type: ignore[no-untyped-def]
-    """Retorna ícone padrão tintado de preto (#0F1113) para destaque (com cache)."""
+    """Retorna ícone padrão tintado de preto (#0F1113) para destaque (com cache).
+
+    Pixmap único em ``icon_size()`` (DPI-safe, Fase 5.4) — botões pintam o
+    mesmo tamanho real no Windows e no Linux.
+    """
     try:
         key = (
             int(standard_pixmap)
             if hasattr(standard_pixmap, "__int__")
             else hash(str(standard_pixmap))
         )
-        if key in _ICONE_CACHE:
-            return _ICONE_CACHE[key]  # type: ignore[no-any-return]
+        lado = icon_size()
+        if (key, lado) in _ICONE_CACHE:
+            return _ICONE_CACHE[(key, lado)]  # type: ignore[no-any-return]
         base = style.standardIcon(standard_pixmap)
         tinted = _tint_icon(base, TINTA_SOBRE_ACENTO)
-        _ICONE_CACHE[key] = tinted
-        return tinted
+        fixo = normalizar_icone(tinted, lado)
+        _ICONE_CACHE[(key, lado)] = fixo
+        return fixo
     except Exception:
         try:
             return style.standardIcon(standard_pixmap)
@@ -239,10 +266,13 @@ def icone_preto(style, standard_pixmap):  # type: ignore[no-untyped-def]
 
 
 def icone_vermelho(style, standard_pixmap):  # type: ignore[no-untyped-def]
-    """Retorna ícone padrão tintado de vermelho (VERMELHO) para destaque."""
+    """Retorna ícone padrão tintado de vermelho (VERMELHO) para destaque.
+
+    Pixmap único em ``icon_size()`` (DPI-safe, Fase 5.4), como ``icone_preto``.
+    """
     try:
         base = style.standardIcon(standard_pixmap)
-        return _tint_icon(base, VERMELHO)
+        return normalizar_icone(_tint_icon(base, VERMELHO))
     except Exception:
         try:
             return style.standardIcon(standard_pixmap)
@@ -352,7 +382,7 @@ QPushButton:disabled {{
     background-color: {borda};
     color: {suave};
 }}
-QLineEdit, QDateEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+QLineEdit, QTextEdit, QDateEdit, QTimeEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
     background-color: {painel};
     color: {texto};
     border: 1px solid {borda};
@@ -361,14 +391,50 @@ QLineEdit, QDateEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
     selection-background-color: {AZUL};
     selection-color: {TINTA_SOBRE_ACENTO};
 }}
-QLineEdit:focus, QComboBox:focus {{
+QLineEdit:focus, QTextEdit:focus, QDateEdit:focus, QTimeEdit:focus,
+QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
     border: 1px solid {AZUL};
+}}
+QLineEdit:disabled, QTextEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled,
+QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
+    color: {suave};
+}}
+/* setas modernas: sem borda 3D nativa, hover AZUL (Fase 5.4) */
+QSpinBox::up-button, QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+    border: none;
+    background: transparent;
+    width: 18px;
+}}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
+    background-color: {AZUL};
+    border-radius: 4px;
+}}
+QSpinBox::up-arrow, QSpinBox::down-arrow,
+QDoubleSpinBox::up-arrow, QDoubleSpinBox::down-arrow {{
+    width: 10px;
+    height: 10px;
+}}
+QComboBox::drop-down, QDateEdit::drop-down, QTimeEdit::drop-down {{
+    border: none;
+    background: transparent;
+    width: 22px;
+}}
+QComboBox::drop-down:hover, QDateEdit::drop-down:hover, QTimeEdit::drop-down:hover {{
+    background-color: {AZUL};
+    border-radius: 4px;
+}}
+QComboBox::down-arrow, QDateEdit::down-arrow, QTimeEdit::down-arrow {{
+    width: 10px;
+    height: 10px;
 }}
 QComboBox QAbstractItemView {{
     background-color: {painel};
     color: {texto};
     selection-background-color: {AZUL};
     selection-color: {TINTA_SOBRE_ACENTO};
+    border: 1px solid {borda};
 }}
 QTableWidget {{
     background-color: {painel};

@@ -76,16 +76,44 @@ class AppContext:
 
 
 def _ensure_schema() -> None:
-    """Garante tabelas: alembic upgrade head (se alembic.ini) ou create_all."""
-    try:
-        from gymflux.infra.db import get_alembic_ini_path
+    """Garante tabelas em %APPDATA%/GymFlux quando frozen (qualquer modo catraca).
 
+    Caminho: alembic upgrade head; se falhar (ex.: script_location ausente no
+    bundle), cai para ``init_db()`` (create_all) — nunca propaga, para o
+    ``create_context`` não cair em fallback memória à toa. O ``modo_catraca``
+    (real/mock) NÃO influencia o DB.
+    """
+    import os
+    import sys as _sys
+    from pathlib import Path
+
+    from gymflux.infra.db import (
+        _is_frozen,
+        get_alembic_ini_path,
+        get_default_db_path,
+        get_default_db_url,
+        init_db,
+    )
+
+    if _is_frozen():
+        # 1) garante o diretório ANTES de qualquer acesso (Program Files não serve)
+        try:
+            get_default_db_path().parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.warning(f"[UI] mkdir APPDATA falhou: {e}")
+        # 2) força settings + alembic (env.py prefere get_settings().db_url e
+        # ignoraria só o set_main_option do ini) a mirarem %APPDATA%
+        try:
+            os.environ["GYMFLUX_DB_URL"] = get_default_db_url()
+            from gymflux.config.settings import get_settings
+
+            get_settings.cache_clear()
+        except Exception as e:
+            logger.warning(f"[UI] override DB URL falhou: {e}")
+    try:
         ini = get_alembic_ini_path()
     except Exception:
-        import sys as _sys
-        from pathlib import Path
-
-        if bool(getattr(_sys, "frozen", False)):
+        if _is_frozen():
             meipass = getattr(_sys, "_MEIPASS", None)
             if meipass:
                 cand = Path(meipass) / "alembic.ini"
@@ -101,16 +129,18 @@ def _ensure_schema() -> None:
         cfg = Config(str(ini))
         # frozen deve usar %APPDATA%/GymFlux (não data/ junto ao exe, sem permissão)
         try:
-            from gymflux.infra.db import _is_frozen, get_default_db_url
-
             if _is_frozen():
                 cfg.set_main_option("sqlalchemy.url", get_default_db_url())
         except Exception:
             pass
-        command.upgrade(cfg, "head")
+        try:
+            command.upgrade(cfg, "head")
+        except Exception as e:
+            # alembic quebrou no bundle (ex.: migrations ausentes)? create_all
+            # com a URL já corrigida garante o .db em %APPDATA% mesmo assim.
+            logger.warning(f"[UI] alembic upgrade falhou ({e}) — usando create_all")
+            init_db()
     else:
-        from gymflux.infra.db import init_db
-
         init_db()
 
 

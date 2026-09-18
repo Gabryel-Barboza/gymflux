@@ -30,3 +30,21 @@ def test_modos_renderizam_offscreen(qapp, qtbot):
     assert "background-color: #E8EDF1" in qapp.styleSheet()
     assert "border: 1px solid #C8D0D8" in qapp.styleSheet()
     assert w.isVisible()
+
+
+def test_inputs_modernos_renderizam_claro_escuro(qapp, qtbot):
+    """Fase 5.4 (smoke): spin/combo/date/time aplicam o QSS global sem erro."""
+    from PySide6.QtWidgets import QComboBox, QDateEdit, QSpinBox, QTimeEdit, QWidget
+
+    from gymflux.ui.theme import ModoTema, stylesheet
+
+    for modo in (ModoTema.ESCURO, ModoTema.CLARO):
+        qapp.setStyleSheet(stylesheet(modo))
+        w = QWidget()
+        qtbot.addWidget(w)
+        for cls in (QSpinBox, QComboBox, QDateEdit, QTimeEdit):
+            cls(w).show()
+        w.show()
+        qapp.processEvents()
+        assert w.isVisible()
+    qapp.setStyleSheet(stylesheet(ModoTema.ESCURO))

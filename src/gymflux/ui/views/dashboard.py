@@ -40,6 +40,7 @@ from gymflux.ui.theme import (
     icone_preto,
     icone_vermelho,
     modo_de,
+    normalizar_icone,
 )
 from gymflux.ui.viewmodels.dashboard import DashboardViewModel
 
@@ -449,7 +450,7 @@ class DashboardView(QWidget):
             from gymflux.ui.app import _tint_icon
 
             _icon_base = icone_preto(estilo, QStyle.StandardPixmap.SP_DialogApplyButton)
-            _icon_dest = _tint_icon(_icon_base, TINTA_SOBRE_ACENTO)
+            _icon_dest = normalizar_icone(_tint_icon(_icon_base, TINTA_SOBRE_ACENTO))
             self.btn_liberar.setIcon(_icon_dest)
         except Exception:
             self.btn_liberar.setIcon(
