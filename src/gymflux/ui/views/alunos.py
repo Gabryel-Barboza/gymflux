@@ -424,7 +424,9 @@ class PerfilAlunoDialog(QDialog):
         self.btn_matricular = QPushButton("Matricular...")
         self.btn_excluir_mat = QToolButton()
         self.btn_excluir_mat.setToolTip("Excluir matrícula selecionada")
-        self.btn_excluir_mat.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))  # noqa: E501
+        self.btn_excluir_mat.setIcon(
+            icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon)
+        )
         self.btn_excluir_mat.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_excluir_mat.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
@@ -465,7 +467,9 @@ class PerfilAlunoDialog(QDialog):
         self.btn_pago_pag.setToolTip("Marca o pagamento selecionado como pago hoje")
         self.btn_excluir_pag = QToolButton()
         self.btn_excluir_pag.setToolTip("Excluir pagamento selecionado")
-        self.btn_excluir_pag.setIcon(icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon))  # noqa: E501
+        self.btn_excluir_pag.setIcon(
+            icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon)
+        )
         self.btn_excluir_pag.setIconSize(QSize(icon_size(), icon_size()))
         self.btn_excluir_pag.setStyleSheet(
             "QToolButton { color: #E57373; border: none; padding: 4px; }"
@@ -689,7 +693,9 @@ class PerfilAlunoDialog(QDialog):
         btn_cancel = botoes.button(QDialogButtonBox.StandardButton.Cancel)
         if btn_cancel is not None:
             btn_cancel.setText("Cancelar")
-            btn_cancel.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton))  # noqa: E501
+            btn_cancel.setIcon(
+                icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton)
+            )
             btn_cancel.setIconSize(QSize(icon_size(), icon_size()))
             btn_cancel.setStyleSheet(
                 "QPushButton { background-color: transparent;"

@@ -1,6 +1,6 @@
 """PlanoRepository — Protocol + SQLAlchemy."""
 
-# ruff: noqa: SIM105, E501
+# ruff: noqa: SIM105
 from __future__ import annotations
 
 from decimal import Decimal
@@ -148,7 +148,9 @@ class PlanoRepositorySQLAlchemy:
                 self.session.rollback()
             except Exception:
                 pass
-            raise ValueError("Plano em uso — não pode ser removido enquanto houver matrículas") from e
+            raise ValueError(
+                "Plano em uso — não pode ser removido enquanto houver matrículas"
+            ) from e
         except PendingRollbackError as e:
             try:
                 self.session.rollback()

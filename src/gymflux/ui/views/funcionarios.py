@@ -505,7 +505,8 @@ class PerfilFuncionarioDialog(QDialog):
             self.btn_add_turno.setIconSize(QSize(icon_size(), icon_size()))
             self.btn_add_turno.clicked.connect(lambda: self._add_turno_row(read_only=False))
             self.btn_remove_turno = QPushButton(
-                icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon), "Remover selecionado"  # noqa: E501
+                icone_vermelho(self.style(), QStyle.StandardPixmap.SP_TrashIcon),
+                "Remover selecionado",
             )
             self.btn_remove_turno.setIconSize(QSize(icon_size(), icon_size()))
             self.btn_remove_turno.setToolTip("Remover turno selecionado (clique na linha)")
@@ -561,7 +562,9 @@ class PerfilFuncionarioDialog(QDialog):
             btn_save = botoes.button(QDialogButtonBox.StandardButton.Save)
             if btn_save is not None:
                 btn_save.setText("Salvar")
-                btn_save.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton))  # noqa: E501
+                btn_save.setIcon(
+                    icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogSaveButton)
+                )
                 btn_save.setIconSize(QSize(icon_size(), icon_size()))
                 btn_save.setStyleSheet(
                     "QPushButton { background-color: #5AC8FA; color: #0F1113;"
@@ -570,7 +573,9 @@ class PerfilFuncionarioDialog(QDialog):
             btn_cancel = botoes.button(QDialogButtonBox.StandardButton.Cancel)
             if btn_cancel is not None:
                 btn_cancel.setText("Cancelar")
-                btn_cancel.setIcon(icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton))  # noqa: E501
+                btn_cancel.setIcon(
+                    icone_preto(self.style(), QStyle.StandardPixmap.SP_DialogCancelButton)
+                )
                 btn_cancel.setIconSize(QSize(icon_size(), icon_size()))
                 btn_cancel.setStyleSheet(
                     "QPushButton { background-color: transparent;"

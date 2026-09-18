@@ -218,7 +218,11 @@ def icon_size(padrao: int = 22) -> int:
 def icone_preto(style, standard_pixmap):  # type: ignore[no-untyped-def]
     """Retorna ícone padrão tintado de preto (#0F1113) para destaque (com cache)."""
     try:
-        key = int(standard_pixmap) if hasattr(standard_pixmap, "__int__") else hash(str(standard_pixmap))  # noqa: E501
+        key = (
+            int(standard_pixmap)
+            if hasattr(standard_pixmap, "__int__")
+            else hash(str(standard_pixmap))
+        )
         if key in _ICONE_CACHE:
             return _ICONE_CACHE[key]  # type: ignore[no-any-return]
         base = style.standardIcon(standard_pixmap)
