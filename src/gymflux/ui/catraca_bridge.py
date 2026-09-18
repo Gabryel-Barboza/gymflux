@@ -8,6 +8,7 @@ thread-safe e chega na thread da GUI como queued connection.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 from loguru import logger
@@ -110,3 +111,25 @@ class CatracaBridge(QObject):
         self.desconectar()
         self._porta = nova
         return self.conectar()
+
+    def trocar_driver(self, novo: Henry7xDriver) -> bool:
+        """Hot-swap Real<->Mock sem recriar a ponte (Fase 5.2).
+
+        Desliga o driver antigo, reinscreve o callback de giro no novo e
+        reconecta na porta atual. Retorna True se reconectou.
+        """
+        try:
+            with contextlib.suppress(Exception):
+                self._driver.off_giro(self._on_giro_thread)
+            try:
+                self._driver.desconectar()
+            except Exception as e:
+                logger.debug(f"[CatracaBridge] desconectar antigo: {e}")
+            self._driver = novo
+            self._driver.on_giro(self._on_giro_thread)
+        except Exception as e:
+            logger.warning(f"[CatracaBridge] trocar_driver falhou: {e}")
+            return False
+        ok = self.conectar()
+        self.status_changed.emit(self.status())
+        return ok

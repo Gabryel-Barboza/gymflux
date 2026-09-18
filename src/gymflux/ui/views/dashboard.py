@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +14,6 @@ from PySide6.QtGui import QBrush, QColor, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
-    QDialogButtonBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -135,32 +136,126 @@ def _linhas_amigaveis(status: dict[str, Any]) -> list[tuple[str, str]]:
     return linhas
 
 
+LINHAS_ERRO = ("Último problema", "Detalhe do problema", "Atenção")
+
+
 class DetalhesDialog(QDialog):
-    def __init__(self, status: dict[str, Any], parent: QWidget | None = None) -> None:
+    """Status da catraca + botão Tentar reconectar (Fase 5.2).
+
+    Recebe o ``bridge`` (não só um dict): o botão reconecta de verdade via
+    ``bridge.conectar()`` em thread (sem travar a UI) e recarrega a tabela.
+    Por compat, ainda aceita um dict estático (sem botão de retry).
+    """
+
+    _reconnect_finished = Signal(bool)
+
+    def __init__(
+        self,
+        bridge_or_status: CatracaBridge | dict[str, Any],
+        parent: QWidget | None = None,
+        on_reconnect: Callable[[bool], None] | None = None,
+    ) -> None:
         super().__init__(parent)
+        if isinstance(bridge_or_status, CatracaBridge):
+            self._bridge: CatracaBridge | None = bridge_or_status
+            self._snapshot: dict[str, Any] = {}
+        else:
+            self._bridge = None
+            self._snapshot = dict(bridge_or_status)
+        self._on_reconnect = on_reconnect
         self.setWindowTitle("Detalhes da catraca")
         self.resize(440, 320)
         lay = QVBoxLayout(self)
         intro = QLabel("Como está a catraca agora:")
         intro.setStyleSheet("font-weight: bold; background: transparent; border: none;")
         lay.addWidget(intro)
-        linhas = _linhas_amigaveis(status)
-        tbl = QTableWidget(len(linhas), 2)
-        tbl.setHorizontalHeaderLabels(["Informação", "Situação"])
-        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        tbl.verticalHeader().setVisible(False)
-        tbl.horizontalHeader().setStretchLastSection(True)
+        self.tbl = QTableWidget(0, 2)
+        self.tbl.setHorizontalHeaderLabels(["Informação", "Situação"])
+        self.tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.tbl.verticalHeader().setVisible(False)
+        self.tbl.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(self.tbl)
+        hbotoes = QHBoxLayout()
+        self.btn_reconectar = QPushButton("Tentar reconectar")
+        self.btn_reconectar.setVisible(self._bridge is not None)
+        btn_fechar = QPushButton("Fechar")
+        hbotoes.addWidget(self.btn_reconectar)
+        hbotoes.addStretch(1)
+        hbotoes.addWidget(btn_fechar)
+        lay.addLayout(hbotoes)
+        self.btn_reconectar.clicked.connect(self._tentar_reconectar)
+        btn_fechar.clicked.connect(self.reject)
+        # spinner textual + conclusão vinda da thread de reconexão
+        self._anim_timer = QTimer(self)
+        self._anim_timer.setInterval(300)
+        self._anim_timer.timeout.connect(self._animar_spinner)
+        self._anim_passo = 0
+        self._reconnect_finished.connect(self._reconnect_done)
+        self._recarregar()
+
+    def _status_atual(self) -> dict[str, Any]:
+        if self._bridge is not None:
+            try:
+                return self._bridge.status()
+            except Exception as e:
+                logger.warning(f"[Detalhes] status falhou: {e}")
+                return {"online": False, "erro": str(e)}
+        return dict(self._snapshot)
+
+    def _recarregar(self) -> None:
+        """Reconstrói as linhas a partir do status atual."""
+        linhas = _linhas_amigaveis(self._status_atual())
+        self.tbl.setRowCount(len(linhas))
         for row, (k, v) in enumerate(linhas):
-            tbl.setItem(row, 0, QTableWidgetItem(k))
-            tbl.setItem(row, 1, QTableWidgetItem(v))
-        lay.addWidget(tbl)
-        botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        btn = botoes.button(QDialogButtonBox.StandardButton.Close)
-        if btn is not None:
-            btn.setText("Fechar")
-        botoes.rejected.connect(self.reject)
-        botoes.accepted.connect(self.accept)
-        lay.addWidget(botoes)
+            self.tbl.setItem(row, 0, QTableWidgetItem(k))
+            self.tbl.setItem(row, 1, QTableWidgetItem(v))
+        self._destacar_erro()
+
+    def _destacar_erro(self) -> None:
+        """Linha do último erro em vermelho (ErrorDescription/ThreadLastError)."""
+        for row in range(self.tbl.rowCount()):
+            rotulo = self.tbl.item(row, 0)
+            valor = self.tbl.item(row, 1)
+            if rotulo is None or valor is None:
+                continue
+            if rotulo.text() in LINHAS_ERRO:
+                valor.setForeground(QBrush(QColor(VERMELHO)))
+                fonte = valor.font()
+                fonte.setBold(True)
+                valor.setFont(fonte)
+
+    def _tentar_reconectar(self) -> None:
+        if self._bridge is None or not self.btn_reconectar.isEnabled():
+            return
+        self.btn_reconectar.setEnabled(False)
+        self._anim_passo = 0
+        self._animar_spinner()
+        self._anim_timer.start()
+
+        def _trabalho() -> None:
+            try:
+                assert self._bridge is not None
+                ok = bool(self._bridge.conectar())
+            except Exception as e:
+                logger.warning(f"[Detalhes] reconectar falhou: {e}")
+                ok = False
+            self._reconnect_finished.emit(ok)
+
+        threading.Thread(target=_trabalho, name="catraca-reconnect", daemon=True).start()
+
+    def _animar_spinner(self) -> None:
+        pontos = "." * (self._anim_passo % 4)
+        self.btn_reconectar.setText(f"Reconectando{pontos}")
+        self._anim_passo += 1
+
+    def _reconnect_done(self, ok: bool) -> None:
+        self._anim_timer.stop()
+        self.btn_reconectar.setEnabled(True)
+        self.btn_reconectar.setText("Tentar reconectar")
+        self._recarregar()
+        if self._on_reconnect is not None:
+            with contextlib.suppress(Exception):
+                self._on_reconnect(ok)
 
 
 class DashboardView(QWidget):
@@ -168,8 +263,12 @@ class DashboardView(QWidget):
 
     COLUNAS_LOG = ("Hora", "Aluno", "Direção", "Resultado", "Motivo")
     LINHAS_STATUS = ("Online", "Bloqueada", "Giros", "Firmware", "Driver", "Porta")
+    # Fase 5.2: auto-retry quando o polling de 1s encontra a catraca offline.
+    AUTO_RETRY_MAX = 3
+    AUTO_RETRY_INTERVALO_MS = 2000
 
     perfil_solicitado = Signal(str)
+    reconnect_concluido = Signal(bool)
 
     def __init__(
         self,
@@ -540,6 +639,16 @@ class DashboardView(QWidget):
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self._refresh_status)
         self._timer.start()
+
+        # Fase 5.2: auto-retry (3 tentativas, 2s) sem travar a UI
+        self._auto_retry = True
+        self._retry_tentativas = 0
+        self._retry_em_andamento = False
+        self._retry_timer = QTimer(self)
+        self._retry_timer.setSingleShot(True)
+        self._retry_timer.setInterval(self.AUTO_RETRY_INTERVALO_MS)
+        self._retry_timer.timeout.connect(self._auto_retry_dispara)
+        self.reconnect_concluido.connect(self._on_reconnect_concluido)
 
         # cooldown para liberar (evita spam na catraca, como o toast 3s)
         self._cooldown_timer = QTimer(self)
@@ -1190,8 +1299,43 @@ class DashboardView(QWidget):
         self._refresh_status()
 
     def _mostrar_detalhes(self) -> None:
-        dlg = DetalhesDialog(self.bridge.status(), self)
+        def _apos(ok: bool) -> None:
+            self._refresh_status()
+            if ok:
+                self._mostrar_toast("Catraca reconectada.", True)
+
+        dlg = DetalhesDialog(self.bridge, self, on_reconnect=_apos)
         dlg.exec()
+
+    def sincronizar_bridge(self) -> None:
+        """Chamado após hot-swap de driver (Configurações): zera retry e atualiza."""
+        self._retry_tentativas = 0
+        self._retry_em_andamento = False
+        with contextlib.suppress(Exception):
+            self._retry_timer.stop()
+        self._refresh_status()
+        self._refresh_log()
+
+    # -- auto-retry (Fase 5.2) ---------------------------------------------------
+    def _auto_retry_dispara(self) -> None:
+        def _tenta() -> None:
+            try:
+                ok = bool(self.bridge.conectar())
+            except Exception as e:
+                logger.debug(f"[dashboard] auto-retry: {e}")
+                ok = False
+            self.reconnect_concluido.emit(ok)
+
+        threading.Thread(target=_tenta, name="catraca-retry", daemon=True).start()
+
+    def _on_reconnect_concluido(self, ok: bool) -> None:
+        self._retry_em_andamento = False
+        if ok:
+            self._retry_tentativas = 0
+            self._mostrar_toast("Catraca reconectada.", True)
+        else:
+            self._retry_tentativas += 1
+        self._refresh_status()
 
     # -- refresh ---------------------------------------------------------------
     def _refresh_status(self) -> None:
@@ -1239,6 +1383,13 @@ class DashboardView(QWidget):
                 item.setBackground(
                     QBrush(QColor(bg2)) if bg2 is not None else QBrush(Qt.BrushStyle.NoBrush)
                 )
+        # Fase 5.2: polling achou offline => agenda auto-retry (3x, 2s, em thread)
+        if not online and self._auto_retry and not self._retry_em_andamento:
+            if self._retry_tentativas < self.AUTO_RETRY_MAX:
+                self._retry_em_andamento = True
+                self._retry_timer.start()
+        elif online:
+            self._retry_tentativas = 0
 
     def _refresh_log(self) -> None:
         tentativas = self.vm.tentativas_do_dia()

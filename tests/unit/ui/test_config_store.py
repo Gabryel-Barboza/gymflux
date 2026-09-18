@@ -132,3 +132,17 @@ def test_cadastro_obrigatorios_default_e_persistencia(tmp_path):
     store2 = ConfigStore(tmp_path / "old.json")
     store2.caminho.write_text('{"porta_catraca":"COM3"}', encoding="utf-8")
     assert store2.load().cadastro_obrigatorios["cpf"] is False
+
+
+def test_modo_catraca_default_real_e_legado():
+    assert UiConfig().modo_catraca == "real"
+    # JSON legado sem a chave => "real" (migração tolerante)
+    assert UiConfig.from_dict({"porta_catraca": "COM3"}).modo_catraca == "real"
+    assert UiConfig.from_dict({"modo_catraca": "MOCK"}).modo_catraca == "mock"
+    assert UiConfig.from_dict({"modo_catraca": "invalido"}).modo_catraca == "real"
+
+
+def test_modo_catraca_roundtrip(tmp_path):
+    store = ConfigStore(tmp_path / "cfg.json")
+    store.save(UiConfig(modo_catraca="mock"))
+    assert store.load().modo_catraca == "mock"

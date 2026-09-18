@@ -293,9 +293,22 @@ def _wire(
     def _aplicar(nova: UiConfig) -> None:
         # guarda tema anterior para evitar repolish desnecessário (7k linhas → 1s)
         tema_antigo = getattr(dashboard_vm.ui_config, "tema", None)
+        modo_antigo = getattr(dashboard_vm.ui_config, "modo_catraca", "real")
         liberar_svc.regra.config = nova.to_regra_config()
         dashboard_vm.ui_config = nova
         caixa_vm.ui_config = nova
+        # Fase 5.2: hot-swap Real<->Mock sem restart (falha => toast na ConfigView)
+        if getattr(nova, "modo_catraca", "real") != modo_antigo:
+            try:
+                from gymflux.hardware.henry7x.factory import get_henry_driver
+
+                ok_driver = bridge.trocar_driver(
+                    get_henry_driver(prefer_mock=(nova.modo_catraca == "mock"))
+                )
+                if not ok_driver:
+                    logger.warning("[UI] troca Real<->Mock sem conexão — reinicie o app")
+            except Exception as e:
+                logger.warning(f"[UI] troca de driver falhou: {e}")
         if nova.porta_catraca != bridge.porta:
             bridge.trocar_porta(nova.porta_catraca)
         app_inst = QApplication.instance()
@@ -331,6 +344,9 @@ def _wire(
                 if hasattr(w, "dashboard_view"):
                     with contextlib.suppress(Exception):
                         w.dashboard_view.sync_tema()  # type: ignore[attr-defined]
+                    # Fase 5.2: atualiza painel após hot-swap de driver
+                    with contextlib.suppress(Exception):
+                        w.dashboard_view.sincronizar_bridge()  # type: ignore[attr-defined]
                 if hasattr(w, "alunos_view"):
                     with contextlib.suppress(Exception):
                         w.alunos_view.sincronizar_tema(nova.tema)  # type: ignore[attr-defined]

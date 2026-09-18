@@ -37,6 +37,10 @@ class ConfigView(QWidget):
         form_catraca = QFormLayout(grp_catraca)
         self.edt_porta = QLineEdit()
         self.edt_porta.setPlaceholderText("Ex.: 1, COM3, MOCK:1")
+        # Fase 5.2: real (helper 32-bit) vs mock (demonstração)
+        self.cmb_modo_catraca = QComboBox()
+        self.cmb_modo_catraca.addItem("Equipamento real", "real")
+        self.cmb_modo_catraca.addItem("Demonstração (mock)", "mock")
         self.cmb_entrada_modo = QComboBox()
         self.cmb_entrada_modo.addItem("LIVRE", ModoAcesso.LIVRE)
         self.cmb_entrada_modo.addItem("SENHA", ModoAcesso.SENHA)
@@ -51,6 +55,12 @@ class ConfigView(QWidget):
         lbl_porta = QLabel("Porta catraca:")
         lbl_porta.setToolTip("Porta serial da catraca (ex: 1, COM3, MOCK:1)")
         lbl_porta.setWhatsThis("Porta serial da catraca (ex: 1, COM3, MOCK:1)")
+        lbl_modo = QLabel("Modo catraca:")
+        lbl_modo.setToolTip("Real usa o equipamento via helper 32-bit; mock simula")
+        lbl_modo.setWhatsThis(
+            "Modo catraca: Equipamento real conecta via helper 32-bit, "
+            "Demonstração simula giros sem equipamento"
+        )
         lbl_entrada = QLabel("Entrada:")
         lbl_entrada.setToolTip("Modo de acesso na entrada")
         lbl_entrada.setWhatsThis(
@@ -62,6 +72,7 @@ class ConfigView(QWidget):
             "Modo de acesso na saída: LIVRE passa sem senha, SENHA exige identificação"
         )
         form_catraca.addRow(lbl_porta, self.edt_porta)
+        form_catraca.addRow(lbl_modo, self.cmb_modo_catraca)
         form_catraca.addRow(lbl_entrada, self.cmb_entrada_modo)
         form_catraca.addRow(lbl_saida, self.cmb_saida_modo)
         form_catraca.addRow(self.chk_bloq_entrada)
@@ -234,6 +245,8 @@ class ConfigView(QWidget):
         self.spn_timeout.setValue(cfg.timeout_giro_s)
         self.chk_passback.setChecked(cfg.anti_passback)
         self.edt_porta.setText(cfg.porta_catraca)
+        idx_m = self.cmb_modo_catraca.findData(getattr(cfg, "modo_catraca", "real"))
+        self.cmb_modo_catraca.setCurrentIndex(idx_m if idx_m >= 0 else 0)
         idx = self.cmb_tema.findData(cfg.tema)
         self.cmb_tema.setCurrentIndex(idx if idx >= 0 else 0)
         idx_e = self.cmb_entrada_modo.findData(cfg.entrada_modo)
@@ -274,6 +287,10 @@ class ConfigView(QWidget):
 
     def _salvar(self) -> None:
         # currentData volta como str puro do QVariant: normaliza
+        modo_antigo = getattr(self.vm.config, "modo_catraca", "real")
+        modo_novo = self.cmb_modo_catraca.currentData() or "real"
+        if modo_novo not in ("real", "mock"):
+            modo_novo = "real"
         wall = self.edt_wallpaper.text().strip() or None
         fundo = self.cmb_fundo.currentData() or ModoFundo.WALLPAPER
         if isinstance(fundo, str):
@@ -289,6 +306,7 @@ class ConfigView(QWidget):
             timeout_giro_s=self.spn_timeout.value(),
             anti_passback=self.chk_passback.isChecked(),
             porta_catraca=self.edt_porta.text(),
+            modo_catraca=modo_novo,  # type: ignore[arg-type]
             tema=modo_de(self.cmb_tema.currentData()),
             entrada_modo=self.cmb_entrada_modo.currentData() or ModoAcesso.SENHA,
             saida_modo=self.cmb_saida_modo.currentData() or ModoAcesso.LIVRE,
@@ -319,4 +337,12 @@ class ConfigView(QWidget):
             self._mostrar_toast(f"Erro ao salvar: {e}", False)
             return
         self._carregar(self.vm.config)
-        self._mostrar_toast("Configurações salvas e aplicadas.", True)
+        if modo_novo != modo_antigo:
+            # helper 32-bit nem sempre faz hot-swap Real<->Mock: avisa reiniciar
+            nome = "Demonstração (mock)" if modo_novo == "mock" else "Equipamento real"
+            self._mostrar_toast(
+                f"Modo trocado para {nome}. Reinicie o app se a catraca não responder.",
+                True,
+            )
+        else:
+            self._mostrar_toast("Configurações salvas e aplicadas.", True)

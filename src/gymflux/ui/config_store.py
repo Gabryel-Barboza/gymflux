@@ -12,7 +12,7 @@ import sys as _sys
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 
@@ -116,6 +116,17 @@ class ModoFundo(StrEnum):
     WALLPAPER = "WALLPAPER"
 
 
+# Fase 5.2: qual driver a factory deve usar ("real" = helper 32-bit/Real, "mock" = simulação).
+ModoCatraca = Literal["real", "mock"]
+
+
+def _as_modo_catraca(valor: Any) -> ModoCatraca:
+    """Normaliza o modo da catraca; ausente/inválido (JSON legado) => "real"."""
+    if isinstance(valor, str) and valor.strip().lower() == "mock":
+        return "mock"
+    return "real"
+
+
 def _as_modo_fundo(valor: Any, default: ModoFundo = ModoFundo.WALLPAPER) -> ModoFundo:
     if isinstance(valor, ModoFundo):
         return valor
@@ -150,6 +161,8 @@ class UiConfig:
     timeout_giro_s: int = 7
     anti_passback: bool = False
     porta_catraca: str = "1"
+    # Fase 5.2: "real" (helper 32-bit/Real) vs "mock" (simulação); legado => "real".
+    modo_catraca: ModoCatraca = "real"
     tema: ModoTema = ModoTema.ESCURO
     # Fase 4.9: por direção, LIVRE (passa sem senha) vs SENHA (exige identificação)
     entrada_modo: ModoAcesso = ModoAcesso.SENHA
@@ -171,6 +184,7 @@ class UiConfig:
         self.anti_passback = _as_bool(self.anti_passback)
         porta = str(self.porta_catraca or "").strip()
         self.porta_catraca = porta or "1"
+        self.modo_catraca = _as_modo_catraca(self.modo_catraca)
         self.tema = _as_modo_tema(self.tema)
         self.entrada_modo = _as_modo_acesso(self.entrada_modo, ModoAcesso.SENHA)
         self.saida_modo = _as_modo_acesso(self.saida_modo, ModoAcesso.LIVRE)

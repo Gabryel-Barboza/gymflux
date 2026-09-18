@@ -115,3 +115,71 @@ def test_factory_win64_nao_importa_win32com(monkeypatch):
     assert driver.is_mock  # sem helper instalado -> fallback mock
     assert "win32com" not in sys.modules
     assert "win32com.client" not in sys.modules
+
+
+def _simula_win64(monkeypatch):
+    """Simula Windows 64-bit no Linux (factory segue ramo helper)."""
+    import struct as _struct
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(_struct, "calcsize", lambda _fmt: 8)
+    monkeypatch.delenv("GYMFLUX_HELPER_DIR", raising=False)
+    sys.modules.pop("win32com", None)
+    sys.modules.pop("win32com.client", None)
+
+
+def test_factory_win64_helper_exe_fake_cai_para_mock(monkeypatch):
+    """GYMFLUX_HELPER_EXE inexistente => factory avisa e devolve mock."""
+
+    _simula_win64(monkeypatch)
+    monkeypatch.setenv("GYMFLUX_HELPER_EXE", "/fake/inexistente/GymFlux.HardwareHelper.exe")
+    monkeypatch.delenv("GYMFLUX_HENRY_MOCK", raising=False)
+
+    from gymflux.hardware.henry7x.factory import get_henry_driver
+
+    driver = get_henry_driver(prefer_mock=False)
+    assert driver.is_mock
+    assert "win32com" not in sys.modules
+
+
+def test_modo_catraca_configurado_legado_e_explicito(monkeypatch, tmp_path):
+    """JSON sem chave => None (legado); com chave => valor normalizado."""
+    import json
+
+    from gymflux.hardware.henry7x.factory import _modo_catraca_configurado
+    from gymflux.ui.config_store import ConfigStore
+
+    legado = tmp_path / "legado.json"
+    legado.write_text(json.dumps({"porta_catraca": "COM3"}), encoding="utf-8")
+    monkeypatch.setattr(ConfigStore, "caminho", property(lambda self: legado))
+    assert _modo_catraca_configurado() is None
+
+    mockado = tmp_path / "mock.json"
+    mockado.write_text(json.dumps({"modo_catraca": "MOCK"}), encoding="utf-8")
+    monkeypatch.setattr(ConfigStore, "caminho", property(lambda self: mockado))
+    assert _modo_catraca_configurado() == "mock"
+
+    ausente = tmp_path / "nao-existe.json"
+    monkeypatch.setattr(ConfigStore, "caminho", property(lambda self: ausente))
+    assert _modo_catraca_configurado() is None
+
+
+def test_factory_win64_respeita_modo_catraca_mock(monkeypatch, tmp_path):
+    """UiConfig modo mock => factory devolve mock mesmo sem env var."""
+
+    _simula_win64(monkeypatch)
+    monkeypatch.delenv("GYMFLUX_HELPER_EXE", raising=False)
+    monkeypatch.delenv("GYMFLUX_HENRY_MOCK", raising=False)
+
+    from gymflux.hardware.henry7x.factory import get_henry_driver
+    from gymflux.ui.config_store import ConfigStore, UiConfig
+
+    cfg_path = tmp_path / "gymflux_config.json"
+    ConfigStore(cfg_path).save(UiConfig(modo_catraca="mock"))
+    monkeypatch.setattr(ConfigStore, "caminho", property(lambda self: cfg_path))
+    # prova que a decisão veio do UiConfig: settings pede real, config pede mock
+    from gymflux.config.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "henry_mock", False)
+    driver = get_henry_driver(prefer_mock=False)
+    assert driver.is_mock
