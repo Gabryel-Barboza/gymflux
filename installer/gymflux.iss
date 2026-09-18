@@ -19,16 +19,16 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 DefaultDirName={autopf}\GymFlux
 DefaultGroupName={#MyAppName}
-OutputDir=dist\installer
+OutputDir=..\dist\installer
 OutputBaseFilename=GymFlux-Setup-v{#MyAppVersion}
 WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x86compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
-LicenseFile=LICENSE
-#ifexist "src\gymflux\ui\assets\icon.ico"
-SetupIconFile=src\gymflux\ui\assets\icon.ico
+LicenseFile=..\LICENSE
+#ifexist "..\src\gymflux\ui\assets\icon.ico"
+SetupIconFile=..\src\gymflux\ui\assets\icon.ico
 #endif
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
@@ -48,10 +48,10 @@ Name: "startupicon"; Description: "Iniciar com o Windows (bandeja)"; GroupDescri
 
 [Files]
 ; UI 64-bit (onefile windowed) + helper 32-bit COM (onefile console, oculto)
-Source: "dist\GymFlux.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\GymFlux.HardwareHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\GymFlux.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\GymFlux.HardwareHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; LICENSE já no Setup, opcional duplicar no app
-Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
