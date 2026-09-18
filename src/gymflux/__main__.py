@@ -190,6 +190,14 @@ def cmd_db_upgrade(_args: argparse.Namespace) -> int:
         print(f"[erro] alembic.ini não encontrado em {ini} (rode na raiz ou verifique bundle)")
         return 1
     cfg = Config(str(ini))
+    # frozen deve migrar %APPDATA%/GymFlux, não data/ junto ao exe (sem permissão)
+    try:
+        from gymflux.infra.db import _is_frozen, get_default_db_url
+
+        if _is_frozen():
+            cfg.set_main_option("sqlalchemy.url", get_default_db_url())
+    except Exception:
+        pass
     # garante script_location correto se relativo
     print(f"[GymFlux] alembic upgrade head (db={cfg.get_main_option('sqlalchemy.url')})")
     try:
@@ -214,6 +222,13 @@ def cmd_db_downgrade(_args: argparse.Namespace) -> int:
         return 1
     target = _args.revision or "-1"
     cfg = Config(str(ini))
+    try:
+        from gymflux.infra.db import _is_frozen, get_default_db_url
+
+        if _is_frozen():
+            cfg.set_main_option("sqlalchemy.url", get_default_db_url())
+    except Exception:
+        pass
     print(f"[GymFlux] alembic downgrade {target}")
     try:
         command.downgrade(cfg, target)

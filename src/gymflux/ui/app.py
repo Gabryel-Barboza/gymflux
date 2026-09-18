@@ -99,6 +99,14 @@ def _ensure_schema() -> None:
         from alembic.config import Config
 
         cfg = Config(str(ini))
+        # frozen deve usar %APPDATA%/GymFlux (não data/ junto ao exe, sem permissão)
+        try:
+            from gymflux.infra.db import _is_frozen, get_default_db_url
+
+            if _is_frozen():
+                cfg.set_main_option("sqlalchemy.url", get_default_db_url())
+        except Exception:
+            pass
         command.upgrade(cfg, "head")
     else:
         from gymflux.infra.db import init_db
@@ -513,7 +521,12 @@ class GymFluxMainWindow(QMainWindow):
                     meipass = getattr(_sys_tray, "_MEIPASS", None)
                     if meipass:
                         icon_cands.append(
-                            Path(meipass) / "src" / "gymflux" / "ui" / "assets" / "wallpaper-preto.png"  # noqa: E501
+                            Path(meipass)
+                            / "src"
+                            / "gymflux"
+                            / "ui"
+                            / "assets"
+                            / "wallpaper-preto.png"
                         )
                         icon_cands.append(
                             Path(meipass) / "gymflux" / "ui" / "assets" / "wallpaper-preto.png"
