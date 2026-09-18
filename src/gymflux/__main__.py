@@ -373,7 +373,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="gymflux", description="GymFlux — Sistema de gerenciamento para academias"
     )
-    sub = p.add_subparsers(dest="cmd", required=True)
+    # sem cmd => abre UI (duplo-clique no GymFlux.exe)
+    sub = p.add_subparsers(dest="cmd", required=False)
 
     sp = sub.add_parser("mock-demo", help="demonstra hardware mockado (Linux)")
     sp.set_defaults(func=cmd_mock_demo)
@@ -428,6 +429,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # duplo-clique/atallho sem args => UI (não mostra "the following arguments are required: cmd")
+    if getattr(args, "cmd", None) is None:
+        raise SystemExit(cmd_ui(args))
     raise SystemExit(args.func(args))
 
 
