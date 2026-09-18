@@ -12,12 +12,13 @@ from gymflux.hardware.henry7x.interface import Henry7xDriver
 
 
 def get_henry_driver(prefer_mock: bool | None = None) -> Henry7xDriver:
-    """Retorna driver adequado.
+    """Retorna driver adequado (Fase 5.1: dual-env transparente).
 
     - Se GYMFLUX_HENRY_MOCK=1 ou prefer_mock=True -> MockHenry7x
     - Se sys.platform != win32 -> MockHenry7x (com aviso)
-    - Se Python 64-bit -> MockHenry7x + RuntimeError opcional (DLL 32-bit não carrega)
-    - Caso contrário -> RealHenry7x
+    - Se Windows 64-bit -> Henry7xHelperClient (UI x64 + helper 32-bit via IPC);
+      sem helper instalado -> MockHenry7x (com aviso). NUNCA importa win32com.
+    - Se Windows 32-bit -> RealHenry7x (COM in-proc); falha -> MockHenry7x.
     """
     from gymflux.config.settings import get_settings
 
@@ -38,16 +39,21 @@ def get_henry_driver(prefer_mock: bool | None = None) -> Henry7xDriver:
 
         return MockHenry7x()
 
+    # Aqui sys.platform == "win32" (não-win32 já retornou acima).
     bits = struct.calcsize("P") * 8
     if bits != 32:
-        logger.warning(
-            f"Factory: Python {bits}-bit não pode carregar kernel7x.dll 32-bit -> MockHenry7x"
-        )
-        # Em prod estrito, poderíamos levantar:
-        # raise RuntimeError("kernel7x.dll 32-bit requer Python 32-bit")
-        from gymflux.hardware.henry7x.mock import MockHenry7x
+        # Windows 64-bit: UI x64 sobe helper 32-bit oculto via IPC (Fase 5.1).
+        # Este processo NUNCA importa win32com (só o helper importa).
+        try:
+            from gymflux.hardware.henry7x.helper_client import Henry7xHelperClient
 
-        return MockHenry7x()
+            logger.info("Factory: usando Henry7xHelperClient (helper 32-bit via IPC)")
+            return Henry7xHelperClient()
+        except Exception as e:
+            logger.warning(f"Factory: helper indisponível ({e}) -> fallback MockHenry7x")
+            from gymflux.hardware.henry7x.mock import MockHenry7x
+
+            return MockHenry7x()
 
     # Windows 32-bit + mock desativado -> tenta real
     try:

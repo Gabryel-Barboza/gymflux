@@ -1,10 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec GymFlux — Fase 5 (Windows 32-bit).
+"""PyInstaller spec GymFlux — Fase 5.1 (Windows 64-bit, UI PySide6).
 
-Onefile windowed (console=False), nome GymFlux.
+Onefile windowed (console=False), nome GymFlux. Processo principal x64 NUNCA
+toca COM: fala com o helper 32-bit (henry_helper.spec) via IPC stdio.
 Pathex src/ para `import gymflux`. Datas: alembic.ini + migrations + assets.
-Hiddenimports: win32com/comtypes/sqlalchemy/alembic/loguru (gencache coletado).
-UPX desativado (kernel7x COM sensível). Testar em Windows 32-bit:
+Hiddenimports: helper_client + sqlalchemy/alembic/loguru. win32com/comtypes
+são EXCLUÍDOS de propósito (só o helper bundla COM). Build (Python 3.11 x64):
     pyinstaller gymflux.spec --noconfirm
 """
 
@@ -45,17 +46,8 @@ a = Analysis(
     binaries=[],
     datas=datas,
     hiddenimports=[
-        # COM 32-bit (pywin32) — gencache é crítico para SComConfig/SAcionaCtrl
-        "win32com",
-        "win32com.client",
-        "win32com.client.gencache",
-        "win32com.server",
-        "pythoncom",
-        "pywintypes",
-        # fallback comtypes (SComConfig via VT_RECORD)
-        "comtypes",
-        "comtypes.gen",
-        "comtypes.client",
+        # IPC com o helper 32-bit (processo x64 nunca importa COM direto)
+        "gymflux.hardware.henry7x.helper_client",
         # infra
         "sqlalchemy",
         "sqlalchemy.sql.default_comparator",
@@ -72,7 +64,17 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tests", "pytest", "pytest_qt", "pytest_mock"],
+    # COM 32-bit mora SÓ no helper (henry_helper.spec); fora do exe x64.
+    excludes=[
+        "tests",
+        "pytest",
+        "pytest_qt",
+        "pytest_mock",
+        "win32com",
+        "pythoncom",
+        "pywintypes",
+        "comtypes",
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

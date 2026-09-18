@@ -1,8 +1,10 @@
 @echo off
-REM GymFlux build Windows — PyInstaller + Inno Setup (Fase 5)
+REM GymFlux build Windows — dual-env transparente (Fase 5.1)
 REM Uso: scripts\build.bat
-REM Saida: dist\GymFlux.exe + dist\installer\GymFlux-Setup-vX.Y.Z.exe (se ISCC no PATH)
-REM Pre-reqs: Python 3.11 x86 + uv + Inno Setup 6
+REM Saida: dist\GymFlux.exe (x64 UI) + dist\GymFlux.HardwareHelper.exe (x86 COM)
+REM        + dist\installer\GymFlux-Setup-vX.Y.Z.exe (se ISCC no PATH)
+REM Pre-reqs: Python 3.11 x64 (+uv) e Python 3.11 x86 p/ o helper + Inno Setup 6
+REM Opcional: set GYMFLUX_PYTHON_X86=C:\Python311-32\python.exe
 
 setlocal EnableDelayedExpansion
 pushd "%~dp0.."
@@ -24,35 +26,14 @@ if "%VERSION%"=="" (
     echo [erro] version nao encontrado em pyproject.toml
     popd & exit /b 1
 )
-echo [build] GymFlux v%VERSION%
+echo [build] GymFlux v%VERSION% (dual-env)
 
-REM --- python bits ---
-python -c "import struct; print(struct.calcsize('P')*8)" 2>nul
-if %errorlevel% neq 0 (
-    echo [aviso] python nao detectado
-) else (
-    for /f "delims=" %%b in ('python -c "import struct; print(struct.calcsize('P')*8)"') do set BITS=%%b
-    echo [build] Python bits: !BITS!
-    if not "!BITS!"=="32" echo [aviso] Python nao e 32-bit - COM Henry 7x so testavel em 32-bit!
-)
-
-REM --- uv sync ---
+REM --- UI x64 ---
 where uv >nul 2>&1
 if %errorlevel% equ 0 (
-    echo [build] uv sync --extra ui ...
-    uv sync --extra ui
+    echo [build] uv sync --group dev --extra ui ...
+    uv sync --group dev --extra ui
     if %errorlevel% neq 0 ( popd & exit /b 1 )
-) else (
-    echo [aviso] uv nao encontrado - pulando uv sync
-)
-
-REM --- PyInstaller ---
-if not exist gymflux.spec (
-    echo [erro] gymflux.spec nao encontrado
-    popd & exit /b 1
-)
-where uv >nul 2>&1
-if %errorlevel% equ 0 (
     echo [build] uv run pyinstaller gymflux.spec --noconfirm ...
     uv run pyinstaller gymflux.spec --noconfirm
     if %errorlevel% neq 0 ( popd & exit /b 1 )
@@ -63,7 +44,7 @@ if %errorlevel% equ 0 (
         pyinstaller gymflux.spec --noconfirm
         if %errorlevel% neq 0 ( popd & exit /b 1 )
     ) else (
-        echo [erro] pyinstaller nao encontrado
+        echo [erro] uv/pyinstaller nao encontrado
         popd & exit /b 1
     )
 )
@@ -75,7 +56,48 @@ if exist dist\GymFlux.exe (
     echo [aviso] dist\GymFlux.exe nao encontrado apos PyInstaller
 )
 
-REM --- Inno Setup (ISCC) ---
+REM --- Helper x86 (venv isolado .venv32) ---
+set "PYTHON_X86="
+if defined GYMFLUX_PYTHON_X86 (
+    if exist "%GYMFLUX_PYTHON_X86%" set "PYTHON_X86=%GYMFLUX_PYTHON_X86%"
+)
+if not defined PYTHON_X86 (
+    where py >nul 2>&1
+    if !errorlevel! equ 0 (
+        py -3.11-32 -c "import struct,sys; assert struct.calcsize('P')*8==32; print(sys.executable)" > "%TEMP%\gymflux_pyx86.txt" 2>nul
+        if !errorlevel! equ 0 (
+            for /f "usebackq delims=" %%p in ("%TEMP%\gymflux_pyx86.txt") do set "PYTHON_X86=%%p"
+        )
+        del "%TEMP%\gymflux_pyx86.txt" 2>nul
+    )
+)
+
+if not defined PYTHON_X86 (
+    echo [aviso] Python 3.11 32-bit nao encontrado (py -3.11-32 ou GYMFLUX_PYTHON_X86).
+    echo         Helper GymFlux.HardwareHelper.exe NAO gerado — instale Python x86 ou use o CI.
+) else (
+    echo [build] Python x86: !PYTHON_X86!
+    if not exist henry_helper.spec (
+        echo [erro] henry_helper.spec nao encontrado
+        popd & exit /b 1
+    )
+    echo [build] UV_PROJECT_ENVIRONMENT=.venv32 uv sync --group dev --extra windows ...
+    set "UV_PROJECT_ENVIRONMENT=.venv32"
+    uv sync --group dev --extra windows --python "!PYTHON_X86!"
+    if %errorlevel% neq 0 ( set "UV_PROJECT_ENVIRONMENT=" & popd & exit /b 1 )
+    echo [build] UV_PROJECT_ENVIRONMENT=.venv32 pyinstaller henry_helper.spec ...
+    uv run pyinstaller henry_helper.spec --noconfirm
+    if %errorlevel% neq 0 ( set "UV_PROJECT_ENVIRONMENT=" & popd & exit /b 1 )
+    set "UV_PROJECT_ENVIRONMENT="
+    if exist dist\GymFlux.HardwareHelper.exe (
+        echo [build] OK dist\GymFlux.HardwareHelper.exe
+        dir dist\GymFlux.HardwareHelper.exe
+    ) else (
+        echo [aviso] dist\GymFlux.HardwareHelper.exe nao encontrado apos PyInstaller
+    )
+)
+
+REM --- Inno Setup (ISCC) — empacota os dois exes ---
 set "ISCC="
 where iscc >nul 2>&1
 if %errorlevel% equ 0 (
@@ -104,7 +126,8 @@ if defined ISCC (
 )
 
 echo [build] concluido - v%VERSION%
-echo   dist\GymFlux.exe
+echo   dist\GymFlux.exe (x64 UI)
+echo   dist\GymFlux.HardwareHelper.exe (x86 helper, se Python 32-bit disponivel)
 echo   dist\installer\GymFlux-Setup-v%VERSION%.exe (se Inno Setup instalado)
 popd
 endlocal

@@ -28,9 +28,14 @@ def test_factory_nunca_retorna_real_fora_de_win32():
     if sys.platform == "win32" and struct.calcsize("P") * 8 == 32:
         pytest.skip("só fora de Windows 32-bit")
     from gymflux.hardware.henry7x.factory import get_henry_driver
+    from gymflux.hardware.henry7x.real import RealHenry7x
 
     driver = get_henry_driver(prefer_mock=False)
-    assert driver.is_mock  # regra Fase 3 inalterada: fallback mock
+    # Fase 5.1: win64 usa helper IPC (ou mock sem helper); nunca COM in-proc.
+    assert not isinstance(driver, RealHenry7x)
+    assert "win32com" not in sys.modules
+    if sys.platform != "win32":
+        assert driver.is_mock  # Linux: fallback mock
 
 
 def test_normalizar_porta():

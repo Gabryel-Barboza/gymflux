@@ -1,11 +1,13 @@
-# GymFlux build Windows — PyInstaller + Inno Setup (Fase 5)
+# GymFlux build Windows — dual-env transparente (Fase 5.1)
 # Uso (PowerShell 5+ / pwsh):
 #   pwsh scripts/build.ps1
 #   pwsh scripts/build.ps1 -SkipUvSync
+#   $env:GYMFLUX_PYTHON_X86="C:\Python311-32\python.exe"; pwsh scripts/build.ps1
 # Saída:
-#   dist/GymFlux.exe
+#   dist/GymFlux.exe (x64, UI PySide6)
+#   dist/GymFlux.HardwareHelper.exe (x86, COM 32-bit oculto)
 #   dist/installer/GymFlux-Setup-vX.Y.Z.exe (se Inno Setup no PATH)
-# Pré-reqs: Python 3.11 x86 + uv + (opcional) Inno Setup 6 (iscc.exe no PATH)
+# Pré-reqs: Python 3.11 x64 (+uv) e Python 3.11 x86 p/ o helper + Inno Setup 6.
 
 param(
     [switch]$SkipUvSync
@@ -27,69 +29,109 @@ if ($raw -match '(?m)^\s*version\s*=\s*"([^"]+)"') {
 } else {
     throw "version não encontrado em pyproject.toml"
 }
-Write-Host "[build] GymFlux v$Version" -ForegroundColor Cyan
+Write-Host "[build] GymFlux v$Version (dual-env)" -ForegroundColor Cyan
 Write-Host "[build] Root: $Root"
 
-# 2) verifica Python 32-bit (obrigatório para COM kernel7x.dll)
-try {
-    $bits = & python -c "import struct; print(struct.calcsize('P')*8)" 2>$null
-    if ($bits) { Write-Host "[build] Python bits: $bits" }
-    if ($bits -and $bits.Trim() -ne "32") {
-        Write-Host "[aviso] Python não é 32-bit (detectado $bits-bit). Build da UI funciona, mas COM Henry 7x só testável em 32-bit!" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Host "[aviso] não foi possível detectar bits do Python: $_" -ForegroundColor Yellow
+function Get-PythonBits($Exe) {
+    try {
+        $bits = & $Exe -c "import struct; print(struct.calcsize('P')*8)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $bits) { return $bits.Trim() }
+    } catch { }
+    return $null
 }
 
-# 3) uv sync
+function Invoke-PyInstaller($Spec) {
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        Write-Host "[build] uv run pyinstaller $Spec --noconfirm ..." -ForegroundColor DarkCyan
+        uv run pyinstaller $Spec --noconfirm
+        if ($LASTEXITCODE -ne 0) { throw "pyinstaller $Spec falhou ($LASTEXITCODE)" }
+    } elseif (Get-Command pyinstaller -ErrorAction SilentlyContinue) {
+        Write-Host "[build] pyinstaller $Spec --noconfirm ..." -ForegroundColor DarkCyan
+        pyinstaller $Spec --noconfirm
+        if ($LASTEXITCODE -ne 0) { throw "pyinstaller $Spec falhou ($LASTEXITCODE)" }
+    } else {
+        throw "pyinstaller não encontrado (uv sync --group dev instala)"
+    }
+}
+
+# 2) UI x64 (Python atual — deve ser 64-bit p/ PySide6)
+$bits = Get-PythonBits "python"
+if ($bits) { Write-Host "[build] Python UI (x64 esperado): $bits-bit" }
+$specUi = Join-Path $Root "gymflux.spec"
+if (-not (Test-Path $specUi)) { throw "gymflux.spec não encontrado" }
+
 if (-not $SkipUvSync) {
     if (Get-Command uv -ErrorAction SilentlyContinue) {
-        Write-Host "[build] uv sync --extra ui ..." -ForegroundColor DarkCyan
-        uv sync --extra ui
-        if ($LASTEXITCODE -ne 0) { throw "uv sync falhou ($LASTEXITCODE)" }
+        Write-Host "[build] uv sync --group dev --extra ui ..." -ForegroundColor DarkCyan
+        uv sync --group dev --extra ui
+        if ($LASTEXITCODE -ne 0) { throw "uv sync (ui) falhou ($LASTEXITCODE)" }
     } else {
-        Write-Host "[aviso] uv não encontrado no PATH — pulando uv sync (instale https://docs.astral.sh/uv/)" -ForegroundColor Yellow
+        Write-Host "[aviso] uv não encontrado — pulando uv sync" -ForegroundColor Yellow
     }
 } else {
     Write-Host "[build] SkipUvSync ativo — pulando uv sync"
 }
 
-# 4) PyInstaller
-$spec = Join-Path $Root "gymflux.spec"
-if (-not (Test-Path $spec)) { throw "gymflux.spec não encontrado" }
-
-# prefere `uv run pyinstaller` se uv disponível, senão pyinstaller direto
-$pyinstallerOk = $false
-if (Get-Command uv -ErrorAction SilentlyContinue) {
-    Write-Host "[build] uv run pyinstaller gymflux.spec --noconfirm ..." -ForegroundColor DarkCyan
-    uv run pyinstaller gymflux.spec --noconfirm
-    $pyinstallerOk = ($LASTEXITCODE -eq 0)
-    if (-not $pyinstallerOk) { throw "pyinstaller falhou ($LASTEXITCODE)" }
-} elseif (Get-Command pyinstaller -ErrorAction SilentlyContinue) {
-    Write-Host "[build] pyinstaller gymflux.spec --noconfirm ..." -ForegroundColor DarkCyan
-    pyinstaller gymflux.spec --noconfirm
-    $pyinstallerOk = ($LASTEXITCODE -eq 0)
-    if (-not $pyinstallerOk) { throw "pyinstaller falhou ($LASTEXITCODE)" }
-} else {
-    throw "pyinstaller não encontrado (uv sync --group dev instala)"
-}
-
-$exe = Join-Path $Root "dist\GymFlux.exe"
-if (Test-Path $exe) {
+Invoke-PyInstaller "gymflux.spec"
+$exeUi = Join-Path $Root "dist\GymFlux.exe"
+if (Test-Path $exeUi) {
     Write-Host "[build] OK dist\GymFlux.exe" -ForegroundColor Green
-    Get-Item $exe | Format-List Name, Length, LastWriteTime
+    Get-Item $exeUi | Format-List Name, Length, LastWriteTime
 } else {
-    # PyInstaller onefile windowed gera dist/GymFlux.exe (sem .lower?) — verifica case alternativo
-    $alt = Join-Path $Root "dist\GymFlux.exe"
-    if (Test-Path $alt) { Write-Host "[build] OK $alt" -ForegroundColor Green }
-    else { Write-Host "[aviso] dist\GymFlux.exe não encontrado após PyInstaller" -ForegroundColor Yellow }
+    Write-Host "[aviso] dist\GymFlux.exe não encontrado após PyInstaller" -ForegroundColor Yellow
 }
 
-# 5) Inno Setup (iscc)
+# 3) Helper x86 (Python 32-bit isolado em .venv32)
+$PythonX86 = $null
+if ($env:GYMFLUX_PYTHON_X86 -and (Test-Path $env:GYMFLUX_PYTHON_X86)) {
+    $PythonX86 = $env:GYMFLUX_PYTHON_X86
+    Write-Host "[build] Python x86 via GYMFLUX_PYTHON_X86: $PythonX86"
+} elseif (Get-Command py -ErrorAction SilentlyContinue) {
+    try {
+        $out = & py -3.11-32 -c "import struct,sys; assert struct.calcsize('P')*8==32; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $out) {
+            $PythonX86 = $out.Trim().Split("`n")[-1].Trim()
+            Write-Host "[build] Python x86 via py -3.11-32: $PythonX86"
+        }
+    } catch { }
+}
+if (-not $PythonX86) {
+    Write-Host "[aviso] Python 3.11 32-bit não encontrado (py -3.11-32 ou GYMFLUX_PYTHON_X86)." -ForegroundColor Yellow
+    Write-Host "        Helper GymFlux.HardwareHelper.exe NÃO gerado — instale Python x86 ou use o CI." -ForegroundColor Yellow
+    Write-Host "        No Linux: esperado (helper só builda em Windows)." -ForegroundColor Yellow
+} else {
+    $specHelper = Join-Path $Root "henry_helper.spec"
+    if (-not (Test-Path $specHelper)) { throw "henry_helper.spec não encontrado" }
+    if (-not $SkipUvSync) {
+        Write-Host "[build] UV_PROJECT_ENVIRONMENT=.venv32 uv sync --group dev --extra windows ..." -ForegroundColor DarkCyan
+        $env:UV_PROJECT_ENVIRONMENT = ".venv32"
+        try {
+            uv sync --group dev --extra windows --python $PythonX86
+            if ($LASTEXITCODE -ne 0) { throw "uv sync (.venv32) falhou ($LASTEXITCODE)" }
+        } finally {
+            Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+        }
+    }
+    Write-Host "[build] UV_PROJECT_ENVIRONMENT=.venv32 pyinstaller henry_helper.spec ..." -ForegroundColor DarkCyan
+    $env:UV_PROJECT_ENVIRONMENT = ".venv32"
+    try {
+        Invoke-PyInstaller "henry_helper.spec"
+    } finally {
+        Remove-Item Env:UV_PROJECT_ENVIRONMENT -ErrorAction SilentlyContinue
+    }
+    $exeHelper = Join-Path $Root "dist\GymFlux.HardwareHelper.exe"
+    if (Test-Path $exeHelper) {
+        Write-Host "[build] OK dist\GymFlux.HardwareHelper.exe" -ForegroundColor Green
+        Get-Item $exeHelper | Format-List Name, Length, LastWriteTime
+    } else {
+        Write-Host "[aviso] dist\GymFlux.HardwareHelper.exe não encontrado" -ForegroundColor Yellow
+    }
+}
+
+# 4) Inno Setup (iscc) — empacota os dois exes
 $iss = Join-Path $Root "installer\gymflux.iss"
 $iscc = Get-Command iscc -ErrorAction SilentlyContinue
 if (-not $iscc) { $iscc = Get-Command ISCC -ErrorAction SilentlyContinue }
-# caminho padrão do Inno Setup 6 no Windows
 if (-not $iscc) {
     $cands = @(
         "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
@@ -120,5 +162,6 @@ if ($iscc -and (Test-Path $iss)) {
 }
 
 Write-Host "[build] concluído — v$Version" -ForegroundColor Green
-Write-Host "  dist\GymFlux.exe"
+Write-Host "  dist\GymFlux.exe (x64 UI)"
+Write-Host "  dist\GymFlux.HardwareHelper.exe (x86 helper, se Python 32-bit disponível)"
 Write-Host "  dist\installer\GymFlux-Setup-v$Version.exe (se Inno Setup instalado)"

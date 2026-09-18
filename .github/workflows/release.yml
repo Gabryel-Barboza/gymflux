@@ -1,5 +1,8 @@
 name: release
 
+# Fase 5.1: dual-env transparente — UI x64 (PySide6) + helper x86 (COM 32-bit).
+# PySide6 só tem wheels win_amd64, por isso o job x86 NÃO instala o extra ui.
+
 on:
   push:
     tags:
@@ -10,9 +13,10 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
+  build-helper:
+    name: helper x86 (COM 32-bit)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +32,83 @@ jobs:
         with:
           enable-cache: true
 
+      - name: uv sync (dev + windows, sem ui)
+        run: uv sync --group dev --extra windows
+
+      - name: PyInstaller (helper onefile)
+        run: uv run pyinstaller henry_helper.spec --noconfirm
+
+      - name: Verify helper exe exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/GymFlux.HardwareHelper.exe)) { throw "dist/GymFlux.HardwareHelper.exe not found" }
+          Get-Item dist/GymFlux.HardwareHelper.exe | Format-List Name, Length, LastWriteTime
+
+      - name: Upload helper artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: helper-exe
+          path: dist/GymFlux.HardwareHelper.exe
+          if-no-files-found: error
+
+  build-ui:
+    name: UI x64 (PySide6)
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11 x64 (UI)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: "x64"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: uv sync (dev + ui)
         run: uv sync --group dev --extra ui
+
+      - name: PyInstaller (UI onefile windowed)
+        run: uv run pyinstaller gymflux.spec --noconfirm
+
+      - name: Verify dist\GymFlux.exe exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/GymFlux.exe)) { throw "dist/GymFlux.exe not found" }
+          Get-Item dist/GymFlux.exe | Format-List Name, Length, LastWriteTime
+
+      - name: Upload UI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-exe
+          path: dist/GymFlux.exe
+          if-no-files-found: error
+
+  package:
+    name: installer Inno Setup
+    runs-on: windows-latest
+    timeout-minutes: 25
+    needs: [build-helper, build-ui]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download helper exe
+        uses: actions/download-artifact@v4
+        with:
+          name: helper-exe
+          path: dist/
+
+      - name: Download UI exe
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-exe
+          path: dist/
 
       - name: Extract version from pyproject.toml
         id: version
@@ -43,15 +122,7 @@ jobs:
           } else {
             throw "version not found"
           }
-
-      - name: PyInstaller (onefile windowed)
-        run: uv run pyinstaller gymflux.spec --noconfirm
-
-      - name: Verify dist\GymFlux.exe exists
-        shell: pwsh
-        run: |
-          if (-not (Test-Path dist/GymFlux.exe)) { throw "dist/GymFlux.exe not found" }
-          Get-Item dist/GymFlux.exe | Format-List Name, Length, LastWriteTime
+          Get-ChildItem dist/ -Filter *.exe | Format-Table Name, Length
 
       - name: Build installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.9

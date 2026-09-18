@@ -44,6 +44,7 @@ data/fotos/
 # PyInstaller
 *.spec
 !gymflux.spec
+!henry_helper.spec
 build/pyinstaller/
 dist/
 *.exe

@@ -1,6 +1,7 @@
-; GymFlux Inno Setup — Fase 5 (Windows 10/11 64-bit via WOW64, app 32-bit)
-; Gera GymFlux-Setup-vX.Y.Z.exe a partir de dist\GymFlux.exe (PyInstaller onefile)
-; kernel7x.dll NÃO é bundlada (vendor/ ignorado); app falha graciosamente sem DLL.
+; GymFlux Inno Setup — Fase 5.1 (Windows 10/11 64-bit, dual-exe)
+; Gera GymFlux-Setup-vX.Y.Z.exe a partir de dist\GymFlux.exe (x64, UI) +
+; dist\GymFlux.HardwareHelper.exe (x86, COM 32-bit oculto via IPC stdio).
+; kernel7x.dll NÃO é bundlada (vendor/ ignorado); sem DLL o app cai p/ mock.
 
 #define MyAppName "GymFlux"
 #ifndef MyAppVersion
@@ -46,8 +47,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "Iniciar com o Windows (bandeja)"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; exe único PyInstaller (onefile windowed)
+; UI 64-bit (onefile windowed) + helper 32-bit COM (onefile console, oculto)
 Source: "dist\GymFlux.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\GymFlux.HardwareHelper.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; LICENSE já no Setup, opcional duplicar no app
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
