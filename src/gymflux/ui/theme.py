@@ -399,35 +399,55 @@ QLineEdit:disabled, QTextEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled,
 QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
     color: {suave};
 }}
-/* setas modernas: sem borda 3D nativa, hover AZUL (Fase 5.4) */
-QSpinBox::up-button, QSpinBox::down-button,
-QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+/* setas: estiliza SÓ o botão; a seta NATIVA sempre aparece (Fase 5.4-B).
+   (Regras de arrow só com width/height escondiam a seta no Windows —
+   quadrado azul vazio no hover.) */
+QSpinBox::up-button, QDoubleSpinBox::up-button {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
     border: none;
     background: transparent;
-    width: 18px;
+    width: 20px;
+    margin: 1px;
+    border-radius: 4px;
+}}
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    border: none;
+    background: transparent;
+    width: 20px;
+    margin: 1px;
+    border-radius: 4px;
 }}
 QSpinBox::up-button:hover, QSpinBox::down-button:hover,
 QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
     background-color: {AZUL};
-    border-radius: 4px;
-}}
-QSpinBox::up-arrow, QSpinBox::down-arrow,
-QDoubleSpinBox::up-arrow, QDoubleSpinBox::down-arrow {{
-    width: 10px;
-    height: 10px;
 }}
 QComboBox::drop-down, QDateEdit::drop-down, QTimeEdit::drop-down {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
     border: none;
     background: transparent;
-    width: 22px;
+    width: 20px;
+    margin: 1px;
+    border-radius: 4px;
 }}
 QComboBox::drop-down:hover, QDateEdit::drop-down:hover, QTimeEdit::drop-down:hover {{
     background-color: {AZUL};
-    border-radius: 4px;
 }}
-QComboBox::down-arrow, QDateEdit::down-arrow, QTimeEdit::down-arrow {{
-    width: 10px;
-    height: 10px;
+/* botão olho mostra/oculta senha (Fase 5.4-B): flat + AZUL no hover/marcado */
+QToolButton#VerSenha {{
+    background-color: {painel};
+    color: {texto};
+    border: 1px solid {borda};
+    border-radius: 6px;
+    padding: 4px;
+}}
+QToolButton#VerSenha:hover, QToolButton#VerSenha:checked {{
+    background-color: {AZUL};
+    color: {TINTA_SOBRE_ACENTO};
+    border: 1px solid {AZUL};
 }}
 QComboBox QAbstractItemView {{
     background-color: {painel};

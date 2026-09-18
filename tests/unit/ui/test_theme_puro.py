@@ -168,6 +168,11 @@ def test_qss_inputs_modernos_nos_dois_modos():
             "QDateEdit::drop-down",
             "QTimeEdit::drop-down",
             "QTextEdit:focus",
+            "QToolButton#VerSenha",
         ):
             assert seletor in qss, f"{seletor} ausente no modo {modo}"
         assert "QSpinBox::up-button:hover" in qss
+        # Fase 5.4-B: sem regra ::-arrow só com tamanho (escondia a seta
+        # nativa no Windows); seta aparece, só o botão é estilizado.
+        assert "::up-arrow" not in qss, f"::-arrow esconde seta nativa ({modo})"
+        assert "::down-arrow" not in qss, f"::-arrow esconde seta nativa ({modo})"

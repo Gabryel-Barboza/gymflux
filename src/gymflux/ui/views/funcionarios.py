@@ -41,6 +41,30 @@ _PRESET_MAP = {
 }
 
 
+def _botao_ver_senha(parent: QWidget, edt: QLineEdit) -> QToolButton:
+    """QToolButton moderno p/ mostrar/ocultar senha (Fase 5.4-B).
+
+    Ícone de olho (aberto/fechado) em vez de emoji; estilo flat vem do QSS
+    global ``QToolButton#VerSenha`` (theme.py, ambos os modos).
+    """
+    btn = QToolButton(parent)
+    btn.setObjectName("VerSenha")
+    btn.setToolTip("Mostrar/ocultar senha")
+    btn.setCheckable(True)
+    btn.setChecked(True)
+    btn.setIconSize(QSize(icon_size(), icon_size()))
+    aberta = icone_preto(parent.style(), QStyle.StandardPixmap.SP_FileDialogContentsView)
+    fechada = icone_vermelho(parent.style(), QStyle.StandardPixmap.SP_DialogCancelButton)
+    btn.setIcon(aberta)
+
+    def _troca(marcado: bool) -> None:
+        edt.setEchoMode(QLineEdit.EchoMode.Normal if marcado else QLineEdit.EchoMode.Password)
+        btn.setIcon(aberta if marcado else fechada)
+
+    btn.toggled.connect(_troca)
+    return btn
+
+
 def _horarios_text_from_rows(rows: list[dict]) -> str | None:
     if not rows:
         return None
@@ -171,20 +195,11 @@ class NovoFuncionarioDialog(QDialog):
         self.edt_senha = QLineEdit()
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
         self.edt_senha.setPlaceholderText("4 a 8 dígitos")
-        # senha com botão ver
+        # senha com botão ver (ícone moderno, sem emoji)
         h_senha = QHBoxLayout()
         h_senha.addWidget(self.edt_senha, 1)
-        self.btn_ver_senha = QToolButton()
-        self.btn_ver_senha.setText("👁")
-        self.btn_ver_senha.setToolTip("Mostrar/ocultar senha")
-        self.btn_ver_senha.setCheckable(True)
-        self.btn_ver_senha.toggled.connect(  # type: ignore[no-untyped-call]
-            lambda c: self.edt_senha.setEchoMode(  # type: ignore[union-attr]
-                QLineEdit.EchoMode.Normal if c else QLineEdit.EchoMode.Password
-            )
-        )
+        self.btn_ver_senha = _botao_ver_senha(self, self.edt_senha)
         self.edt_senha.setEchoMode(QLineEdit.EchoMode.Normal)
-        self.btn_ver_senha.setChecked(True)
         h_senha.addWidget(self.btn_ver_senha)
         form.addRow("Nome*:", self.edt_nome)
         form.addRow("Senha numérica*:", h_senha)
@@ -480,7 +495,13 @@ class PerfilFuncionarioDialog(QDialog):
         self.edt_senha.setText(senha_atual)
         self.edt_senha.setReadOnly(read_only)
         form.addRow("Nome*:", self.edt_nome)
-        form.addRow("Senha numérica:", self.edt_senha)
+        # mesma lógica do Novo: olho mostra/oculta (Fase 5.4-B)
+        h_senha_perfil = QHBoxLayout()
+        h_senha_perfil.addWidget(self.edt_senha, 1)
+        self.btn_ver_senha = _botao_ver_senha(self, self.edt_senha)
+        self.btn_ver_senha.setEnabled(not read_only)
+        h_senha_perfil.addWidget(self.btn_ver_senha)
+        form.addRow("Senha numérica:", h_senha_perfil)
 
         # turnos editor (read_only desabilita) — 2 botões abaixo
         form.addRow(QLabel("Turnos:"))
