@@ -65,6 +65,12 @@ def test_detalhes_mostra_desconectado_e_reconecta_mock(qtbot, ctx):
     qtbot.mouseClick(dlg.btn_reconectar, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: chamadas == [True], timeout=5000)  # mock conecta em <1s
     assert _texto_tabela(dlg, "Conexão") == "Conectada"
+    # anti-spam: botão em cooldown após a tentativa
+    assert not dlg.btn_reconectar.isEnabled()
+    assert dlg.btn_reconectar.text().startswith("Aguarde")
+    # fim do cooldown libera de novo
+    dlg._cooldown_restante = 0
+    dlg._cooldown_tick()
     assert dlg.btn_reconectar.isEnabled()
     assert dlg.btn_reconectar.text() == "Tentar reconectar"
 

@@ -148,6 +148,8 @@ class DetalhesDialog(QDialog):
     """
 
     _reconnect_finished = Signal(bool)
+    # Anti-spam: após cada tentativa, o botão bloqueia por este tempo.
+    RETRY_COOLDOWN_S = 5
 
     def __init__(
         self,
@@ -191,6 +193,11 @@ class DetalhesDialog(QDialog):
         self._anim_timer.timeout.connect(self._animar_spinner)
         self._anim_passo = 0
         self._reconnect_finished.connect(self._reconnect_done)
+        # cooldown anti-spam após cada tentativa
+        self._cooldown_timer = QTimer(self)
+        self._cooldown_timer.setInterval(1000)
+        self._cooldown_timer.timeout.connect(self._cooldown_tick)
+        self._cooldown_restante = 0
         self._recarregar()
 
     def _status_atual(self) -> dict[str, Any]:
@@ -239,7 +246,8 @@ class DetalhesDialog(QDialog):
             except Exception as e:
                 logger.warning(f"[Detalhes] reconectar falhou: {e}")
                 ok = False
-            self._reconnect_finished.emit(ok)
+            with contextlib.suppress(RuntimeError):  # dialog pode ter fechado
+                self._reconnect_finished.emit(ok)
 
         threading.Thread(target=_trabalho, name="catraca-reconnect", daemon=True).start()
 
@@ -250,12 +258,27 @@ class DetalhesDialog(QDialog):
 
     def _reconnect_done(self, ok: bool) -> None:
         self._anim_timer.stop()
-        self.btn_reconectar.setEnabled(True)
-        self.btn_reconectar.setText("Tentar reconectar")
         self._recarregar()
         if self._on_reconnect is not None:
             with contextlib.suppress(Exception):
                 self._on_reconnect(ok)
+        self._iniciar_cooldown()
+
+    def _iniciar_cooldown(self) -> None:
+        """Anti-spam: bloqueia o botão por alguns segundos após cada tentativa."""
+        self._cooldown_restante = self.RETRY_COOLDOWN_S
+        self.btn_reconectar.setEnabled(False)
+        self._cooldown_tick()
+        self._cooldown_timer.start()
+
+    def _cooldown_tick(self) -> None:
+        if self._cooldown_restante <= 0:
+            self._cooldown_timer.stop()
+            self.btn_reconectar.setEnabled(True)
+            self.btn_reconectar.setText("Tentar reconectar")
+            return
+        self.btn_reconectar.setText(f"Aguarde {self._cooldown_restante}s...")
+        self._cooldown_restante -= 1
 
 
 class DashboardView(QWidget):

@@ -39,8 +39,8 @@ class ConfigView(QWidget):
         self.edt_porta.setPlaceholderText("Ex.: 1, COM3, MOCK:1")
         # Fase 5.2: real (helper 32-bit) vs mock (demonstração)
         self.cmb_modo_catraca = QComboBox()
-        self.cmb_modo_catraca.addItem("Equipamento real", "real")
-        self.cmb_modo_catraca.addItem("Demonstração (mock)", "mock")
+        self.cmb_modo_catraca.addItem("Equipamento", "real")
+        self.cmb_modo_catraca.addItem("Demonstração", "mock")
         self.cmb_entrada_modo = QComboBox()
         self.cmb_entrada_modo.addItem("LIVRE", ModoAcesso.LIVRE)
         self.cmb_entrada_modo.addItem("SENHA", ModoAcesso.SENHA)
@@ -58,7 +58,7 @@ class ConfigView(QWidget):
         lbl_modo = QLabel("Modo catraca:")
         lbl_modo.setToolTip("Real usa o equipamento via helper 32-bit; mock simula")
         lbl_modo.setWhatsThis(
-            "Modo catraca: Equipamento real conecta via helper 32-bit, "
+            "Modo catraca: Equipamento conecta via helper 32-bit, "
             "Demonstração simula giros sem equipamento"
         )
         lbl_entrada = QLabel("Entrada:")
@@ -339,7 +339,7 @@ class ConfigView(QWidget):
         self._carregar(self.vm.config)
         if modo_novo != modo_antigo:
             # helper 32-bit nem sempre faz hot-swap Real<->Mock: avisa reiniciar
-            nome = "Demonstração (mock)" if modo_novo == "mock" else "Equipamento real"
+            nome = "Demonstração" if modo_novo == "mock" else "Equipamento"
             self._mostrar_toast(
                 f"Modo trocado para {nome}. Reinicie o app se a catraca não responder.",
                 True,
