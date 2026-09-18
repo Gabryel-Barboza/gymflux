@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Despeja records/constantes da typelib Henry.Kernel7x (só Windows 32-bit).
+"""Despeja records/constantes da typelib Kernel7x.Kernel (Windows, ideal 32-bit).
+
+Validado em Windows 10 64-bit (WOW64): o ProgID registrado é
+``Kernel7x.Kernel`` (``Henry.Kernel7x`` NÃO existe — ver docs/DLL_CONTRACT.md).
 
 Uso na VM de commissioning (Fase 3):
 
-    regsvr32 vendor\\Henry\\Henry7x\\Kernel7x.dll
-    uv sync --group dev --extra windows
-    uv run python scripts/dump_henry_typelib.py > dumps/henry_typelib.txt
+    C:\\Windows\\SysWOW64\\regsvr32 vendor\\Henry\\Henry7x\\Kernel7x.dll  (Admin)
+    uv sync --group dev --extra windows  (com Python 32-bit se possível)
+    uv run python scripts/dump_henry_typelib.py > dumps\\henry_typelib.txt
+
+Roda em Windows 64-bit também (WOW64 carrega a DLL 32-bit), mas para
+resultado completo use Python 32-bit. Em 64-bit o script tenta do mesmo
+jeito e avisa se a typelib não carregar.
 
 Saída: valores das constantes (csg*/can*/cv*/cmc*/ctc*) e campos dos records
 (SComConfig, SComSerial, SAcionaCtrl, SOperacaoCatraca, SResposta, SBeep).
@@ -29,24 +36,74 @@ RECORDS = (
     "SStatusGiro",
 )
 
-CONST_PREFIXES = ("csg", "can", "cb", "cv", "cmc", "ctc", "cl", "cca", "cg", "ctr", "cds",
-                  "cts", "cao", "sfr", "caf", "cme", "cp", "hcp")
+CONST_PREFIXES = (
+    "csg",
+    "can",
+    "cb",
+    "cv",
+    "cmc",
+    "ctc",
+    "cl",
+    "cca",
+    "cg",
+    "ctr",
+    "cds",
+    "cts",
+    "cao",
+    "sfr",
+    "caf",
+    "cme",
+    "cp",
+    "hcp",
+)
+
+# Ordem validada em Windows 10 (WOW64): Henry.Kernel7x NÃO existe no registro.
+PROG_IDS = ("Kernel7x.Kernel", "Kernel7x.Hamster", "Kernel7x.Alternativo", "Henry.Kernel7x")
 
 
 def main() -> int:
-    if sys.platform != "win32" or struct.calcsize("P") * 8 != 32:
-        print("Disponível apenas em Windows 32-bit (VM de commissioning).", file=sys.stderr)
+    if sys.platform != "win32":
+        print("Disponível apenas em Windows (VM de commissioning).", file=sys.stderr)
         return 2
+    bits = struct.calcsize("P") * 8
+    if bits != 32:
+        print(
+            f"Aviso: Python {bits}-bit detectado. A DLL é 32-bit, então em Windows 64-bit "
+            "o COM roda via WOW64. O script tentará mesmo assim; se falhar, "
+            "instale Python 3.11 32-bit e rode novamente.",
+            file=sys.stderr,
+        )
     try:
         import win32com.client  # type: ignore[import-not-found]
     except ImportError:
         print("pywin32 não instalado — uv sync --extra windows", file=sys.stderr)
         return 2
 
-    try:
-        com = win32com.client.gencache.EnsureDispatch("Henry.Kernel7x")
-    except Exception as e:
-        print(f"Falha ao criar Henry.Kernel7x: {e} — rode regsvr32 kernel7x.dll", file=sys.stderr)
+    com = None
+    ultimo_erro: Exception | None = None
+    for pid in PROG_IDS:
+        try:
+            try:
+                com = win32com.client.gencache.EnsureDispatch(pid)
+            except Exception:
+                com = win32com.client.Dispatch(pid)
+            print(f"ProgID usado: {pid}")
+            break
+        except Exception as e:
+            ultimo_erro = e
+            continue
+    if com is None:
+        print(
+            f"Falha ao criar {PROG_IDS[0]}: {ultimo_erro} — rode regsvr32 kernel7x.dll",
+            file=sys.stderr,
+        )
+        print(
+            "Dica: confirme no registro se o ProgID existe:\n"
+            "  reg query HKCR\\Kernel7x.Kernel /s\n"
+            "  reg query HKLM\\SOFTWARE\\WOW6432Node\\Classes\\Kernel7x.Kernel /s\n"
+            "Se não existir, registre com C:\\Windows\\SysWOW64\\regsvr32.exe como Admin.",
+            file=sys.stderr,
+        )
         return 1
 
     print("== Propriedades ==")

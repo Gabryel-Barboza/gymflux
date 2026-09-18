@@ -38,6 +38,18 @@ def test_factory_nunca_retorna_real_fora_de_win32():
         assert driver.is_mock  # Linux: fallback mock
 
 
+def test_progid_real_validado_windows():
+    """Regressão: ProgID real é Kernel7x.Kernel (Henry.Kernel7x não existe).
+
+    Validado em Windows 10 (WOW64), DLL 7.2.0.52 — ver docs/DLL_CONTRACT.md §3.
+    """
+    from gymflux.hardware.henry7x import real as real_mod
+
+    assert real_mod.PROG_ID == "Kernel7x.Kernel"
+    assert real_mod.PROG_IDS_CANDIDATOS[0] == "Kernel7x.Kernel"
+    assert "Henry.Kernel7x" in real_mod.PROG_IDS_CANDIDATOS  # compat legada
+
+
 def test_normalizar_porta():
     from gymflux.hardware.henry7x.real import _normalizar_porta
 

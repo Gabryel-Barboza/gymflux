@@ -1,4 +1,9 @@
-"""Driver real Henry 7x — COM 32-bit `Henry.Kernel7x` via pywin32.
+"""Driver real Henry 7x — COM 32-bit `Kernel7x.Kernel` via pywin32.
+
+Validado em Windows 10 64-bit (WOW64) com DLL 7.2.0.52: o ProgID registrado
+é ``Kernel7x.Kernel`` (``Henry.Kernel7x`` NÃO existe no registro — ver
+``docs/DLL_CONTRACT.md §3``). ``Kernel7x.Hamster``/``Kernel7x.Alternativo``
+apontam para a mesma DLL e servem de fallback.
 
 Só funciona em Windows + Python 32-bit + ``kernel7x.dll`` registrada
 (``regsvr32``). Em qualquer outro ambiente o construtor levanta
@@ -23,6 +28,7 @@ e o fluxo online ``OnRegistro``/``RespostaOn`` ficam para a Fase 5.
 
 from __future__ import annotations
 
+import contextlib
 import struct
 import sys
 import threading
@@ -39,19 +45,32 @@ from gymflux.hardware.henry7x.interface import (
     ResultadoCatraca,
 )
 
-PROG_ID = "Henry.Kernel7x"
+PROG_ID = "Kernel7x.Kernel"
+# Ordem de tentativa: instalações antigas/docs legados podem ter outros ProgIDs.
+PROG_IDS_CANDIDATOS = (
+    "Kernel7x.Kernel",
+    "Kernel7x.Hamster",
+    "Kernel7x.Alternativo",
+    "Henry.Kernel7x",
+)
 CARD_PADRAO = 1
 PLACA_PADRAO = 1
 POLL_INTERVAL_S = 0.5
 TEMPO_RELE_S = 3.0
 
-# Campos candidatos dos records COM (nomes exatos variam no TYPELIB Delphi;
-# tenta em ordem; ver docs/DLL_CONTRACT.md §3.2 + scripts/dump_henry_typelib.py).
+# Estrutura real 7.2.0.52 (via comtypes, TypeLib {25DC738C-...}):
+# SComConfig = {Tcp(SComTcpip), Serial(SComSerial), ModoComunicacao(enum),
+#               Modem(SComModem), TipoComunicacao(enum), GPRS(SComGPRS),
+#               IsCatraca(VARIANT_BOOL)}
+# SComSerial = {NumeroRelogio(c_ubyte), Porta(BSTR), Velocidade(enum c_int)}
+# SAcionaCtrl = {TempoRele1/2/3(c_ubyte)} — sem AcionaRele booleano (legado).
+# Campos candidatos (nomes exatos variam no TYPELIB Delphi; tenta em ordem;
+# ver docs/DLL_CONTRACT.md §3.2 + scripts/dump_henry_typelib.py).
 _SCOM_TIPO_FIELDS = ("TipoComunicacao", "Tipo", "pTipoComunicacao")
 _SCOM_PORTA_FIELDS = ("Porta", "ComPort", "PortaSerial", "Port", "pPorta")
 _SCOM_VEL_FIELDS = ("Velocidade", "BaudRate", "pVelocidade")
-_SAC_RELE_FIELDS = ("AcionaRele1", "pAcionaRele1", "Rele1")
-_SAC_RELE2_FIELDS = ("AcionaRele2", "pAcionaRele2", "Rele2")
+_SAC_RELE_FIELDS = ("AcionaRele1", "pAcionaRele1", "Rele1")  # legado, ausente em 7.2
+_SAC_RELE2_FIELDS = ("AcionaRele2", "pAcionaRele2", "Rele2")  # legado, ausente em 7.2
 _SAC_TEMPO_FIELDS = ("TempoRele1", "pTempoRele1", "Tempo1")
 _SAC_TEMPO2_FIELDS = ("TempoRele2", "pTempoRele2", "Tempo2")
 
@@ -86,7 +105,9 @@ class RealHenry7x(Henry7xDriver):
         if sys.platform != "win32":
             raise RuntimeError("RealHenry7x disponível apenas em Windows 32-bit")
         if struct.calcsize("P") * 8 != 32:
-            raise RuntimeError("RealHenry7x requer Python 32-bit (WOW64) para COM Henry.Kernel7x")
+            raise RuntimeError(
+                "RealHenry7x requer Python 32-bit (WOW64) em Windows para COM Kernel7x.Kernel"
+            )
 
         self.dll_path: Path = Path(dll_path)
         self._card_id: int = card_id
@@ -95,20 +116,37 @@ class RealHenry7x(Henry7xDriver):
         self._rele_entrada: int = rele_entrada
         self._rele_saida: int = rele_saida
         self._tempo_rele_s: float = tempo_rele_s
-        self._com: Any
-
+        self._com: Any = None
+        self._prog_id_usado: str = PROG_ID
         try:
             import win32com.client  # type: ignore[import-not-found]
 
-            try:
-                # Early-bound: registra a typelib, expõe SComConfig/SAcionaCtrl
-                # como classes + constantes (csg*/cv*/cmc*/ctc*) em constants.
-                self._com = win32com.client.gencache.EnsureDispatch(PROG_ID)
-            except Exception:
-                logger.warning("[RealHenry7x] EnsureDispatch falhou, usando Dispatch dinâmico")
-                self._com = win32com.client.Dispatch(PROG_ID)
+            ultimo_erro: Exception | None = None
+            for pid in PROG_IDS_CANDIDATOS:
+                try:
+                    try:
+                        # Early-bound: registra a typelib, expõe SComConfig/SAcionaCtrl
+                        # como classes + constantes (csg*/cv*/cmc*/ctc*) em constants.
+                        self._com = win32com.client.gencache.EnsureDispatch(pid)
+                    except Exception:
+                        logger.warning(
+                            f"[RealHenry7x] EnsureDispatch({pid}) falhou, usando Dispatch dinâmico"
+                        )
+                        self._com = win32com.client.Dispatch(pid)
+                    self._prog_id_usado = pid
+                    break
+                except Exception as e:
+                    ultimo_erro = e
+                    continue
+            if self._com is None:
+                raise RuntimeError(
+                    f"Falha ao criar COM ({'/'.join(PROG_IDS_CANDIDATOS)}) "
+                    f"({ultimo_erro}) — rode regsvr32 {self.dll_path}"
+                ) from ultimo_erro
         except ImportError as e:
             raise RuntimeError("pywin32 não instalado — uv sync --extra windows") from e
+        except RuntimeError:
+            raise
         except Exception as e:  # COM não registrado ou DLL faltando
             raise RuntimeError(
                 f"Falha ao criar COM {PROG_ID} ({e}) — rode regsvr32 {self.dll_path}"
@@ -122,7 +160,7 @@ class RealHenry7x(Henry7xDriver):
         self._ultima_qtd_regs: int = 0
         self._stop: threading.Event = threading.Event()
         self._poll_thread: threading.Thread | None = None
-        logger.info(f"[RealHenry7x] COM {PROG_ID} criado (dll={self.dll_path})")
+        logger.info(f"[RealHenry7x] COM {self._prog_id_usado} criado (dll={self.dll_path})")
 
     # --- helpers COM ---
 
@@ -168,19 +206,63 @@ class RealHenry7x(Henry7xDriver):
         return f"{contexto} (erro {codigo}: {desc})"
 
     def _montar_scomconfig(self, porta: str) -> Any | None:
-        """Monta SComConfig serial; None se o record/constantes não existirem."""
+        """Monta SComConfig serial; None se o record/constantes não existirem.
+
+        7.2.0.52: ``SComConfig`` aninhado = ``{Tcp, Serial(SComSerial),
+        ModoComunicacao, Modem, TipoComunicacao, GPRS, IsCatraca}`` com
+        ``SComSerial = {NumeroRelogio, Porta(BSTR), Velocidade(enum)}``.
+        Enums Delphi chegam como ``VT_RECORD`` — setar int puro pode falhar
+        (``Only com_record``); nesse caso mantém o default 0, que já é o
+        correto para serial 9600 (``ctcSerial``/``cv9600``).
+        """
         cfg = self._record("SComConfig")
         if cfg is None:
             return None
+        try:
+            serial = cfg.Serial  # SComSerial aninhado (7.2)
+        except Exception:
+            serial = None
+        if serial is None:
+            # DLL antiga (record plano) — tenta direto
+            tipo = self._const("ctcSerial")
+            if tipo is not None:
+                self._set_first(cfg, _SCOM_TIPO_FIELDS, tipo)
+            if not self._set_first(cfg, _SCOM_PORTA_FIELDS, porta):
+                logger.warning("[RealHenry7x] SComConfig sem campo de porta conhecido")
+                return None
+            vel = self._const("cv9600")  # padrão conservador Henry 7x serial
+            if vel is not None:
+                self._set_first(cfg, _SCOM_VEL_FIELDS, vel)
+            return cfg
+        try:
+            serial.Porta = porta
+        except Exception as e:
+            logger.debug(f"[RealHenry7x] Serial.Porta falhou: {e}")
+            if not self._set_first(cfg, _SCOM_PORTA_FIELDS, porta):
+                logger.warning("[RealHenry7x] SComConfig sem campo de porta conhecido")
+                return None
+        with contextlib.suppress(Exception):
+            serial.NumeroRelogio = 1
+        vel = self._const("cv9600")
+        if vel is not None:
+            try:
+                serial.Velocidade = vel
+            except Exception as e:
+                logger.debug(f"[RealHenry7x] Serial.Velocidade falhou (enum VT_RECORD): {e}")
         tipo = self._const("ctcSerial")
         if tipo is not None:
-            self._set_first(cfg, _SCOM_TIPO_FIELDS, tipo)
-        if not self._set_first(cfg, _SCOM_PORTA_FIELDS, porta):
-            logger.warning("[RealHenry7x] SComConfig sem campo de porta conhecido")
-            return None
-        vel = self._const("cv9600")  # padrão conservador Henry 7x serial
-        if vel is not None:
-            self._set_first(cfg, _SCOM_VEL_FIELDS, vel)
+            try:
+                cfg.TipoComunicacao = tipo
+            except Exception as e:
+                logger.debug(f"[RealHenry7x] TipoComunicacao falhou: {e}")
+        modo = self._const("cmcOnOff")
+        if modo is not None:
+            try:
+                cfg.ModoComunicacao = modo
+            except Exception as e:
+                logger.debug(f"[RealHenry7x] ModoComunicacao falhou: {e}")
+        with contextlib.suppress(Exception):
+            cfg.IsCatraca = True
         return cfg
 
     # --- API ---
@@ -207,20 +289,64 @@ class RealHenry7x(Henry7xDriver):
         else:
             erros.append("SComConfig indisponível (makepy?)")
 
-        # Fallback escalar: AdicionaCardSerial(porta, catraca, modo).
+        # Fallbacks: variantes AdicionaCard* escalares (algumas DLLs expõem
+        # AdicionaCardSerial etc. em outra interface — tenta via getattr).
+        for nome, args in (
+            ("AdicionaCardSerial", (porta_str, self._card_id, self._const("cmcOnOff"))),
+            (
+                "AdicionaCardSerial485",
+                (1, porta_str, self._const("cv9600"), 1, self._const("cmcOnOff")),
+            ),
+            ("AdicionaCardTcpIp", (porta_str, "", 0, 1, self._const("cmcOnOff"))),
+        ):
+            try:
+                func = getattr(self._com, nome, None)
+                if func is None:
+                    continue
+                if any(a is None for a in args):
+                    continue  # constante ausente — próxima variante
+                if bool(func(*args)):
+                    logger.info(f"[RealHenry7x] conectado via {nome} (fallback)")
+                    self._pos_conectar(porta_str)
+                    return True
+                erros.append(self._texto_erro(f"{nome} retornou False"))
+            except Exception as e:
+                erros.append(f"{nome}: {e}")
+        # Best-effort via comtypes (NÃO validado — catraca off na validação):
+        # recria SComConfig com BSTRs inicializadas para evitar access violation.
         try:
-            modo = self._const("cmcOnOff")
-            if modo is None:
-                raise RuntimeError(
-                    "constante cmcOnOff ausente — rode scripts/dump_henry_typelib.py"
-                )
-            if bool(self._com.AdicionaCardSerial(porta_str, self._card_id, modo)):
-                logger.info("[RealHenry7x] conectado via AdicionaCardSerial (fallback)")
+            import comtypes.client as _ct
+            import comtypes.gen._25DC738C_6571_47AD_8B19_362853B14E8D_0_1_0 as _gen  # type: ignore[import-not-found]
+            from comtypes import BSTR as _BSTR
+
+            ct_com = _ct.CreateObject(PROG_ID)
+            cfg_ct = _gen.SComConfig()
+            try:
+                cfg_ct.Tcp.Ip = _BSTR("")
+                cfg_ct.Tcp.MAC = _BSTR("")
+                cfg_ct.Modem.Fone = _BSTR("")
+                cfg_ct.Modem.Porta = _BSTR("")
+            except Exception:
+                pass
+            cfg_ct.Serial.Porta = porta_str
+            cfg_ct.Serial.NumeroRelogio = 1
+            cfg_ct.Serial.Velocidade = 0  # cv9600
+            cfg_ct.TipoComunicacao = 0  # ctcSerial
+            cfg_ct.ModoComunicacao = 2  # cmcOnOff
+            cfg_ct.IsCatraca = True
+            try:
+                ret = ct_com.AdicionaCard[cfg_ct]
+                ok = bool(ret[1] if isinstance(ret, tuple) else ret)
+            except Exception as ce:
+                erros.append(f"comtypes AdicionaCard: {ce}")
+                ok = False
+            if ok:
+                logger.info("[RealHenry7x] conectado via comtypes AdicionaCard")
                 self._pos_conectar(porta_str)
                 return True
-            erros.append(self._texto_erro("AdicionaCardSerial retornou False"))
+            erros.append("comtypes AdicionaCard retornou False")
         except Exception as e:
-            erros.append(f"AdicionaCardSerial: {e}")
+            logger.debug(f"[RealHenry7x] comtypes indisponível: {e}")
 
         raise RuntimeError(f"[RealHenry7x] conectar({porta_str}) falhou: {'; '.join(erros)}")
 
@@ -290,15 +416,29 @@ class RealHenry7x(Henry7xDriver):
             return False
 
     def _envia_pulso(self, rele: int) -> bool:
-        """Pulso EnviaAcionaCtrl no relé (1=entrada, 2=saída por convenção)."""
+        """Pulso EnviaAcionaCtrl no relé (1=entrada, 2=saída por convenção).
+
+        7.2.0.52: ``SAcionaCtrl = {TempoRele1/2/3}`` (c_ubyte) — tempo>0
+        aciona o relé por N segundos. DLLs antigas usavam AcionaRele bool
+        + Tempo (mantido como fallback).
+        """
         rec = self._record("SAcionaCtrl")
         if rec is None:
             logger.warning("[RealHenry7x] record SAcionaCtrl indisponível — pulso ignorado")
             return False
-        rele_fields = _SAC_RELE_FIELDS if rele == 1 else _SAC_RELE2_FIELDS
-        tempo_fields = _SAC_TEMPO_FIELDS if rele == 1 else _SAC_TEMPO2_FIELDS
-        self._set_first(rec, rele_fields, True)
-        self._set_first(rec, tempo_fields, int(self._tempo_rele_s))
+        try:
+            if rele == 1:
+                rec.TempoRele1 = int(self._tempo_rele_s)
+            elif rele == 2:
+                rec.TempoRele2 = int(self._tempo_rele_s)
+            else:
+                rec.TempoRele3 = int(self._tempo_rele_s)
+        except Exception:
+            # fallback legado AcionaRele bool
+            rele_fields = _SAC_RELE_FIELDS if rele == 1 else _SAC_RELE2_FIELDS
+            tempo_fields = _SAC_TEMPO_FIELDS if rele == 1 else _SAC_TEMPO2_FIELDS
+            self._set_first(rec, rele_fields, True)
+            self._set_first(rec, tempo_fields, int(self._tempo_rele_s))
         try:
             return bool(self._com.EnviaAcionaCtrl(self._card_id, self._placa, rec))
         except Exception as e:
