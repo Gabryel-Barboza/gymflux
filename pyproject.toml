@@ -1,6 +1,6 @@
 [project]
 name = "gymflux"
-version = "0.1.5"
+version = "0.1.6"
 description = "GymFlux - Sistema de gerenciamento para academias com integração Henry 7x"
 readme = "README.md"
 license = { text = "Apache-2.0" }
